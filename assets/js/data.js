@@ -22,7 +22,8 @@ window.PP = {
       yTitle: "Body weight (kg)",
       unit: "kg",
       decimals: 1,
-      series: [{ name: "Body weight", values: [60.2, 60.4, 60.3, 60.6, 60.8, 60.7, 61.0, 61.1, 61.3, 61.2, 61.5, 61.6, 61.8] }]
+      // Week 1 (51.8) and week 13 (58.4) are real. Weeks 2–12 are placeholders.
+      series: [{ name: "Body weight", values: [51.8, 52.3, 52.7, 53.4, 53.8, 54.5, 55.0, 55.6, 56.1, 56.7, 57.3, 57.8, 58.4] }]
     },
     runDistance: {
       type: "bar",
@@ -46,9 +47,10 @@ window.PP = {
       weeks: [1, 3, 5, 7, 9, 11, 13],
       endLabels: "name",
       series: [
-        { name: "Bench press", values: [30, 32.5, 35, 35, 37.5, 40, 42.5] },
+        // Bench press: week 1 (20 kg) and week 13 (50 kg) are real; the rest are placeholders.
+        { name: "Bench press", values: [20, 25, 30, 35, 40, 45, 50] },
         { name: "Squat", values: [40, 45, 47.5, 50, 55, 57.5, 60] },
-        { name: "Lat pulldown", values: [35, 37.5, 40, 42.5, 45, 47.5, 50] }
+        { name: "Lat pulldown", values: [30, 32.5, 32.5, 35, 37.5, 40, 42.5] }
       ]
     },
     consistency: {
