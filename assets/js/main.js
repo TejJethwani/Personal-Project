@@ -1,23 +1,13 @@
 /* ==========================================================================
-   BUILDING BETTER — shared behaviour for every page
-   - Renders the sticky header, chapter navigation and footer
-   - Icon sprite, mobile menu, filters, timeline, expandable workout days
+   BUILDING BETTER — page behaviour
+   - Sticky header: tracks the chapter and section you are reading,
+     reading-progress line, contents menu on small screens
+   - Icons, filters (with "show all"), timeline counts, expandable days
    - "Download / Copy Template" buttons, placeholder highlighter
    - Lightweight SVG charts drawn from assets/js/data.js
    ========================================================================== */
 (function () {
   "use strict";
-
-  /* ---------- Site map (edit labels here; every page updates) ---------- */
-  var NAV = [
-    { key: "home", href: "index.html", label: "Home", chapter: "The Goal & The Plan" },
-    { key: "progress", href: "progress.html", label: "My Progress", chapter: "My Fitness Journey" },
-    { key: "diet-sleep", href: "diet-sleep.html", label: "Diet & Sleep", chapter: "Nutrition, Sleep & Recovery" },
-    { key: "research", href: "research.html", label: "Interviews & Research", chapter: "Interviews & Research" },
-    { key: "reflection", href: "reflection.html", label: "Reflection", chapter: "Reflection" },
-    { key: "resources", href: "resources.html", label: "Resources", chapter: "Free Resources", secondary: true },
-    { key: "about", href: "about.html", label: "About", chapter: "About the Project", secondary: true }
-  ];
 
   /* ---------- Icons (24×24 stroke icons) ---------- */
   var ICONS = {
@@ -26,6 +16,7 @@
     "arrow-right": '<path d="M5 12h14M13 6l6 6-6 6"/>',
     "arrow-left": '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     "arrow-up": '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    "arrow-down": '<path d="M12 5v14M6 13l6 6 6-6"/>',
     "chevron-down": '<path d="m6 9 6 6 6-6"/>',
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
     target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
@@ -84,88 +75,110 @@
     });
   }
 
-  /* ---------- Header, chapter nav, footer ---------- */
-  var page = document.body.getAttribute("data-page") || "home";
+  /* ---------- Navigation: chapter + section tracking ----------
+     <section class="chapter" id="…" data-chapter="Name" data-num="02">
+       <div class="block" id="…" data-block="Section name">
+     The header highlights the chapter in view, lists that chapter's
+     sections in the bar below it, and builds the contents menu.
+  */
+  function initNav() {
+    var header = document.querySelector(".site-header");
+    var chapters = Array.prototype.slice.call(document.querySelectorAll(".chapter[data-chapter]"));
+    var navLinks = Array.prototype.slice.call(document.querySelectorAll(".primary a[data-for]"));
+    var subnavList = document.getElementById("subnav-list");
+    var subnavScroll = document.querySelector(".subnav-scroll");
+    var menuBtn = document.querySelector(".menu-btn");
+    var menuCurrent = document.querySelector(".menu-current");
+    var panel = document.getElementById("toc-panel");
+    var bar = document.querySelector(".read-progress i");
+    var toTop = document.querySelector(".to-top");
 
-  function renderHeader() {
-    var links = NAV.map(function (n, i) {
-      var divider = n.secondary && !NAV[i - 1].secondary ? '<li class="nav-divider" aria-hidden="true"></li>' : "";
-      var current = n.key === page ? ' aria-current="page"' : "";
-      return divider + '<li><a href="' + n.href + '"' + current + ">" + n.label + "</a></li>";
-    }).join("");
+    function blocksOf(ch) { return Array.prototype.slice.call(ch.querySelectorAll("[data-block]")); }
+    function numOf(ch) { return ch.getAttribute("data-num") || ""; }
 
-    var html =
-      '<a class="skip-link" href="#main">Skip to content</a>' +
-      '<header class="site-header"><nav class="wrap nav" aria-label="Main">' +
-      '<a class="brand" href="index.html" aria-label="Building Better — home">' +
-      '<span class="brand-mark" aria-hidden="true">BB</span>' +
-      '<span class="brand-text"><span class="brand-title">BUILDING BETTER</span><span class="brand-sub">Personal Project</span></span></a>' +
-      '<button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">' +
-      icon("menu", "i-menu") + icon("close", "i-close") + '<span class="lbl">Menu</span></button>' +
-      '<ul class="nav-links" id="nav-links">' + links + "</ul></nav></header>";
-    document.body.insertAdjacentHTML("afterbegin", html);
+    panel.innerHTML = "<ol>" + chapters.map(function (ch) {
+      return '<li data-for="' + ch.id + '"><a class="toc-chapter" href="#' + ch.id + '"><span>' + numOf(ch) + "</span>" +
+        ch.getAttribute("data-chapter") + "</a><ul>" +
+        blocksOf(ch).map(function (b) { return '<li><a href="#' + b.id + '">' + b.getAttribute("data-block") + "</a></li>"; }).join("") +
+        "</ul></li>";
+    }).join("") + "</ol>";
 
-    var toggle = document.querySelector(".nav-toggle");
-    var list = document.getElementById("nav-links");
-    function setOpen(open) {
-      toggle.setAttribute("aria-expanded", String(open));
-      list.classList.toggle("is-open", open);
+    function renderSubnav(ch) {
+      var n = numOf(ch);
+      subnavList.innerHTML = '<li class="here">' + (n ? "<span>" + n + "</span>" : "") + ch.getAttribute("data-chapter") + "</li>" +
+        blocksOf(ch).map(function (b) {
+          return '<li><a href="#' + b.id + '" data-to="' + b.id + '">' + b.getAttribute("data-block") + "</a></li>";
+        }).join("");
+      subnavScroll.scrollLeft = 0;
     }
-    toggle.addEventListener("click", function () { setOpen(toggle.getAttribute("aria-expanded") !== "true"); });
-    list.addEventListener("click", function (e) { if (e.target.closest("a")) setOpen(false); });
+
+    var curChapter = null, curBlock, ticking = false;
+    function update() {
+      ticking = false;
+      var line = header.getBoundingClientRect().bottom + 40;
+      var ch = chapters[0];
+      chapters.forEach(function (c) { if (c.getBoundingClientRect().top <= line) ch = c; });
+      if (ch !== curChapter) {
+        curChapter = ch;
+        curBlock = undefined;
+        renderSubnav(ch);
+        navLinks.forEach(function (a) {
+          a.setAttribute("aria-current", String(a.getAttribute("data-for").split(" ").indexOf(ch.id) !== -1));
+        });
+        menuCurrent.textContent = ch.getAttribute("data-chapter");
+        panel.querySelectorAll("li[data-for]").forEach(function (li) {
+          li.classList.toggle("is-current", li.getAttribute("data-for") === ch.id);
+        });
+      }
+      var blk = null;
+      blocksOf(ch).forEach(function (b) { if (b.getBoundingClientRect().top <= line) blk = b; });
+      if (blk !== curBlock) {
+        curBlock = blk;
+        subnavList.querySelectorAll("a[data-to]").forEach(function (a) {
+          var on = !!blk && a.getAttribute("data-to") === blk.id;
+          a.setAttribute("aria-current", String(on));
+          if (on) {
+            var r = a.getBoundingClientRect(), s = subnavScroll.getBoundingClientRect();
+            if (r.left < s.left || r.right > s.right) subnavScroll.scrollLeft += r.left - s.left - 32;
+          }
+        });
+      }
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.transform = "scaleX(" + (max > 0 ? Math.min(1, window.scrollY / max) : 0) + ")";
+      toTop.classList.toggle("is-on", window.scrollY > 900);
+    }
+    function schedule() { if (!ticking) { ticking = true; requestAnimationFrame(update); } }
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    update();
+
+    function setOpen(open) {
+      menuBtn.setAttribute("aria-expanded", String(open));
+      panel.hidden = !open;
+    }
+    menuBtn.addEventListener("click", function () { setOpen(menuBtn.getAttribute("aria-expanded") !== "true"); });
+    panel.addEventListener("click", function (e) { if (e.target.closest("a")) setOpen(false); });
+    document.addEventListener("click", function (e) { if (!panel.hidden && !e.target.closest(".site-header")) setOpen(false); });
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") { setOpen(false); toggle.focus(); }
+      if (e.key === "Escape" && !panel.hidden) { setOpen(false); menuBtn.focus(); }
     });
-    window.addEventListener("resize", function () { if (window.innerWidth > 1120) setOpen(false); });
+    window.addEventListener("resize", function () { if (window.innerWidth > 1080) setOpen(false); });
+    toTop.addEventListener("click", function () { window.scrollTo(0, 0); });
   }
 
-  function renderFooter() {
-    var idx = NAV.findIndex(function (n) { return n.key === page; });
-    var prev = NAV[idx - 1];
-    var next = NAV[idx + 1];
-    var chapterNav = '<nav class="chapter-nav" aria-label="Chapters"><div class="wrap">' +
-      (prev ? '<a class="prev" href="' + prev.href + '"><span class="dir">← Previous chapter</span><span class="ttl">' + prev.chapter + "</span></a>" : "") +
-      (next ? '<a class="next" href="' + next.href + '"><span class="dir">Next chapter →</span><span class="ttl">' + next.chapter + "</span></a>" : "") +
-      "</div></nav>";
-
-    var pageLinks = NAV.map(function (n) { return '<li><a href="' + n.href + '">' + (n.key === "about" ? "About the Project" : n.label) + "</a></li>"; }).join("");
-    var footer =
-      '<footer class="site-footer"><div class="wrap">' +
-      '<div class="footer-top">' +
-      '<div class="stack"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">BB</span>' +
-      '<span class="brand-text"><span class="brand-title">BUILDING BETTER</span><span class="brand-sub">Personal Project</span></span></a>' +
-      "<p>A three-month IB MYP Personal Project documenting exercise, nutrition, sleep and the habits that hold them together.</p></div>" +
-      "<div><h4>Portfolio</h4><ul>" + pageLinks + "</ul></div>" +
-      '<div><h4>Project details</h4><ul class="small">' +
-      '<li>Student: <span class="ph">[Your name]</span></li>' +
-      '<li>School: <span class="ph">[School name]</span></li>' +
-      '<li>Supervisor: <span class="ph">[Supervisor name]</span></li>' +
-      '<li>Submitted: <span class="ph">[Month YYYY]</span></li></ul></div>' +
-      "</div>" +
-      '<div class="footer-bottom"><span>Wireframe draft · placeholder content has a dotted underline</span>' +
-      "<span>© " + new Date().getFullYear() + ' <span class="ph">[Your name]</span> · Not medical advice</span></div>' +
-      "</div></footer>";
-
-    var pill =
-      '<div class="wf-pill" role="region" aria-label="Wireframe tools"><span class="lbl">Wireframe</span>' +
-      '<button type="button" class="ph-toggle" aria-pressed="false">Highlight placeholders</button>' +
-      '<button type="button" class="top" aria-label="Back to top">' + icon("arrow-up", "i-sm") + "</button></div>" +
-      '<div class="toast" role="status" aria-live="polite"></div>';
-
-    var main = document.getElementById("main");
-    main.insertAdjacentHTML("afterend", chapterNav + footer + pill);
-
-    var phBtn = document.querySelector(".ph-toggle");
-    function setPh(on) {
+  /* ---------- Placeholder highlighter (footer button) ---------- */
+  function initPlaceholderToggle() {
+    var btn = document.querySelector(".ph-toggle");
+    if (!btn) return;
+    function set(on) {
       document.documentElement.classList.toggle("show-ph", on);
-      phBtn.setAttribute("aria-pressed", String(on));
+      btn.setAttribute("aria-pressed", String(on));
       try { localStorage.setItem("bb-show-ph", on ? "1" : "0"); } catch (e) { /* storage unavailable */ }
     }
     var saved = false;
     try { saved = localStorage.getItem("bb-show-ph") === "1"; } catch (e) { /* storage unavailable */ }
-    setPh(saved);
-    phBtn.addEventListener("click", function () { setPh(phBtn.getAttribute("aria-pressed") !== "true"); });
-    document.querySelector(".wf-pill .top").addEventListener("click", function () { window.scrollTo({ top: 0 }); });
+    set(saved);
+    btn.addEventListener("click", function () { set(btn.getAttribute("aria-pressed") !== "true"); });
   }
 
   var toastTimer;
@@ -179,16 +192,23 @@
   }
 
   /* ---------- Filters ----------
-     <section data-filter-scope>
-       <button data-filter="month:1">…</button>       (one key per group)
+     <div data-filter-scope data-limit="8">
+       <button class="tab" data-filter="month:1">…</button>     (one key per group)
        <article data-item data-month="1" data-category="photos">…</article>
        [data-filter-container] hides itself when none of its items are visible
-       [data-filter-count] / [data-filter-empty] are optional
+       [data-filter-count], [data-filter-empty] and [data-show-all] are optional
+     With data-limit, only the first N items show until "Show all" is pressed
+     or a filter is chosen.
   */
   function initFilters() {
     document.querySelectorAll("[data-filter-scope]").forEach(function (scope) {
       var items = Array.prototype.slice.call(scope.querySelectorAll("[data-item]"));
       var buttons = Array.prototype.slice.call(scope.querySelectorAll("[data-filter]"));
+      var limit = Number(scope.getAttribute("data-limit") || 0);
+      var more = scope.querySelector("[data-show-all]");
+      var count = scope.querySelector("[data-filter-count]");
+      var noun = (count && count.getAttribute("data-noun")) || "items";
+      var expanded = false;
       var state = {};
       buttons.forEach(function (btn) {
         var parts = btn.getAttribute("data-filter").split(":");
@@ -205,38 +225,42 @@
           apply();
         });
       });
+      if (more) more.addEventListener("click", function () { expanded = true; apply(); });
+
       function apply() {
-        var shown = 0;
-        items.forEach(function (it) {
-          var ok = Object.keys(state).every(function (k) {
+        var matches = items.filter(function (it) {
+          return Object.keys(state).every(function (k) {
             var v = state[k];
             return v === "all" || (it.getAttribute("data-" + k) || "").split(" ").indexOf(v) !== -1;
           });
-          it.hidden = !ok;
-          if (ok) shown++;
         });
+        var filtered = Object.keys(state).some(function (k) { return state[k] !== "all"; });
+        var cap = limit && !expanded && !filtered ? limit : Infinity;
+        items.forEach(function (it) { it.hidden = true; });
+        matches.forEach(function (it, i) { it.hidden = i >= cap; });
+        var shown = Math.min(matches.length, cap);
         scope.querySelectorAll("[data-filter-container]").forEach(function (c) {
           c.hidden = !c.querySelector("[data-item]:not([hidden])");
         });
-        var count = scope.querySelector("[data-filter-count]");
-        if (count) count.textContent = "Showing " + shown + " of " + items.length + " " + (count.getAttribute("data-noun") || "items");
+        if (count) count.textContent = "Showing " + shown + " of " + items.length + " " + noun;
         var empty = scope.querySelector("[data-filter-empty]");
-        if (empty) empty.hidden = shown > 0;
+        if (empty) empty.hidden = matches.length > 0;
+        if (more) {
+          more.parentNode.hidden = matches.length <= cap;
+          more.querySelector("span").textContent = "Show all " + matches.length + " " + noun;
+        }
       }
       apply();
     });
   }
 
-  /* ---------- Timeline phase meters ---------- */
+  /* ---------- Timeline: milestones completed per month ---------- */
   function initTimeline() {
-    document.querySelectorAll("[data-phase-meter]").forEach(function (meter) {
-      var phase = meter.getAttribute("data-phase-meter");
-      var all = document.querySelectorAll('.milestone[data-phase="' + phase + '"]');
-      var done = document.querySelectorAll('.milestone[data-phase="' + phase + '"][data-status="done"]');
-      var pct = all.length ? Math.round((done.length / all.length) * 100) : 0;
-      meter.querySelector(".meter > i").style.width = pct + "%";
-      meter.querySelector("[data-meter-text]").textContent = done.length + " of " + all.length + " completed";
-      meter.querySelector("[data-meter-pct]").textContent = pct + "%";
+    document.querySelectorAll("[data-phase-count]").forEach(function (el) {
+      var phase = el.getAttribute("data-phase-count");
+      var all = document.querySelectorAll('.ms[data-phase="' + phase + '"]').length;
+      var done = document.querySelectorAll('.ms[data-phase="' + phase + '"][data-status="done"]').length;
+      el.textContent = done + " of " + all + " milestones completed";
     });
   }
 
@@ -248,7 +272,7 @@
         var list = target.querySelectorAll("details");
         var anyClosed = Array.prototype.some.call(list, function (d) { return !d.open; });
         list.forEach(function (d) { d.open = anyClosed; });
-        btn.querySelector("span").textContent = anyClosed ? "Collapse all days" : "Expand all days";
+        btn.querySelector("span").textContent = anyClosed ? "Collapse all" : "Expand all";
       });
     });
     // Links that point at a <details> open it
@@ -641,9 +665,8 @@
 
   /* ---------- Boot ---------- */
   injectSprite();
-  renderHeader();
-  renderFooter();
-  // the header/footer icons are added after the sprite pass, so they use icon() directly
+  initNav();
+  initPlaceholderToggle();
   initFilters();
   initTimeline();
   initDetails();
