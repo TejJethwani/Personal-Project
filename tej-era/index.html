@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Tej Era</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="The managerial career of Tej Jethwani at Manchester United: trophy cabinet, hall of fame, season archive and record book from a fictional career-mode save.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- Shared gradients for the trophy drawings -->
+<svg class="defs" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="g-silver" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#7d838c"/>
+      <stop offset=".28" stop-color="#f4f6f8"/>
+      <stop offset=".5" stop-color="#b9c0c8"/>
+      <stop offset=".72" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#6c727b"/>
+    </linearGradient>
+    <linearGradient id="g-gold" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#8a5f17"/>
+      <stop offset=".3" stop-color="#ffe7a3"/>
+      <stop offset=".55" stop-color="#d6a640"/>
+      <stop offset=".78" stop-color="#fff1c4"/>
+      <stop offset="1" stop-color="#7a5212"/>
+    </linearGradient>
+    <linearGradient id="g-plinth" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#3a2a22"/>
+      <stop offset="1" stop-color="#1b120e"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="#top" aria-label="The Tej Era, back to top">
+      <span class="brand-mark" aria-hidden="true">TJ</span>
+      <span class="brand-text">The Tej Era</span>
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#cabinet">Cabinet</a>
+      <a href="#honours">Honours</a>
+      <a href="#seasons">Seasons</a>
+      <a href="#hall-of-fame">Hall of Fame</a>
+      <a href="#records">Records</a>
+      <a href="#timeline">Timeline</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============================== HERO ============================== -->
+  <section class="hero" id="top">
+    <div class="hero-pitch" aria-hidden="true"></div>
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="kicker" id="hero-kicker">Manager · Manchester United</p>
+        <h1 class="hero-title" aria-label="The Tej Era">
+          <span class="ht-the" aria-hidden="true">The</span>
+          <span class="ht-tej" aria-hidden="true">Tej</span>
+          <span class="ht-era" aria-hidden="true">Era</span>
+        </h1>
+        <p class="hero-sub">The managerial career of <strong>Tej Jethwani</strong></p>
+        <p class="hero-lede" id="hero-lede"></p>
+        <div class="hero-cta">
+          <a class="btn btn-gold" href="#cabinet">Open the trophy cabinet</a>
+          <a class="btn btn-ghost" href="#seasons">Season archive</a>
+        </div>
+      </div>
+      <div class="hero-card-wrap">
+        <article class="mcard" id="manager-card" aria-label="Manager card"></article>
+      </div>
+    </div>
+  </section>
+
+  <!-- LED advertising board -->
+  <div class="led" aria-label="Headlines">
+    <div class="led-track" id="led-track"></div>
+  </div>
+
+  <!-- ============================== CABINET ============================== -->
+  <section class="section section--cabinet" id="cabinet">
+    <div class="wrap">
+      <header class="sec-head">
+        <p class="eyebrow">Trophy cabinet</p>
+        <h2 class="sec-title">Silverware</h2>
+        <p class="sec-lede" id="cabinet-lede"></p>
+      </header>
+      <div class="cabinet-counts" id="cabinet-counts"></div>
+      <div class="cabinet" id="cabinet-shelf"></div>
+      <div class="vacant" id="cabinet-vacant"></div>
+    </div>
+  </section>
+
+  <!-- ============================== HONOURS BOARD ============================== -->
+  <section class="section section--honours" id="honours">
+    <div class="wrap">
+      <header class="sec-head">
+        <p class="eyebrow">Honours board</p>
+        <h2 class="sec-title">Season by season</h2>
+        <p class="sec-lede">Every competition, every season. Gold means the trophy came home.</p>
+      </header>
+      <div class="board" id="honours-board"></div>
+      <div class="career-stats" id="career-stats"></div>
+    </div>
+  </section>
+
+  <!-- ============================== SEASONS ============================== -->
+  <section class="section section--seasons" id="seasons">
+    <div class="wrap">
+      <header class="sec-head">
+        <p class="eyebrow">Season archive</p>
+        <h2 class="sec-title">The campaigns</h2>
+        <p class="sec-lede">Finals, results, tables, squads and tactics, season by season.</p>
+      </header>
+      <div class="season-tabs" role="tablist" aria-label="Seasons" id="season-tabs"></div>
+      <div id="season-panel" class="season-panel" role="tabpanel" tabindex="-1"></div>
+    </div>
+  </section>
+
+  <!-- ============================== HALL OF FAME ============================== -->
+  <section class="section section--hof" id="hall-of-fame">
+    <div class="wrap">
+      <header class="sec-head">
+        <p class="eyebrow">Hall of Fame</p>
+        <h2 class="sec-title">Legends of the era</h2>
+        <p class="sec-lede">The players who made it happen. Totals are added up from every season on record.</p>
+      </header>
+      <div class="hof-legends" id="hof-legends"></div>
+      <div class="hof-grid" id="hof-grid"></div>
+    </div>
+  </section>
+
+  <!-- ============================== RECORDS ============================== -->
+  <section class="section section--records" id="records">
+    <div class="wrap">
+      <header class="sec-head">
+        <p class="eyebrow">Record book</p>
+        <h2 class="sec-title">The numbers</h2>
+      </header>
+      <div class="records" id="records-grid"></div>
+    </div>
+  </section>
+
+  <!-- ============================== TIMELINE ============================== -->
+  <section class="section section--timeline" id="timeline">
+    <div class="wrap">
+      <header class="sec-head">
+        <p class="eyebrow">Career timeline</p>
+        <h2 class="sec-title">Nights that made the era</h2>
+      </header>
+      <ol class="tl" id="timeline-list"></ol>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-in">
+    <div>
+      <p class="footer-brand">The Tej Era</p>
+      <p class="footer-note">A fictional career-mode save. Every result, transfer, fee and award on this page belongs to a simulated game world and is not real football history.</p>
+    </div>
+    <div class="footer-meta" id="footer-meta"></div>
+  </div>
+</footer>
+
+<noscript><p class="noscript">This page needs JavaScript to draw the cabinet, tables and charts.</p></noscript>
+
+<script src="data/career.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

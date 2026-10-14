@@ -83,3 +83,7 @@ To add, rename or reorder a section, change the HTML and the navigation updates 
 ## Publishing
 
 The site is plain HTML, CSS and JavaScript, so it works on GitHub Pages: in the repository settings, open **Pages** and deploy from this branch's root folder.
+
+## Also in this repository
+
+`tej-era/` is a separate site: **The Tej Era**, a portfolio of Tej Jethwani's managerial career at Manchester United in a fictional career-mode save (trophy cabinet, hall of fame, season archive, records). Open `tej-era/index.html`, and see `tej-era/README.md` for how to add a new season.
