@@ -10,7 +10,7 @@
    - club: a key from `clubs` below. A new club needs one line there.
    - Dates are "YYYY-MM-DD". If the exact day is unknown, write any text
      instead (for example "Mar 2028") and it is shown as written.
-   - venue: "H" home, "A" away, "N" neutral (finals).
+   - venue: "H" home, "A" away, "N" neutral (finals), null if not recovered.
    - score: [Tej's team goals, opponent goals] whatever the venue. Add
      aet: true for extra time and pens: [ours, theirs] for a shoot-out.
      If the score was not recorded, write score: null and result: "W",
@@ -35,7 +35,7 @@ window.TEJ_ERA = {
     archive: { save: "12BG", date: "2029-06-01", note: "Awards night after the Europa League final" },
     // Things that are announced but not decided yet.
     pending: [
-      "2027 Ballon d'Or still unawarded in the save; Bruno Fernandes was projected first.",
+      "2027 Ballon d'Or: still unawarded when the United archive closed on 27 May 2028, with Bruno Fernandes projected first. No result has been recorded since.",
       "Milan's 2029/30 budget waits on the June board meeting."
     ]
   },
@@ -131,17 +131,17 @@ window.TEJ_ERA = {
             "Rashford gave United a first-half lead, Harry Kane levelled after 71 minutes, and Cunha's 117th-minute winner delivered the first trophy of the Tej Era and made Bruno Fernandes a Champions League-winning captain."
         },
         {
-          id: "ucl-2027-sf", date: "Date not recovered", comp: "ucl", round: "Semi-final, two legs", opp: "Opponent not recovered", venue: "H",
+          id: "ucl-2027-sf", date: "Date not recovered", comp: "ucl", round: "Semi-final, two legs", opp: "Opponent not recovered", venue: null,
           score: null, result: null,
-          outcomeText: "Through to the final. Opponent, dates, scores and scorers were not recovered."
+          outcomeText: "Through to the final. Opponent, dates, venues, scores and scorers were not recovered."
         },
         {
-          id: "fac-2027-qf", date: "Date not recovered", comp: "fac", round: "Quarter-final", opp: "Brighton", venue: "H",
+          id: "fac-2027-qf", date: "Date not recovered", comp: "fac", round: "Quarter-final", opp: "Brighton", venue: null,
           score: null, result: "L",
           outcomeText: "Knocked out. Venue, score and scorers were not recovered."
         },
         {
-          id: "lc-2027-qf", date: "Date not recovered", comp: "lc", round: "Quarter-final", opp: "Newcastle", venue: "H",
+          id: "lc-2027-qf", date: "Date not recovered", comp: "lc", round: "Quarter-final", opp: "Newcastle", venue: null,
           score: null, result: "L",
           outcomeText: "Knocked out. Venue, score and scorers were not recovered."
         }
@@ -264,8 +264,8 @@ window.TEJ_ERA = {
       // Lineups: back line to front line, each row left to right.
       lineups: [
         {
-          title: "The early-season XI",
-          when: "Autumn 2027 to April 2028",
+          title: "The earlier first-choice XI",
+          when: "2027/28, until mid-April 2028",
           shape: "4-2-3-1",
           match: "pl-2028-arsenal-home",
           rows: [
@@ -275,7 +275,7 @@ window.TEJ_ERA = {
             [{ name: "Cunha", pos: "LW" }, { name: "Bruno", pos: "CAM", captain: true }, { name: "Mbeumo", pos: "RW" }],
             [{ name: "Rashford", pos: "ST" }]
           ],
-          note: "Tej's first-choice side for most of the title run. This front three beat Arsenal 3–2 at Old Trafford on 15 April."
+          note: "Tej's earlier preferred XI and his first-choice side for most of the title run. The archive confirms this front three (Cunha LW, Rashford ST, Mbeumo RW) for the 3–2 win over Arsenal on 15 April; the rest of that day's XI was not recorded."
         },
         {
           title: "Champions League final",
@@ -301,7 +301,7 @@ window.TEJ_ERA = {
         { name: "Total Possession", text: "Patient build-up, positional dominance and progressive control of the ball." },
         { name: "Controlled Possession", text: "Safer positioning, fewer risky passes, stronger rest defence. The opening plan at Wembley." },
         { name: "Tiki-Taka V2", text: "Passing triangles through Neves, Mainoo and Bruno; attack after the first goal with cover behind the ball. Debuted in the 2–1 win at Arsenal." },
-        { name: "Aggressive Tiki-Taka", text: "Higher press and faster combinations to chase goals. Switched on late in the 2–0 comeback at the Bernabéu and before Cunha's equaliser at Wembley." },
+        { name: "Aggressive Tiki-Taka", text: "Higher press and faster combinations to chase goals. Switched on late in the comeback from 2–0 down at the Bernabéu (2–2) and before Cunha's equaliser at Wembley." },
         { name: "All-Out Attack", text: "Full commitment, very high risk, saved for special moments. The 8–2 derby and the 88th-minute winner at Anfield." }
       ],
 
@@ -637,7 +637,7 @@ window.TEJ_ERA = {
       squad: [
         { name: "Mike Maignan", group: "GK", pos: "GK", age: 32, ovr: 85, role: "Captain" },
         { name: "Lorenzo Torriani", group: "GK", pos: "GK", age: 23, ovr: 75, role: "Back-up goalkeeper" },
-        { name: "Matteo Greco", group: "GK", pos: "GK", age: 21, ovr: 69, role: "Academy goalkeeper" },
+        { name: "Matteo Greco", group: "GK", pos: "GK", age: 21, ovr: 69, role: "Third-choice goalkeeper" },
         { name: "Alessio Moretti", group: "DEF", pos: "RB", age: 24, ovr: 84, from: 83, role: "Signed from Torino" },
         { name: "Zachary Athekame", group: "DEF", pos: "RB", age: 23, ovr: 77, role: "RB rotation" },
         { name: "Fikayo Tomori", group: "DEF", pos: "CB", age: 30, ovr: 82, role: "Started both cup finals" },
@@ -646,7 +646,7 @@ window.TEJ_ERA = {
         { name: "Matteo Gabbia", group: "DEF", pos: "CB", age: 28, ovr: 79, role: "CB" },
         { name: "David Odogu", group: "DEF", pos: "CB", age: 22, ovr: 76, from: 75, role: "Young CB" },
         { name: "Davide Bartesaghi", group: "DEF", pos: "LB/CB", age: 22, ovr: 80, from: 79, role: "LB / CB" },
-        { name: "Rana Metodija", group: "DEF", pos: "LB", age: 16, ovr: 85, from: 79, role: "#36 · natural RB 82 → 83 · LB fit 79 → 85" },
+        { name: "Rana Metodija", group: "DEF", pos: "LB", age: 16, ovr: 83, from: 82, role: "#36 · natural RB overall 82 → 83 · LB positional fit 79 → 85" },
         { name: "Alexis Saelemaekers", group: "DEF", pos: "RM/RWB", age: 28, ovr: 81, from: 80, role: "Wide option" },
         { name: "Samuele Ricci", group: "MID", pos: "CDM/CM", age: 26, ovr: 85, from: 83, role: "Vice-captain" },
         { name: "Mateo Valera", group: "MID", pos: "CM", age: 23, ovr: 87, from: 84, role: "Signed from Real Sociedad" },
@@ -2211,11 +2211,11 @@ window.TEJ_ERA = {
       citation: "Player of the Season and Goal of the Season. 21 goals, the most at Milan, including two in the 4–2 win at Inter, and the 111th-minute strike that won the Europa League final."
     },
     {
-      name: "Assane Diao", tier: "inductee", position: "Left wing", epithet: "The Breakout", inducted: "2027/28",
+      name: "Assane Diao", tier: "inductee", joined: "2027/28", position: "Left wing", epithet: "The Breakout", inducted: "2027/28",
       citation: "A €37M signing who grew from 81 to 84, took the left wing and scored in both Real Madrid legs and the Wembley final."
     },
     {
-      name: "João Neves", tier: "inductee", position: "Central midfield", epithet: "The Architect", inducted: "2027/28",
+      name: "João Neves", tier: "inductee", joined: "2027/28", position: "Central midfield", epithet: "The Architect", inducted: "2027/28",
       citation: "34 assists, the most in the squad, including the pass for the title-clinching goal against Sunderland."
     },
     {
@@ -2231,7 +2231,7 @@ window.TEJ_ERA = {
       citation: "18 goals in his breakout year, eight of them in the domestic cups, including the equaliser in the Carabao Cup final."
     },
     {
-      name: "Roony Bardghji", tier: "inductee", position: "Right wing", epithet: "Wembley Winner", inducted: "2027/28",
+      name: "Roony Bardghji", tier: "inductee", joined: "2027/28", position: "Right wing", epithet: "Wembley Winner", inducted: "2027/28",
       citation: "Scored the 83rd-minute winner in the Carabao Cup final and created 17 goals."
     },
     {
@@ -2264,7 +2264,7 @@ window.TEJ_ERA = {
     },
     {
       name: "Giovanni Ferri", tier: "inductee", position: "Central midfield", epithet: "Academy Graduate", inducted: "2028/29",
-      citation: "Academy Breakthrough of the Season. Rose from 70 to 75 and scored 7 goals with 7 assists in his first senior season."
+      citation: "Academy Breakthrough of the Season. Rose from 70 to 75 and scored 7 goals with 7 assists, starting with his first senior goal against Pisa."
     }
   ],
 

@@ -234,6 +234,14 @@
         out.gUnknown = out.aUnknown = true;
       }
     });
+    // A season at the same club with no squad list might include this player too.
+    var hof = (D.hallOfFame || []).filter(function (p) { return p.name === name; })[0];
+    var joined = hof && hof.joined;
+    D.seasons.forEach(function (s) {
+      if (!(s.squad && s.squad.length) && out.clubs.indexOf(s.club) >= 0 && out.labels.indexOf(s.label) < 0 && !(joined && s.label < joined)) {
+        out.partial = out.gUnknown = out.aUnknown = true;
+      }
+    });
     return out;
   }
 
@@ -426,7 +434,9 @@
       var vals = [];
       series.forEach(function (s) { vals = vals.concat(s.values.filter(function (v) { return v != null; })); });
       var max = Math.max.apply(null, vals.concat([1]));
-      var step = niceStep(max, 5), top = Math.ceil(max / step) * step;
+      var step = niceStep(max, 5);
+      if (cfg.integer) step = Math.max(1, Math.ceil(step));
+      var top = Math.ceil(max / step) * step;
       var y = function (v) { return m.t + ih - (v / top) * ih; };
       var band = iw / n, ns = series.length;
       var barW = Math.max(4, Math.min(24, (band * 0.72 - (ns - 1) * 2) / ns));
@@ -473,7 +483,12 @@
       var t = e.target.closest("[data-i]");
       if (t) show(+t.getAttribute("data-i"), true);
     });
-    svg.addEventListener("pointerleave", function () { show(active, false); });
+    svg.addEventListener("pointerdown", function (e) {
+      var t = e.target.closest("[data-i]");
+      if (t) show(+t.getAttribute("data-i"), true);
+    });
+    svg.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") show(active, false); });
+    svg.addEventListener("pointercancel", function () { show(active, false); });
     svg.addEventListener("focus", function () { show(active, true); });
     svg.addEventListener("blur", function () { show(active, false); });
     svg.addEventListener("keydown", function (e) {
@@ -599,7 +614,9 @@
     }
 
     svg.addEventListener("pointermove", function (e) { show(nearest(e.clientX), true); });
-    svg.addEventListener("pointerleave", function () { show(active, false); });
+    svg.addEventListener("pointerdown", function (e) { show(nearest(e.clientX), true); });
+    svg.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") show(active, false); });
+    svg.addEventListener("pointercancel", function () { show(active, false); });
     svg.addEventListener("focus", function () { show(active, true); });
     svg.addEventListener("blur", function () { show(active, false); });
     svg.addEventListener("keydown", function (e) {
@@ -636,8 +653,8 @@
     return [
       [c.goals + (c.gUnknown ? "+" : ""), "Goals"],
       [c.assists + (c.aUnknown ? "+" : ""), "Assists"],
-      [c.trophies, "Trophies"],
-      [c.seasons, c.seasons === 1 ? "Season" : "Seasons"]
+      [c.trophies + (c.partial ? "+" : ""), "Trophies"],
+      [c.seasons + (c.partial ? "+" : ""), c.seasons === 1 && !c.partial ? "Season" : "Seasons"]
     ];
   }
 
@@ -1084,13 +1101,13 @@
 
     // Goal labels sit above (Tej's side) and below (opponent) the minute track.
     // A label that would crowd the previous one on its side steps out a row.
-    var ROW = 40, LH = 34;
-    var lastPct = { us: -100, them: -100 }, lastLvl = { us: 1, them: 1 }, maxLvl = { us: -1, them: -1 };
+    var ROW = 40;
+    var lastAt = { us: [], them: [] }, maxLvl = { us: -1, them: -1 };
     var laid = goals.map(function (g) {
       var side = g.side === "us" ? "us" : "them";
-      var p = Math.min(100, (g.min / maxMin) * 100);
-      var lvl = p - lastPct[side] < 30 ? (lastLvl[side] === 0 ? 1 : 0) : 0;
-      lastPct[side] = p; lastLvl[side] = lvl; maxLvl[side] = Math.max(maxLvl[side], lvl);
+      var p = Math.min(100, (g.min / maxMin) * 100), lvl = 0;
+      while (lastAt[side][lvl] != null && p - lastAt[side][lvl] < 30) lvl++;
+      lastAt[side][lvl] = p; maxLvl[side] = Math.max(maxLvl[side], lvl);
       return { g: g, side: side, pct: p, lvl: lvl };
     });
     var trackY = 6 + (maxLvl.us + 1) * ROW + 10;
@@ -1102,13 +1119,15 @@
       if (o.side === "us") running[0]++; else running[1]++;
       var align = o.pct > 78 ? "end" : o.pct < 16 ? "start" : "mid";
       var tally = s.usHome ? running[0] + "–" + running[1] : running[1] + "–" + running[0];
-      var labelTop = o.side === "us" ? trackY - 10 - LH - o.lvl * ROW : trackY + 10 + o.lvl * ROW;
-      var stemTop = o.side === "us" ? labelTop + LH : trackY + 6;
-      var stemH = o.side === "us" ? trackY - 6 - stemTop : labelTop - stemTop;
+      // Labels above the track hang from their bottom edge so one- and two-line labels both meet the stem.
+      var anchor = trackY - 10 - o.lvl * ROW;
+      var labelPos = o.side === "us" ? "bottom:" + (gtlH - anchor) + "px" : "top:" + (trackY + 10 + o.lvl * ROW) + "px";
+      var stemTop = o.side === "us" ? anchor : trackY + 6;
+      var stemH = 4 + o.lvl * ROW;
       return '<div class="gm gm-' + o.side + " gm-" + align + '" style="left:' + o.pct.toFixed(2) + '%" aria-hidden="true">' +
         '<span class="gm-stem" style="top:' + stemTop + "px;height:" + Math.max(0, stemH) + 'px"></span>' +
         '<span class="gm-dot" style="top:' + (trackY - 7) + 'px"></span>' +
-        '<span class="gm-label" style="top:' + labelTop + 'px"><span class="gm-who"><b>' + g.min + "'</b> " + esc(goalName(g)) + "</span>" + (g.assist ? "<small>" + esc(g.assist) + "</small>" : "") + "</span></div>" +
+        '<span class="gm-label" style="' + labelPos + '"><span class="gm-who"><b>' + g.min + "'</b> " + esc(goalName(g)) + "</span>" + (g.assist ? "<small>" + esc(g.assist) + "</small>" : "") + "</span></div>" +
         '<span class="sr">' + g.min + " minutes, " + esc(goalName(g)) + (g.assist ? ", assisted by " + esc(g.assist) : "") + ", " + tally + ".</span>";
     }).join("");
 
@@ -1421,7 +1440,8 @@
         { k: "Goals", v: t.gf + "–" + t.ga, s: (t.gf / t.p).toFixed(2) + " scored per game" },
         { k: "Clean sheets", v: t.cs, s: pct(t.cs, t.p) + "% of matches" }
       ];
-      if (dated) {
+      var complete = seasons.every(function (s) { return s.allComps && s.allComps.p && recorded([s]).length >= s.allComps.p; });
+      if (dated && complete) {
         var run = 0, best = 0;
         ms.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).forEach(function (m) {
           if (outcome(m) !== "L") { run++; best = Math.max(best, run); } else run = 0;
@@ -1432,9 +1452,9 @@
       if (heavy) tileList.push({ k: "Heaviest defeat", v: heavy.score[0] + "–" + heavy.score[1], s: "v " + heavy.opp + " · " + heavy._s.label });
       if (xgMs.length) {
         var xf = sum(xgMs.map(function (m) { return m.matchStats.xg; })), xa = sum(xgMs.map(function (m) { return m.oppStats.xg; }));
-        tileList.push({ k: "Expected goals", v: xf.toFixed(1) + "–" + xa.toFixed(1), s: "xG for and against, " + xgMs.length + " matches" });
+        tileList.push({ k: "Expected goals", v: xf.toFixed(1) + "–" + xa.toFixed(1), s: "xG for and against, " + plural(xgMs.length, "match", "matches") });
       }
-      if (possMs.length) tileList.push({ k: "Average possession", v: Math.round(sum(possMs.map(function (m) { return m.matchStats.possession; })) / possMs.length) + "%", s: "across " + possMs.length + " matches" });
+      if (possMs.length) tileList.push({ k: "Average possession", v: Math.round(sum(possMs.map(function (m) { return m.matchStats.possession; })) / possMs.length) + "%", s: "across " + plural(possMs.length, "match", "matches") });
 
       var byComp = COMP_ORDER.map(function (k) {
         var list = ms.filter(function (m) { return m.comp === k; });
@@ -1448,7 +1468,7 @@
       html += block("Match records", "What the results say", tiles(tileList) +
         '<div class="split-2"><div><p class="mini-title">By competition</p>' + splitTable("Competition", byComp) + "</div>" +
         '<div><p class="mini-title">Home and away</p>' + splitTable("Venue", byVenue) + "</div></div>" +
-        '<p class="caption">Built from the ' + t.p + " matches with a recorded score" + (seasons.some(function (s) { return s.id === "2026-27"; }) ? "; 2026/27 kept only its final" : "") + ". The league table above comes from the season records and covers every game.</p>");
+        '<p class="caption">Built from the ' + plural(t.p, "match", "matches") + " with a recorded score" + (seasons.some(function (s) { return s.id === "2026-27"; }) ? "; 2026/27 kept only its final" : "") + ". The league table above comes from the season records and covers every game.</p>");
 
       // Goal timing
       var timed = [];
@@ -1530,7 +1550,12 @@
     body.innerHTML = html;
 
     $all(".scope .filter", body).forEach(function (b) {
-      b.addEventListener("click", function () { statsScope = b.getAttribute("data-scope"); renderStats(); });
+      b.addEventListener("click", function () {
+        statsScope = b.getAttribute("data-scope");
+        renderStats();
+        var sel = $('.scope .filter[aria-selected="true"]', body);
+        if (sel) sel.focus();
+      });
     });
 
     function drawBoard(clubKey) {
@@ -1556,7 +1581,12 @@
         series: [{ name: "League points", cls: "s-1", values: D.seasons.map(function (s) { return s.league ? s.league.pts : null; }) }],
         capLabels: true, height: 230,
         tipTitle: function (i) { return D.seasons[i].label + " · " + D.seasons[i]._club.name; },
-        note: function (i) { var s = D.seasons[i]; return s.league ? ordinal(s.league.position) + " in the " + comp(s._leagueEntry.comp).name : ""; },
+        note: function (i) {
+          var s = D.seasons[i];
+          if (!s.league) return "";
+          var ln = comp(s._leagueEntry.comp).name;
+          return ordinal(s.league.position) + " in " + (/^Premier/.test(ln) ? "the " : "") + ln;
+        },
         aria: "League points by season: " + D.seasons.map(function (s) { return s.label + " " + (s.league ? s.league.pts : "unknown"); }).join(", ")
       });
     }
@@ -1569,6 +1599,7 @@
           { name: "Conceded", cls: "s-2", values: timing.agB }
         ],
         tipTitle: function (i) { return timing.labels[i] === "ET" ? "Extra time" : "Minutes " + timing.labels[i]; },
+        integer: true,
         height: 240,
         aria: "Goals scored and conceded by 15-minute period."
       });
@@ -1629,7 +1660,8 @@
         (aw.length ? '<p class="pl-awards">' + aw.map(function (a) { return '<span class="tag tag-hl">' + esc(a.award + " " + a.season) + "</span>"; }).join("") + "</p>" : "") +
         '<p class="pl-cite">' + esc(p.citation) + "</p>" +
         '<dl class="pl-stats">' + plaqueStats(c).map(function (s) { return "<div><dt>" + s[1] + "</dt><dd>" + s[0] + "</dd></div>"; }).join("") + "</dl>" +
-        ((c.gUnknown || c.aUnknown) ? '<p class="pl-foot">+ includes a season whose totals were not retained</p>' : "") +
+        (c.partial ? '<p class="pl-foot">+ an earlier season\'s squad was not retained, so these totals may be higher</p>' :
+          (c.gUnknown || c.aUnknown) ? '<p class="pl-foot">+ includes a season whose totals were not retained</p>' : "") +
         "</article>";
     }
     var legends = list.filter(function (o) { return o.p.tier === "legend"; });
@@ -1772,9 +1804,10 @@
     var a = e.target.closest("a[href^='#']");
     if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
     var h = a.getAttribute("href");
-    if (h === "#main" || h === "#") return;
+    if (h === "#") return;
     e.preventDefault();
-    pushHash(h.slice(1));
+    if (h === "#main") { $("#main").focus(); return; }
+    if (location.hash !== h) pushHash(h.slice(1));
     route(h, true);
   });
   window.addEventListener("popstate", function () { route(location.hash, false); });

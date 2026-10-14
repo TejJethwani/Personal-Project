@@ -1344,3 +1344,16 @@ main:focus { outline: none; }
 .gtl-et em { display: none; }
 .pp-acm .pp-dot { text-shadow: 0 1px 2px #000, 0 0 4px #000; }
 .jc-stats dd { font-size: 1.2rem; }
+
+/* Review fixes: keep the G+A column on screen on phones; let pitches grow to fit */
+@media (max-width: 600px) {
+  .lb, .lb-club { min-width: 0; }
+  .lb th, .lb td { padding: 8px 6px; }
+  .lb th { letter-spacing: 0; }
+  .lb-col { width: auto; }
+  .lb-rank { width: 28px; }
+  .lb-bar { display: none; }
+  .lb-name { white-space: normal; }
+  .lb-clubs .cbadge-sm i { display: none; }
+}
+.pitch { overflow: visible; }
