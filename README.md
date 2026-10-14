@@ -86,4 +86,4 @@ The site is plain HTML, CSS and JavaScript, so it works on GitHub Pages: in the 
 
 ## Also in this repository
 
-`tej-era/` is a separate site: **The Tej Era**, a portfolio of Tej Jethwani's managerial career at Manchester United in a fictional career-mode save (trophy cabinet, hall of fame, season archive, records). Open `tej-era/index.html`, and see `tej-era/README.md` for how to add a new season.
+`tej-era/` is a separate site: **The Tej Era**, a portfolio of Tej Jethwani's managerial career at Manchester United and AC Milan in a fictional career-mode save (trophy cabinet, season archive, lineups, stats, hall of fame, records). Open `tej-era/index.html`, and see `tej-era/README.md` for how to add a new season.
