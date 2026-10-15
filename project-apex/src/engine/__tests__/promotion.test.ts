@@ -9,6 +9,7 @@ import { FACILITY_KEYS } from '../team/facilities';
 import type { DivisionId, GameState } from '../types';
 import { DIVISION_ORDER } from '../types';
 import { validateState } from '../validation';
+import { beginOffseason } from '../season/seasonEnd';
 import { makeGame, playOffseason, playSeason } from './helpers';
 
 /** Make the player's team dominant and fully licensed (test-only state manipulation). */
@@ -89,5 +90,27 @@ describe('promotion and licensing', () => {
     playOffseason(s, false);
     expect(playerTeam(s).division).toBe('F5');
     for (const d of DIVISION_ORDER) expect(Object.values(s.teams).filter((t) => t.division === d)).toHaveLength(10);
+  });
+
+  it('a promotion offered at season end stands even if the team spends money afterwards', () => {
+    const s = makeGame(64);
+    supercharge(s);
+    playSeason(s);
+    expect(s.player.promotionOffer).not.toBeNull();
+    const team = playerTeam(s);
+    team.cash = 1; // spent below the licence's cash reserve during the review
+    beginOffseason(s, true);
+    expect(playerTeam(s).division).toBe('F4');
+  });
+
+  it('explains a promotion missed for want of a licence', () => {
+    const s = makeGame(65);
+    supercharge(s);
+    playSeason(s, { onWeek: (st) => { if (st.phase === 'season' && st.week > 40) playerTeam(st).facilities.engineering.level = 1; } });
+    const review = s.lastSeasonReview!;
+    expect(review.position).toBeLessThanOrEqual(2);
+    expect(review.promoted).toBe(false);
+    expect(review.missedPromotion?.to).toBe('F4');
+    expect(review.missedPromotion?.failed.some((f) => f.includes('Engineering'))).toBe(true);
   });
 });

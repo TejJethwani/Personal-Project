@@ -998,6 +998,8 @@ export interface SeasonReviewSummary {
   retirements: string[];
   regulation: RegulationNotice | null;
   notes: string[];
+  /** Finished in a promotion place but held no licence for the series above (absent in older saves). */
+  missedPromotion?: { to: DivisionId; failed: string[] } | null;
 }
 
 export interface NewCareerConfig {

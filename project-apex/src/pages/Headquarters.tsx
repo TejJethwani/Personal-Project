@@ -1,7 +1,8 @@
 import { AlertTriangle, CalendarDays, CheckCircle2, CircleAlert, Cloud, CloudRain, Info, Sun, XCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { objectiveStatus } from '@/engine/board';
-import { DIVISIONS } from '@/engine/config/divisions';
+import { divisionAbove, DIVISIONS } from '@/engine/config/divisions';
+import { licensingChecks } from '@/engine/season/promotion';
 import { carRating } from '@/engine/car/car';
 import { capacityUsed, engineeringCapacity } from '@/engine/car/rnd';
 import { divisionStandings } from '@/engine/championship/standings';
@@ -44,6 +45,16 @@ function computeAlerts(game: GameState): AlertItem[] {
   const vacancies = STAFF_ROLES.filter((r) => !team.staff[r]);
   if (vacancies.length) out.push({ level: 'info', text: `Vacant staff roles: ${vacancies.map((r) => STAFF_ROLE_INFO[r].label).join(', ')}.`, page: 'staff' });
   if ((game.phase === 'season' || game.phase === 'preseason') && capacityUsed(team) < engineeringCapacity(game, team) && game.week < 40) out.push({ level: 'info', text: `Engineering capacity available (${capacityUsed(team)}/${engineeringCapacity(game, team)} in use). Start an R&D project.`, page: 'car' });
+  // In the promotion fight without a licence for the series above.
+  const up = divisionAbove(team.division);
+  if (up && game.phase === 'season') {
+    const { constructors } = divisionStandings(game, team.division);
+    const pos = constructors.findIndex((r) => r.id === team.id) + 1;
+    const missing = licensingChecks(game, team, up).filter((c) => !c.met);
+    if (pos >= 1 && pos <= 4 && constructors[0].points > 0 && missing.length) {
+      out.push({ level: 'warning', text: `You are P${pos}, in the promotion fight, but you cannot go up without a ${DIVISIONS[up].name} licence. Missing: ${missing.map((c) => c.label).join(', ')}.`, page: 'championship' });
+    }
+  }
   const free = freeSponsorTiers(team, game.season);
   if (free.length && game.player.sponsorOffers.length) out.push({ level: 'info', text: `Open sponsorship slots: ${[...new Set(free)].join(', ')}. ${game.player.sponsorOffers.length} offer(s) waiting.`, page: 'finances' });
   return out;

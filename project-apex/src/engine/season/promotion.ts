@@ -87,8 +87,10 @@ export interface DivisionMove {
  * Decide promotions and relegations from final standings. Promoted counts
  * equal relegated counts between each pair of divisions, keeping every
  * championship at ten teams. A team that declines promotion is skipped.
+ * `licensed` teams count as eligible: a licence granted at season end stands
+ * through the review, whatever the team spends afterwards.
  */
-export function computeDivisionMoves(state: GameState, declined: string[] = []): { promotions: DivisionMove[]; relegations: DivisionMove[] } {
+export function computeDivisionMoves(state: GameState, declined: string[] = [], licensed: string[] = []): { promotions: DivisionMove[]; relegations: DivisionMove[] } {
   const promotions: DivisionMove[] = [];
   const relegations: DivisionMove[] = [];
   for (const division of DIVISION_ORDER) {
@@ -99,7 +101,7 @@ export function computeDivisionMoves(state: GameState, declined: string[] = []):
     for (const r of constructors.slice(0, 4)) {
       if (promoted.length >= DIVISIONS[division].promotionSlots) break;
       if (declined.includes(r.id)) continue;
-      if (isEligible(state, state.teams[r.id], up)) promoted.push(r.id);
+      if (licensed.includes(r.id) || isEligible(state, state.teams[r.id], up)) promoted.push(r.id);
     }
     const above = divisionStandings(state, up).constructors;
     const n = Math.min(promoted.length, DIVISIONS[up].relegationSlots);

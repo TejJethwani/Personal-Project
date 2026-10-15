@@ -163,6 +163,20 @@ export function SeasonReview() {
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-4">
+              {review.missedPromotion && (
+                <div className="w-full rounded-lg border border-red-800/60 bg-red-500/[0.07] p-4 text-sm">
+                  <div className="font-display text-lg font-bold uppercase text-red-200">Promotion denied: no {DIVISIONS[review.missedPromotion.to].name} licence</div>
+                  <p className="mt-1 text-white/80">
+                    You finished {ordinal(review.position)}, a promotion place, but a team must meet every {DIVISIONS[review.missedPromotion.to].name} licensing requirement at the end of the season. Missing:
+                  </p>
+                  <ul className="mt-2 list-disc space-y-0.5 pl-5 text-red-100">
+                    {review.missedPromotion.failed.map((f) => (
+                      <li key={f}>{f}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-apex-muted">Track your licence during the season under Championship → Promotion.</p>
+                </div>
+              )}
               <div className="text-sm text-white/80">
                 {review.relegated ? `A painful season: ${team.name} will race in ${DIVISIONS[review.newDivision].name} next year.` : `${team.name} stays in ${from.name} for season ${review.season + 1}.`} {review.retirements.length > 0 && `${review.retirements.length} drivers retire from the sport.`}
               </div>

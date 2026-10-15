@@ -31,7 +31,7 @@ import type {
 import { DIVISION_ORDER } from '../types';
 import { assertRule, clamp, roundMoney } from '../util';
 import { buildAllCalendars } from './calendar';
-import { computeDivisionMoves, type DivisionMove } from './promotion';
+import { computeDivisionMoves, licensingChecks, type DivisionMove } from './promotion';
 import { COMPONENT_INFO } from '../car/car';
 
 export const POOL_TARGET = 330;
@@ -260,6 +260,16 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
   const promoted = moves.promotions.find((m) => m.teamId === player.id);
   const relegated = moves.relegations.find((m) => m.teamId === player.id);
   state.player.promotionOffer = promoted ? { to: promoted.to } : null;
+  // Finished high enough but held no licence: record exactly what was missing.
+  let missedPromotion: SeasonReviewSummary['missedPromotion'] = null;
+  if (!promoted) {
+    const ifLicensed = computeDivisionMoves(state, [], [player.id]).promotions.find((m) => m.teamId === player.id);
+    if (ifLicensed) {
+      const failed = licensingChecks(state, player, ifLicensed.to).filter((c) => !c.met).map((c) => `${c.label} (${c.detail.toLowerCase()})`);
+      missedPromotion = { to: ifLicensed.to, failed };
+      addNews(state, { category: 'promotion', headline: `${player.name.toUpperCase()} DENIED PROMOTION`, body: `${player.name} finished in a promotion place but did not meet the ${DIVISIONS[ifLicensed.to].name} licence: ${failed.join('; ')}.`, teamIds: [player.id], importance: 3 });
+    }
+  }
 
   const expiring = Object.values(state.drivers).filter((d) => d.contract?.teamId === player.id && d.contract.endSeason <= state.season && !d.futureContract).map((d) => d.id);
   const summary: SeasonReviewSummary = {
@@ -279,6 +289,7 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
     retirements: [],
     regulation: state.nextRegulations.find((n) => n.division === (promoted?.to ?? relegated?.to ?? player.division)) ?? null,
     notes,
+    missedPromotion,
   };
   state.lastSeasonReview = summary;
   state.phase = 'seasonReview';
@@ -325,7 +336,9 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   state.processed[key] = true;
   const player = playerTeam(state);
   const declined = !acceptPromotion && state.player.promotionOffer ? [player.id] : [];
-  const moves = computeDivisionMoves(state, declined);
+  // A promotion offered at season end is honoured even if the team has spent money since.
+  const licensed = acceptPromotion && state.player.promotionOffer ? [player.id] : [];
+  const moves = computeDivisionMoves(state, declined, licensed);
   const hist = state.history[state.history.length - 1];
   hist.promotions = moves.promotions.map((m) => ({ teamId: m.teamId, from: m.from, to: m.to }));
   hist.relegations = moves.relegations.map((m) => ({ teamId: m.teamId, from: m.from, to: m.to }));

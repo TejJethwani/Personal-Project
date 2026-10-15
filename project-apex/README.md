@@ -108,14 +108,14 @@ project-apex/
 
 ## Testing
 
-`npm test` runs 56 tests across ten files:
+`npm test` runs 58 tests across ten files:
 
 - **World**: 250+ drivers, ten teams per division, a valid state, a Formula 5 start that is not overpowered, divisions getting progressively stronger.
 - **Race**: determinism with the same seed; identical results at every playback speed (lap-by-lap, key events, straight to the end); identical outcome after a JSON save/resume mid-race; valid classification; a race cannot be recorded twice; strategy changes the result; a much faster car wins most but not all races; better drivers beat worse drivers in equal cars; unreliable cars break down more; knockout qualifying and grid penalties.
 - **Championship**: points presets, fastest-lap and pole rules, count-back tie-breaks, standings equal the sum of results.
 - **Contracts**: a star refuses a Formula 5 team; fair offers to suitable free agents succeed; repeated offers get the same answer; talks break down after lowballing; release with severance; invalid terms rejected; no double pre-contracts; max two race contracts next season; buyouts move money from buyer to seller; academy capacity.
 - **Finances and R&D**: the ledger reconciles with cash; salaries reduce available money; sponsor slots and negotiation patience; prize money cannot be collected twice; R&D cost, capacity, completion and diminishing returns; facility upgrades.
-- **Promotion**: licensing checks; ten teams per division after moves; an ineligible winner is not promoted; a dominant licensed team climbs F5 → F4 → F3 → F2 → F1 with rebuilt cars and higher costs; declining promotion.
+- **Promotion**: licensing checks; ten teams per division after moves; an ineligible winner is not promoted and is told which licence requirements were missing; a promotion offered at season end stands even if money is spent afterwards; a dominant licensed team climbs F5 → F4 → F3 → F2 → F1 with rebuilt cars and higher costs; declining promotion.
 - **Saves**: exact round trip; a loaded game continues identically; tampered, foreign and invalid files are rejected; IndexedDB slots save, list, load and delete.
 - **Balance**: no car loses rating over the winter below the regulation ceiling; on Casual the player's car never drops even at the speed limit; on Hardcore winter rules take most development away; upgrades are bigger where they do not last; above it every car slows equally and the order holds; staff pay by role and series; the staff pool is topped up; plenty of free-agent drivers; easier difficulties attract bigger sponsors; Formula 1 races have a realistic amount of overtaking and retirements.
 - **Long run**: five full seasons with the assistant managing the player, validating every invariant every week, checking AI finances stay sane, every seat filled, the driver pool stable, history complete, winners mostly from the stronger half of the field and backmarker podiums rare.
