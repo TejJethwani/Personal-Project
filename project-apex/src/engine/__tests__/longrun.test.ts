@@ -8,7 +8,7 @@ import { DIVISION_ORDER } from '../types';
 import { validateState } from '../validation';
 import { makeGame, playOffseason, playSeason } from './helpers';
 
-const SEASONS = Number(process.env.APEX_SEASONS ?? 5);
+const SEASONS = Number((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.APEX_SEASONS ?? 5);
 
 describe(`long-run simulation (${SEASONS} seasons)`, () => {
   it('keeps the world valid, the economy sane and history complete', () => {

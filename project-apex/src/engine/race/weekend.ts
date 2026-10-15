@@ -30,7 +30,7 @@ import { assertRule, clamp, ordinal } from '../util';
 import { createRaceState, DEFAULT_INSTRUCTIONS, lapsDownText, NO_TIME, runRaceToEnd, stepRaceLap, stepToNextKeyEvent, type RaceEntrantInput } from './engine';
 import { basePace, divisionBaseLap, formatRaceTime } from './pace';
 import { buildQualifying, combineSessions, qualifyingWetness, runSessions, sessionSizes, type QualiEntrant, type QualiRisk } from './qualifying';
-import { aiSetupQuality, DEFAULT_SETUP, engineerAdjust, feedbackAccuracy, idealSetup, setupFeedback, setupQuality } from './setup';
+import { DEFAULT_SETUP, engineerAdjust, feedbackAccuracy, idealSetup, setupFeedback, setupQuality } from './setup';
 import { planStrategies, type StrategyInputs } from './strategy';
 import { expectedWear } from './tires';
 import { forecastFor, generateEventWeather } from './weather';
@@ -179,10 +179,27 @@ export function startPlayerWeekend(state: GameState, eventId: string): WeekendSt
   return weekend;
 }
 
+/**
+ * AI teams run exactly the same practice programme the player's race engineer
+ * would: set off from a baseline setup, read the driver's (sometimes wrong)
+ * feedback and adjust. Better engineers, simulators and experienced drivers
+ * converge faster. No hidden bonus or penalty for either side.
+ */
 function aiQuality(state: GameState, event: CalendarEvent, p: Participant): number {
   const team = state.teams[p.teamId];
-  const rng = Rng.from(state.seed, 'aiSetup', event.id, p.driverId);
-  return aiSetupQuality(rng, staffRating(state, team, 'raceEngineer'), team.facilities.simulator.level, state.drivers[p.driverId].attributes.experience);
+  const driver = state.drivers[p.driverId];
+  const circuit = state.circuits[event.circuitId];
+  const ideal = idealSetup(state.seed, event.id, circuit, driver);
+  const engineer = staffRating(state, team, 'raceEngineer');
+  const accuracy = feedbackAccuracy(driver, engineer, team.facilities.simulator.level);
+  const rng = Rng.from(state.seed, 'aiPractice', event.id, p.driverId);
+  let setup: Setup = { ...DEFAULT_SETUP };
+  let best = 0;
+  for (let i = 0; i < DIVISIONS[event.division].practiceRuns; i++) {
+    best = Math.max(best, setupQuality(setup, ideal));
+    setup = engineerAdjust(setup, setupFeedback(rng, setup, ideal, accuracy), engineer);
+  }
+  return best;
 }
 
 function requireWeekend(state: GameState, phase?: WeekendState['phase']): { weekend: WeekendState; event: CalendarEvent } {
@@ -255,13 +272,12 @@ export function autoPractice(state: GameState, driverId: string): void {
 
 export function finishPractice(state: GameState): void {
   const { weekend, event } = requireWeekend(state, 'practice');
-  const team = playerTeam(state);
   for (const driverId of Object.keys(weekend.practice.setups)) {
     const runs = weekend.practice.runs[driverId];
     let quality = weekend.practice.bestSetupQuality[driverId] ?? 0;
     if (runs.length === 0) {
-      // No running at all: the engineers fall back to a baseline setup.
-      quality = Math.max(35, aiQuality(state, event, { driverId, teamId: team.id }) - 25);
+      // No running at all: the car races on its baseline setup.
+      quality = setupQuality(DEFAULT_SETUP, idealSetup(state.seed, event.id, state.circuits[event.circuitId], state.drivers[driverId]));
     }
     weekend.setupQuality[driverId] = quality;
     const driver = state.drivers[driverId];

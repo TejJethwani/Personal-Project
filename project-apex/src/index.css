@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background: #0b0c0f;
+    color: #f4f5f7;
+  }
+  ::selection {
+    background: rgba(225, 6, 0, 0.45);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #323743 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #323743;
+    border-radius: 8px;
+  }
+  input[type='range'] {
+    accent-color: #e10600;
+  }
+  input[type='number']::-webkit-inner-spin-button {
+    opacity: 0.4;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-apex-line bg-apex-panel bg-panel-grad shadow-panel;
+  }
+  .panel-head {
+    @apply flex items-center justify-between gap-3 border-b border-apex-line px-4 py-3;
+  }
+  .panel-title {
+    @apply font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-white;
+  }
+  .label {
+    @apply text-[11px] font-medium uppercase tracking-[0.12em] text-apex-muted;
+  }
+  .num {
+    @apply font-display tabular-nums;
+  }
+  .mono {
+    @apply font-mono tabular-nums;
+  }
+  .table-apex {
+    @apply w-full border-collapse text-sm;
+  }
+  .table-apex th {
+    @apply sticky top-0 z-[1] whitespace-nowrap border-b border-apex-line bg-apex-panel px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-apex-muted;
+  }
+  .table-apex td {
+    @apply whitespace-nowrap border-b border-apex-line/60 px-3 py-2;
+  }
+  .table-apex tbody tr {
+    @apply transition-colors hover:bg-white/[0.025];
+  }
+  .input {
+    @apply h-9 rounded-md border border-apex-line2 bg-apex-bg px-3 text-sm text-white outline-none transition focus:border-apex-red focus:ring-1 focus:ring-apex-red/40;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider;
+  }
+  .stripe-red {
+    background: linear-gradient(90deg, #e10600 0 4px, transparent 4px);
+  }
+}
