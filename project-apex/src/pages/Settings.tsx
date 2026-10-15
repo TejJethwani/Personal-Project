@@ -12,6 +12,7 @@ import { DIVISION_ORDER } from '@/engine/types';
 import { Badge, Button, Field, Panel, SectionTitle, Segmented, Select, Toggle } from '@/components/ui';
 import { deleteSlot, exportSave, importSave, listSaves, loadFromSlot, MANUAL_SLOTS, saveToSlot, type SaveSummary } from '@/store/persistence';
 import { useGame, useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 /** Holiday mode: the assistant manager runs the team until the season review. */
 function holiday(g: GameState): string {
@@ -62,7 +63,7 @@ export function SettingsPage() {
             <Field label="Difficulty" hint={DIFFICULTIES[game.settings.difficulty].description}>
               <Select<Difficulty>
                 value={game.settings.difficulty}
-                onChange={(v) => confirm(`Switch difficulty to ${DIFFICULTIES[v].label}? This changes finances, reliability and AI behaviour from now on.`) && act((g) => setDifficulty(g, v), { success: `Difficulty: ${DIFFICULTIES[v].label}` })}
+                onChange={async (v) => (await askConfirm(`Switch difficulty to ${DIFFICULTIES[v].label}? This changes finances, reliability and AI behaviour from now on.`)) && act((g) => setDifficulty(g, v), { success: `Difficulty: ${DIFFICULTIES[v].label}` })}
                 options={(Object.keys(DIFFICULTIES) as Difficulty[]).map((d) => ({ value: d, label: DIFFICULTIES[d].label }))}
               />
             </Field>
@@ -94,8 +95,8 @@ export function SettingsPage() {
               <Button
                 className="mt-3"
                 disabled={!(game.phase === 'season' || game.phase === 'preseason' || game.phase === 'weekend')}
-                onClick={() => {
-                  if (!confirm('Hand the team to your assistant until the end of the season?')) return;
+                onClick={async () => {
+                  if (!(await askConfirm('Hand the team to your assistant until the end of the season?'))) return;
                   const msg = act((g) => holiday(g));
                   if (msg) toast('info', msg);
                   if (useStore.getState().game?.phase === 'seasonReview') setPage('seasonReview');
@@ -126,7 +127,7 @@ export function SettingsPage() {
                 <Button
                   size="sm"
                   onClick={async () => {
-                    if (s && !confirm('Overwrite this slot?')) return;
+                    if (s && !(await askConfirm('Overwrite this slot?'))) return;
                     try {
                       await saveToSlot(slot, game);
                       toast('success', `Saved to slot ${i + 1}.`);
@@ -142,7 +143,7 @@ export function SettingsPage() {
                   size="sm"
                   disabled={!s}
                   onClick={async () => {
-                    if (!confirm('Load this save? Unsaved progress since your last save will be lost.')) return;
+                    if (!(await askConfirm('Load this save? Unsaved progress since your last save will be lost.'))) return;
                     try {
                       loadGame(await loadFromSlot(slot));
                       toast('success', 'Game loaded.');
@@ -158,7 +159,7 @@ export function SettingsPage() {
                   variant="ghost"
                   disabled={!s}
                   onClick={async () => {
-                    if (!confirm('Delete this save?')) return;
+                    if (!(await askConfirm('Delete this save?'))) return;
                     await deleteSlot(slot);
                     void refresh();
                   }}
@@ -170,7 +171,15 @@ export function SettingsPage() {
           })}
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={() => exportSave(game)}>
+          <Button
+            onClick={async () => {
+              try {
+                if (await exportSave(game)) toast('success', 'Save file exported.');
+              } catch (e) {
+                toast('error', (e as Error).message);
+              }
+            }}
+          >
             <Download size={14} /> Export save file
           </Button>
           <Button onClick={() => fileRef.current?.click()}>
@@ -193,7 +202,7 @@ export function SettingsPage() {
               e.target.value = '';
             }}
           />
-          <Button variant="danger" className="ml-auto" onClick={() => confirm('Quit to the title screen? Your game is autosaved.') && quit()}>
+          <Button variant="danger" className="ml-auto" onClick={async () => (await askConfirm('Quit to the title screen? Your game is autosaved.')) && quit()}>
             Quit to title
           </Button>
         </div>

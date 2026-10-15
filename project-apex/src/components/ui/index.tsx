@@ -43,7 +43,7 @@ Button.displayName = 'Button';
 
 export function Panel({ title, actions, children, className, bodyClass, icon }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClass?: string; icon?: ReactNode }) {
   return (
-    <section className={cn('panel', className)}>
+    <section className={cn('panel min-w-0', className)}>
       {(title || actions) && (
         <header className="panel-head">
           <h3 className="panel-title flex items-center gap-2">
@@ -53,7 +53,7 @@ export function Panel({ title, actions, children, className, bodyClass, icon }: 
           {actions && <div className="flex items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={cn('p-4', bodyClass)}>{children}</div>
+      <div className={cn('overflow-x-auto p-4', bodyClass)}>{children}</div>
     </section>
   );
 }
@@ -84,7 +84,7 @@ export function Badge({ children, tone, className, title }: { children: ReactNod
 
 export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { id: T; label: ReactNode; count?: number }[]; value: T; onChange: (v: T) => void; className?: string }) {
   return (
-    <div className={cn('flex gap-1 border-b border-apex-line', className)}>
+    <div className={cn('flex flex-wrap gap-1 border-b border-apex-line', className)}>
       {tabs.map((t) => (
         <button
           key={t.id}

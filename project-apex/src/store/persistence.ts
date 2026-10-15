@@ -54,19 +54,50 @@ export async function deleteSlot(slot: string): Promise<void> {
   await (await db()).delete(STORE, slot);
 }
 
-/** Trigger a browser download of the save as JSON. */
-export function exportSave(state: GameState): void {
+interface DownloadsApi {
+  save(request: { filename: string; data: string | Blob }): Promise<{ status: 'saved' | 'delivered' }>;
+}
+
+/**
+ * Hosted on claude.ai the page runs in a sandbox that blocks script-started
+ * downloads; there the host's `downloads` capability offers the file instead.
+ * Resolves null when the page runs anywhere else.
+ */
+async function hostDownloads(): Promise<DownloadsApi | null> {
+  const host = (globalThis as { claude?: { use?: (name: string) => Promise<unknown> } }).claude;
+  if (typeof host?.use !== 'function') return null;
+  try {
+    return (await host.use('downloads')) as DownloadsApi | null;
+  } catch {
+    return null;
+  }
+}
+
+/** Offer the save as a JSON file. Resolves false if the player declined. */
+export async function exportSave(state: GameState): Promise<boolean> {
   const data = serializeGame(state);
+  const team = state.teams[state.player.teamId]?.shortName ?? 'APEX';
+  const filename = `project-apex-${team}-S${state.season}-W${Math.max(0, state.week)}.json`;
   const blob = new Blob([data], { type: 'application/json' });
+  const downloads = await hostDownloads();
+  if (downloads) {
+    try {
+      await downloads.save({ filename, data: blob });
+      return true;
+    } catch (err) {
+      if ((err as { code?: string }).code === 'declined') return false;
+      throw new Error((err as { message?: string }).message ?? 'The save file could not be offered.');
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const team = state.teams[state.player.teamId]?.shortName ?? 'APEX';
   a.href = url;
-  a.download = `project-apex-${team}-S${state.season}-W${Math.max(0, state.week)}.json`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return true;
 }
 
 export async function importSave(file: File): Promise<GameState> {

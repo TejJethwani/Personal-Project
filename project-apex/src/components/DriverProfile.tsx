@@ -10,6 +10,7 @@ import { useGame, useStore } from '@/store/gameStore';
 import { DivisionBadge, Flag, FormDots, TeamLink } from './common';
 import { Badge, Button, Modal, RatingBar, RatingPill, Stat, Tabs } from './ui';
 import { useState } from 'react';
+import { askConfirm } from '@/store/confirm';
 
 export function DriverProfileModal() {
   const id = useStore((s) => s.driverProfile);
@@ -118,9 +119,9 @@ function DriverProfileBody({ driverId }: { driverId: string }) {
               </Button>
               <Button
                 variant="danger"
-                onClick={() => {
+                onClick={async () => {
                   const cost = severanceCost(game, d);
-                  if (confirm(`Release ${driverName(d)}? Severance: ${money(cost)}.`)) {
+                  if (await askConfirm(`Release ${driverName(d)}? Severance: ${money(cost)}.`)) {
                     act((g) => releaseDriver(g, d.id, me.id), { success: `${driverName(d)} released.` });
                     close(null);
                   }

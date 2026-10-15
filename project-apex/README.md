@@ -20,6 +20,7 @@ Other scripts:
 | --- | --- |
 | `npm run build` | Type-check and build a production bundle into `dist/` |
 | `npm run preview` | Serve the production build locally |
+| `npm run build:artifact` | Production build plus `dist/artifact.html`, the page body used to host the game on claude.ai (assets load by relative path) |
 | `npm test` | Run the full Vitest suite (engine, simulation, economy, saves) |
 | `npm run sim` | Run only the long-run multi-season simulation test |
 | `APEX_SEASONS=15 npm run sim` | Same, over 15 seasons |

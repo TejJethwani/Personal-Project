@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { GameShell, Toasts } from './components/Shell';
 import { DriverProfileModal } from './components/DriverProfile';
 import { TeamProfileModal } from './components/TeamProfile';
@@ -87,6 +88,7 @@ export function App() {
           <RaceResultModal />
         </GameShell>
       )}
+      <ConfirmDialog />
       <Toasts />
     </ErrorBoundary>
   );

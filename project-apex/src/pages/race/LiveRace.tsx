@@ -16,6 +16,7 @@ import { TeamDot, TireIcon } from '@/components/common';
 import { Badge, Button, cn, Panel, Progress, Segmented, Toggle } from '@/components/ui';
 import { lapTime } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 interface AnimState {
   start: number;
@@ -98,7 +99,7 @@ export function LiveRace() {
           <span className="num text-3xl font-black">{race.lap}</span>
           <span className="num text-lg text-apex-muted">/ {race.totalLaps}</span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button variant={playing ? 'secondary' : 'primary'} size="md" onClick={() => setPlaying(!playing)} disabled={race.finished}>
             {playing ? <Pause size={16} /> : <Play size={16} />} {playing ? 'Pause' : race.lap === 0 ? 'Lights out' : 'Resume'}
           </Button>
@@ -109,7 +110,7 @@ export function LiveRace() {
           <Button size="md" onClick={() => step('key')} disabled={race.finished} title="Simulate to the next key event">
             <FastForward size={15} /> Next event
           </Button>
-          <Button size="md" variant="outline" onClick={() => confirm('Simulate to the chequered flag?') && step('finish')} disabled={race.finished}>
+          <Button size="md" variant="outline" onClick={async () => (await askConfirm('Simulate to the chequered flag?')) && step('finish')} disabled={race.finished}>
             Finish race
           </Button>
         </div>

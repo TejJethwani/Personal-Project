@@ -14,6 +14,7 @@ import { DriverLink, Flag, FormDots } from '@/components/common';
 import { Badge, Button, Empty, Panel, Progress, RatingBar, RatingPill, SectionTitle, Segmented, Select } from '@/components/ui';
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 export function DriversPage() {
   const game = useGame();
@@ -98,7 +99,7 @@ export function DriversPage() {
                 <Button size="sm" onClick={() => act((g) => setDriverRole(g, team.id, reserve.id, 'race', team.raceDrivers[0] === null ? 0 : team.raceDrivers[1] === null ? 1 : 1), { success: 'Line-up changed.' })}>
                   Promote to race seat
                 </Button>
-                <Button size="sm" variant="danger" onClick={() => confirm(`Release ${driverName(reserve)} for ${money(severanceCost(game, reserve))}?`) && act((g) => releaseDriver(g, reserve.id, team.id), { success: 'Reserve released.' })}>
+                <Button size="sm" variant="danger" onClick={async () => (await askConfirm(`Release ${driverName(reserve)} for ${money(severanceCost(game, reserve))}?`)) && act((g) => releaseDriver(g, reserve.id, team.id), { success: 'Reserve released.' })}>
                   Release
                 </Button>
               </div>
@@ -285,7 +286,7 @@ function DriverCard({ driver: d, seat }: { driver: Driver; seat: 0 | 1 }) {
             <Button size="sm" onClick={() => act((g) => setDriverRole(g, team.id, d.id, 'reserve'), { success: `${d.lastName} moved to reserve.` })} disabled={team.reserveDriverId !== null}>
               To reserve
             </Button>
-            <Button size="sm" variant="danger" onClick={() => confirm(`Release ${driverName(d)}? Severance ${money(severanceCost(game, d))}.`) && act((g) => releaseDriver(g, d.id, team.id), { success: `${driverName(d)} released.` })}>
+            <Button size="sm" variant="danger" onClick={async () => (await askConfirm(`Release ${driverName(d)}? Severance ${money(severanceCost(game, d))}.`)) && act((g) => releaseDriver(g, d.id, team.id), { success: `${driverName(d)} released.` })}>
               Release
             </Button>
           </div>

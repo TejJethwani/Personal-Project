@@ -11,7 +11,8 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sim": "vitest run src/engine/__tests__/longrun.test.ts"
+    "sim": "vitest run src/engine/__tests__/longrun.test.ts",
+    "build:artifact": "npm run build && node scripts/artifact-page.mjs"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "5.1.0",

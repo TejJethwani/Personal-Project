@@ -11,6 +11,7 @@ import { Flag, TeamLink } from '@/components/common';
 import { Badge, Button, cn, Empty, Field, Modal, Panel, Progress, RatingPill, SectionTitle, Segmented, Tabs } from '@/components/ui';
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 export function StaffPage() {
   const [tab, setTab] = useState<'staff' | 'facilities'>('staff');
@@ -86,7 +87,7 @@ function StaffTab() {
             <Button size="sm" onClick={() => setHiring({ staff: s, mode: 'extend' })}>
               Extend contract
             </Button>
-            <Button size="sm" variant="danger" onClick={() => confirm(`Dismiss ${staffName(s)}? Severance will be paid.`) && act((g) => fireStaff(g, team.id, s.id), { success: `${staffName(s)} dismissed.` })}>
+            <Button size="sm" variant="danger" onClick={async () => (await askConfirm(`Dismiss ${staffName(s)}? Severance will be paid.`)) && act((g) => fireStaff(g, team.id, s.id), { success: `${staffName(s)} dismissed.` })}>
               Dismiss
             </Button>
           </div>

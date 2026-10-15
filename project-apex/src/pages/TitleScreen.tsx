@@ -7,6 +7,7 @@ import { CarLivery } from '@/components/common';
 import { Button } from '@/components/ui';
 import { AUTOSAVE_SLOT, deleteSlot, importSave, listSaves, loadFromSlot, type SaveSummary } from '@/store/persistence';
 import { useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 export function TitleScreen() {
   const setScreen = useStore((s) => s.setScreen);
@@ -116,7 +117,7 @@ export function TitleScreen() {
                       size="icon"
                       title="Delete save"
                       onClick={async () => {
-                        if (!confirm('Delete this save permanently?')) return;
+                        if (!(await askConfirm('Delete this save permanently?'))) return;
                         await deleteSlot(s.slot);
                         void refresh();
                       }}

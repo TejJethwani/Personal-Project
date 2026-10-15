@@ -9,6 +9,7 @@ import { DivisionBadge, DriverLink, TeamCar, TeamLink } from '@/components/commo
 import { Badge, Button, Empty, Panel, SectionTitle, Stat } from '@/components/ui';
 import { money, ordinal } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 export function SeasonReview() {
   const game = useGame();
@@ -155,7 +156,7 @@ export function SeasonReview() {
                 <Button variant="primary" size="lg" onClick={() => go(true)}>
                   Accept promotion
                 </Button>
-                <Button variant="ghost" onClick={() => confirm('Decline promotion and stay in your current division?') && go(false)}>
+                <Button variant="ghost" onClick={async () => (await askConfirm('Decline promotion and stay in your current division?')) && go(false)}>
                   Decline and stay
                 </Button>
               </div>

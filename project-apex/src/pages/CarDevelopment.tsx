@@ -9,6 +9,7 @@ import { TeamDot, TeamLink } from '@/components/common';
 import { Badge, Button, Empty, Panel, Progress, RatingBar, SectionTitle, Segmented, Select, Stat } from '@/components/ui';
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 function estimatedPace(game: ReturnType<typeof useGame>, viewer: Team, t: Team): { value: number; unc: number } {
   if (viewer.id === t.id) return { value: overallPace(t.car), unc: 0 };
@@ -129,7 +130,7 @@ export function CarPage() {
                       <div className="flex items-center gap-2">
                         <Badge tone={phase === 'testing' ? 'purple' : phase === 'manufacture' ? 'amber' : 'blue'}>{phase}</Badge>
                         {p.delayWeeks > 0 && <Badge tone="red">delayed +{p.delayWeeks}w</Badge>}
-                        <Button size="xs" variant="ghost" onClick={() => confirm('Cancel this project? The money already spent is lost.') && act((g) => cancelProject(g, team.id, p.id))}>
+                        <Button size="xs" variant="ghost" onClick={async () => (await askConfirm('Cancel this project? The money already spent is lost.')) && act((g) => cancelProject(g, team.id, p.id))}>
                           Cancel
                         </Button>
                       </div>

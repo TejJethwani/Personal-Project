@@ -12,6 +12,7 @@ import type { SponsorOffer, SponsorTier, TxCategory } from '@/engine/types';
 import { Badge, Button, cn, Empty, Panel, Progress, SectionTitle, Stat, Tabs } from '@/components/ui';
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { askConfirm } from '@/store/confirm';
 
 const tooltipStyle = { background: '#121419', border: '1px solid #262a33', fontSize: 12 };
 
@@ -226,7 +227,7 @@ function Sponsors() {
                     )}
                   </div>
                   <div className="mt-3 text-right">
-                    <Button size="xs" variant="danger" onClick={() => confirm(`End the ${d.name} deal early? Penalty ${money(d.perRace * 2)} and reputation loss.`) && act((g) => terminateSponsor(g, d.name))}>
+                    <Button size="xs" variant="danger" onClick={async () => (await askConfirm(`End the ${d.name} deal early? Penalty ${money(d.perRace * 2)} and reputation loss.`)) && act((g) => terminateSponsor(g, d.name))}>
                       Terminate
                     </Button>
                   </div>

@@ -97,11 +97,11 @@ function ContinueButton() {
   return (
     <div className="flex items-center gap-1.5">
       {c.fast && (
-        <Button variant="secondary" size="md" disabled={c.disabled || busy} title="Advance a single week" onClick={() => run(c.fast!)}>
+        <Button variant="secondary" size="md" className="hidden sm:inline-flex" disabled={c.disabled || busy} title="Advance a single week" onClick={() => run(c.fast!)}>
           +1 Week
         </Button>
       )}
-      <Button variant="primary" size="lg" disabled={c.disabled || busy} title={c.hint} onClick={() => run(c.run)} className="min-w-[170px]">
+      <Button variant="primary" size="lg" disabled={c.disabled || busy} title={c.hint} onClick={() => run(c.run)} className="sm:min-w-[170px]">
         {busy ? <Loader2 className="animate-spin" size={16} /> : null}
         {c.label}
         <ChevronRight size={18} />
@@ -118,19 +118,19 @@ function TopBar() {
   const c = useContinue();
   return (
     <header className="sticky top-0 z-30 border-b border-apex-line bg-apex-bg/95 backdrop-blur">
-      <div className="flex h-16 items-center gap-5 px-5">
+      <div className="flex h-16 items-center gap-3 px-4 sm:gap-5 sm:px-5">
         <div className="flex items-center gap-2 pr-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-apex-red font-display text-lg font-black">A</div>
           <div className="hidden font-display text-lg font-black uppercase tracking-[0.18em] lg:block">
             Project <span className="text-apex-red">Apex</span>
           </div>
         </div>
-        <div className="flex min-w-0 items-center gap-2.5 border-l border-apex-line pl-5">
+        <div className="flex min-w-0 items-center gap-2.5 border-l border-apex-line pl-3 sm:pl-5">
           <TeamDot team={team} size={14} />
           <div className="min-w-0">
             <div className="truncate font-display text-base font-bold uppercase tracking-wide">{team.name}</div>
-            <div className="flex items-center gap-1.5 text-[11px] text-apex-muted">
-              <DivisionBadge division={team.division} /> Season {game.season} · {game.year} · {weekLabel(game.season, game.week)}
+            <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-apex-muted">
+              <DivisionBadge division={team.division} /> <span className="truncate">Season {game.season} · {game.year} · {weekLabel(game.season, game.week)}</span>
             </div>
           </div>
         </div>
