@@ -125,10 +125,10 @@ export function aiStaff(state: GameState, team: Team, rng: Rng): void {
     const budget = DIVISIONS[team.division].typicalBudget * 0.035;
     const options = Object.values(state.staff)
       .filter((s) => !s.retired && s.role === role && !s.contract && s.rating > currentRating + (current ? 6 : -100))
-      .filter((s) => staffExpectedSalary(s.rating, team.division) <= budget)
+      .filter((s) => staffExpectedSalary(s.rating, team.division, role) <= budget)
       .sort((a, b) => b.rating - a.rating);
     for (const s of options.slice(0, 3)) {
-      const res = hireStaffMember(state, team.id, s.id, roundMoney(staffExpectedSalary(s.rating, team.division) * 1.05), rng.int(1, 3));
+      const res = hireStaffMember(state, team.id, s.id, roundMoney(staffExpectedSalary(s.rating, team.division, role) * 1.05), rng.int(1, 3));
       if (res.accepted) break;
       if (res.askingSalary && res.askingSalary <= budget) {
         if (hireStaffMember(state, team.id, s.id, res.askingSalary, 2).accepted) break;

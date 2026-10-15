@@ -96,7 +96,7 @@ export function describeExpectation(e: SponsorExpectation): string {
 export function generateSponsorOffer(state: GameState, team: Team, rng: Rng, tier: SponsorTier): SponsorOffer {
   const appeal = sponsorAppeal(state, team);
   const cfg = DIVISIONS[team.division];
-  const base = tierPerRaceValue(team, tier, appeal) * rng.range(0.85, 1.12);
+  const base = tierPerRaceValue(team, tier, appeal) * (team.isPlayer ? DIFFICULTIES[state.settings.difficulty].sponsorIncome : 1) * rng.range(0.85, 1.12);
   const risk: SponsorRisk = rng.weighted([
     { item: 'safe', weight: 4 },
     { item: 'standard', weight: 5 },

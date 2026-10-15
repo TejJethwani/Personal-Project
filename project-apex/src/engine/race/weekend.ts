@@ -415,6 +415,13 @@ export function closeWeekend(state: GameState): void {
 // ---------------------------------------------------------------------------
 
 export function simulateEventAutomatically(state: GameState, event: CalendarEvent): RaceResult {
+  const { result, race } = simulateEventRace(state, event);
+  applyRaceResult(state, result, race);
+  return result;
+}
+
+/** Qualifying and race for an AI-run event, classified but not yet applied to the world. */
+export function simulateEventRace(state: GameState, event: CalendarEvent): { result: RaceResult; race: RaceState } {
   assertRule(!event.completed, 'Event already completed.');
   const participants = participantsFor(state, event);
   const pseudoWeekend = { setupQuality: {} as Record<string, number> } as WeekendState;
@@ -428,9 +435,7 @@ export function simulateEventAutomatically(state: GameState, event: CalendarEven
   const quali = buildQualifying(state, event, entrants, sizes.length);
   const race = createRaceState(state, event, buildEntrants(state, event, quali.entries, pseudoWeekend, true));
   runRaceToEnd(state, race);
-  const result = classify(state, event, race, quali.entries);
-  applyRaceResult(state, result, race);
-  return result;
+  return { result: classify(state, event, race, quali.entries), race };
 }
 
 // ---------------------------------------------------------------------------

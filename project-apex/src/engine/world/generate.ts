@@ -5,7 +5,7 @@ import { TEAM_SEEDS } from '../data/teams';
 import { generateCar } from '../car/car';
 import { expectedSalary, overall } from '../drivers/ratings';
 import { generateDriver, generateProspect, nextId, raceAgeFor, type GenContext } from '../drivers/generate';
-import { generateStaff, STAFF_ROLES, staffExpectedSalary } from '../staff/staff';
+import { generateStaff, replenishStaffPool, STAFF_ROLES, staffExpectedSalary } from '../staff/staff';
 import { FACILITY_KEYS } from '../team/facilities';
 import { buildAllCalendars } from '../season/calendar';
 import { Rng } from '../rng';
@@ -123,7 +123,7 @@ function hireStaff(build: WorldBuild, team: Team, role: StaffRole, rating: numbe
   const s = generateStaff(build.ctx, role, rating);
   s.contract = {
     teamId: team.id,
-    salary: staffExpectedSalary(s.rating, team.division) * build.ctx.rng.range(0.9, 1.1),
+    salary: staffExpectedSalary(s.rating, team.division, role) * build.ctx.rng.range(0.9, 1.1),
     startSeason: build.state.season,
     endSeason: build.state.season + build.ctx.rng.int(0, 2),
   };
@@ -313,24 +313,19 @@ export function createWorld(config: NewCareerConfig): GameState {
   // Free agents across all levels, plus unsigned youth prospects.
   for (const division of DIVISION_ORDER) {
     const cfg = DIVISIONS[division];
-    const count = division === 'F1' ? 8 : division === 'F5' ? 14 : 10;
+    const count = { F1: 12, F2: 16, F3: 18, F4: 20, F5: 24 }[division];
     for (let i = 0; i < count; i++) {
       const d = generateDriver(build.ctx, { targetOverall: cfg.driverRatingMean - 3 + rng.normal(0, cfg.driverRatingSd), age: raceAgeFor(rng, division), division });
       state.drivers[d.id] = d;
     }
   }
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < 48; i++) {
     const p = generateProspect(build.ctx, rng.range(0, 1.5));
     state.drivers[p.id] = p;
   }
 
   // Free-agent staff market.
-  for (const role of STAFF_ROLES) {
-    for (let i = 0; i < 7; i++) {
-      const s = generateStaff(build.ctx, role, rng.pick([30, 36, 42, 50, 58, 66, 74]) + rng.normal(0, 4));
-      state.staff[s.id] = s;
-    }
-  }
+  replenishStaffPool(state, rng);
 
   state.calendars = buildAllCalendars(state, 1);
   // The player's own drivers and staff are fully known.

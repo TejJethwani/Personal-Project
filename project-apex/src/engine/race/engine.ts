@@ -509,6 +509,10 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
   // 2. Raw lap times.
   const tentative = new Map<string, number>();
   const lapTimes = new Map<string, number>();
+  const cleanPace = new Map<string, number>();
+  // Failure odds are judged against the field's reliability, so a whole series
+  // developing over the years does not make breakdowns vanish.
+  const fieldReliability = race.cars.reduce((s, c) => s + reliabilityIndex(state.teams[c.teamId].car, ctx.trackTemp), 0) / Math.max(1, race.cars.length);
   for (const car of order) {
     const driver = state.drivers[car.driverId];
     const team = state.teams[car.teamId];
@@ -533,6 +537,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
       const interval = car.totalTime - order[idx - 1].totalTime;
       if (interval < t.dirtyAirWindow) lapTime += t.dirtyAirPenalty * (1 - interval / t.dirtyAirWindow) * ctx.scale * (0.55 + circuit.overtakingDifficulty * 0.6);
     }
+    cleanPace.set(car.driverId, lapTime);
     lapTime += rng.normal(0, lapNoiseSd(driver.attributes.consistency, ctx.scale));
 
     // Lap 1 launch.
@@ -593,7 +598,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
     // Mechanical reliability.
     const relIdx = reliabilityIndex(team.car, ctx.trackTemp);
     const crew = staffRating(state, team, 'chiefMechanic');
-    const pFail = cfg.failureRate * diff.reliabilityMultiplier * Math.exp((50 - relIdx) / 28) * failureFactor(ins.pace) * (1.25 - crew / 200);
+    const pFail = cfg.failureRate * diff.reliabilityMultiplier * Math.exp((fieldReliability - relIdx) / 28) * failureFactor(ins.pace) * (1.25 - crew / 200);
     if (car.latentFailure) {
       car.latentFailure.health -= healthDrain(ins.pace);
       if (car.latentFailure.health <= 0) {
@@ -718,7 +723,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
           j--;
           continue;
         }
-        if ((sameTeam && car.instructions.teamOrder === 'hold') || count >= 3) {
+        if ((sameTeam && car.instructions.teamOrder === 'hold') || count >= (lap === 1 ? 3 : 2)) {
           tentative.set(car.driverId, tAhead + rng.range(0.5, 0.8));
           break;
         }
@@ -726,11 +731,15 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
         const dAhead = state.drivers[ahead.driverId];
         const advantage = tAhead + 0.12 - tCar;
         const interval = car.totalTime - ahead.totalTime;
+        const paceAdvantage = clamp(((cleanPace.get(ahead.driverId) ?? 0) - (cleanPace.get(car.driverId) ?? 0)) / ctx.scale, -2, 2);
         let logit =
           t.overtakeAdvantageWeight * advantage +
+          // Into the first corners the launch matters far more than race pace.
+          t.overtakePaceWeight * paceAdvantage * (lap === 1 ? 0.3 : 1) +
           (attackIndex(dCar) - defenceIndex(dAhead)) * t.overtakeSkillWeight -
           circuit.overtakingDifficulty * t.overtakeDifficultyWeight * (lap === 1 ? 0.55 : 1) +
-          t.overtakeBase;
+          t.overtakeBase +
+          cfg.overtakeModifier;
         if (race.drsEnabled && interval < 1.0) logit += t.drsBonus;
         if (cfg.ers && car.instructions.ers === 'overtake' && car.ers > 10) logit += t.ersOvertakeBonus;
         if (cfg.ers && ahead.instructions.ers === 'overtake' && ahead.ers > 10) logit -= t.ersOvertakeBonus * 0.6;
@@ -739,6 +748,8 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
         if (car.isPlayer) logit += philosophy.overtakeBonus;
         if (ahead.isPlayer && ahead.instructions.defend) logit -= philosophy.overtakeBonus * 0.5;
         if (ctx.wetness > 0.3) logit += (dCar.attributes.wetWeather - dAhead.attributes.wetWeather) / 40;
+        // Having just been passed by this car, the attacker is rarely back in range at once.
+        if (car.passedBy?.driverId === ahead.driverId && lap - car.passedBy.lap <= 2) logit -= t.repassPenalty;
         const pass = rng.chance(sigmoid(logit));
         // Contact risk on every attempt.
         const aggression = ((dCar.attributes.aggression + dAhead.attributes.aggression) / 120) ** 1.5;
@@ -751,6 +762,10 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
         }
         passes.set(car.driverId, count + 1);
         if (pass) {
+          race.passes ??= { firstLap: 0, total: 0 };
+          race.passes.total++;
+          if (lap === 1) race.passes.firstLap++;
+          ahead.passedBy = { driverId: car.driverId, lap };
           tentative.set(ahead.driverId, Math.max(tAhead + t.battleTimeLoss, tCar + 0.2));
           running[j] = ahead;
           running[j - 1] = car;

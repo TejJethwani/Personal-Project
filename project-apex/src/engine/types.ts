@@ -602,6 +602,8 @@ export interface CarRaceState {
   latentFailure: { type: FailureType; health: number } | null;
   lapsLed: number;
   usedCompounds: TireCompound[];
+  /** Who last passed this car and when (stops instant re-passes); absent in older saves. */
+  passedBy?: { driverId: string; lap: number };
   /** Base pace data computed at race start (performance indices). */
   carPerf: number;
   driverPerf: number;
@@ -675,6 +677,8 @@ export interface RaceState {
   injuries: Record<string, number>;
   /** Mechanical failures by driver (for grid penalties next race). */
   failures: Record<string, string>;
+  /** On-track passes (team orders and pit stops excluded); absent in older saves. */
+  passes?: { firstLap: number; total: number };
 }
 
 export interface QualifyingEntry {

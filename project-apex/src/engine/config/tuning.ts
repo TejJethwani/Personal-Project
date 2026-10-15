@@ -18,29 +18,33 @@ export const RACE_TUNING = {
   lapNoiseBase: 0.11,
   lapNoiseInconsistency: 0.32,
   /** Pace mode offsets (s, 90 s lap): negative is faster. */
-  paceModeOffset: { conserve: 0.55, balanced: 0, push: -0.28, attack: -0.5 },
+  paceModeOffset: { conserve: 0.38, balanced: 0, push: -0.18, attack: -0.32 },
   paceModeWear: { conserve: 0.82, balanced: 1, push: 1.18, attack: 1.4 },
   paceModeMistake: { conserve: 0.6, balanced: 1, push: 1.45, attack: 2.2 },
   paceModeFailure: { conserve: 0.55, balanced: 1, push: 1.35, attack: 1.8 },
   paceModeFatigue: { conserve: 0.75, balanced: 1, push: 1.2, attack: 1.45 },
   tireModeWear: { preserve: 0.8, normal: 1, aggressive: 1.25 },
-  tireModeOffset: { preserve: 0.22, normal: 0, aggressive: -0.18 },
-  fuelModeOffset: { lean: 0.32, standard: 0, rich: -0.18 },
+  tireModeOffset: { preserve: 0.15, normal: 0, aggressive: -0.12 },
+  fuelModeOffset: { lean: 0.25, standard: 0, rich: -0.1 },
   fuelModeBurn: { lean: 0.9, standard: 1, rich: 1.07 },
   /** Fuel weight penalty (s per kg, 90 s lap). */
   fuelSecondsPerKg: 0.032,
-  ersOffset: { harvest: 0.3, balanced: 0, deploy: -0.32, overtake: -0.5 },
+  ersOffset: { harvest: 0.25, balanced: 0, deploy: -0.2, overtake: -0.32 },
   ersCharge: { harvest: 14, balanced: 3, deploy: -12, overtake: -26 },
   /** Dirty air: penalty (s) when following within this interval. */
   dirtyAirWindow: 1.3,
   dirtyAirPenalty: 0.32,
   dirtyAirWear: 0.12,
   /** Overtaking model. */
-  overtakeAdvantageWeight: 3.4,
+  overtakeAdvantageWeight: 2.2,
+  /** Weight of the attacker's underlying (noise-free) pace advantage, s per lap at a 90 s lap. */
+  overtakePaceWeight: 2.5,
+  /** Logit penalty for re-passing a car that passed you in the last two laps. */
+  repassPenalty: 1.4,
   overtakeSkillWeight: 1 / 22,
   overtakeDifficultyWeight: 3.6,
-  overtakeBase: 0.6,
-  drsBonus: 0.9,
+  overtakeBase: -0.8,
+  drsBonus: 0.8,
   ersOvertakeBonus: 0.45,
   defendBonus: 0.35,
   heldUpGapMin: 0.25,
@@ -61,14 +65,14 @@ export const RACE_TUNING = {
   scPitLossFactor: 0.52,
   vscPitLossFactor: 0.62,
   scGapCompression: 0.55,
-  scChanceCrash: 0.58,
-  vscChanceCrash: 0.28,
+  scChanceCrash: 0.45,
+  vscChanceCrash: 0.38,
   scChanceFailure: 0.1,
   vscChanceFailure: 0.32,
   /** Mechanical failure: share that gives a warning before failing. */
   failureWarningShare: 0.45,
   /** Start: sd of launch time delta (s). */
-  startSd: 0.55,
+  startSd: 0.7,
   gridSlotGap: 0.24,
   firstLapCollisionChance: 0.012,
   jumpStartChance: 0.003,
@@ -106,8 +110,20 @@ export const ECONOMY_TUNING = {
   salaryRate: 0.12,
   salaryEliteRate: 0.16,
   salaryEliteThreshold: 80,
-  staffSalaryBase: 14_000,
-  staffSalaryRate: 0.085,
+  /** Staff salary for a typical-rated member of each series (role weight 1). */
+  staffSalaryScale: { F5: 26_000, F4: 48_000, F3: 90_000, F2: 160_000, F1: 600_000 },
+  /** Relative pay by role. */
+  staffRoleWeight: {
+    technicalDirector: 1.6,
+    raceEngineer: 1.0,
+    headStrategist: 1.0,
+    chiefMechanic: 0.85,
+    driverCoach: 0.6,
+    headScout: 0.55,
+    academyDirector: 0.65,
+  },
+  /** Salary growth per rating point above the series' typical staff rating. */
+  staffSalaryRate: 0.04,
   /** Facility upgrade cost curve. */
   facilityCostBase: 50_000,
   facilityCostGrowth: 2.15,
@@ -115,9 +131,9 @@ export const ECONOMY_TUNING = {
   facilityUpkeepGrowth: 2,
   /** R&D: cost as fraction of division typical budget, base gain, base weeks, capacity used. */
   rnd: {
-    minor: { cost: 0.016, gain: 2.6, weeks: 3, capacity: 1, risk: 0.08 },
-    major: { cost: 0.05, gain: 6.5, weeks: 6, capacity: 1, risk: 0.15 },
-    radical: { cost: 0.11, gain: 12, weeks: 10, capacity: 2, risk: 0.28 },
+    minor: { cost: 0.016, gain: 1.4, weeks: 3, capacity: 1, risk: 0.08 },
+    major: { cost: 0.05, gain: 3.5, weeks: 6, capacity: 1, risk: 0.15 },
+    radical: { cost: 0.11, gain: 6.5, weeks: 10, capacity: 2, risk: 0.28 },
   },
   /** Sponsor value as a share of typical budget for an average team. */
   sponsorShare: { title: 0.2, major: 0.1, minor: 0.035 },

@@ -63,7 +63,7 @@ export function maybeGenerateOpportunity(state: GameState): Opportunity | null {
       const role = rng.pick(STAFF_ROLES.filter((r) => r !== 'academyDirector'));
       const current = staffRating(state, team, role);
       const rating = clamp(Math.round(current + rng.range(8, 16)), 25, 92);
-      const salary = roundMoney(staffExpectedSalary(rating, team.division) * 1.05);
+      const salary = roundMoney(staffExpectedSalary(rating, team.division, role) * 1.05);
       const fee = roundMoney(salary * 0.6);
       op = { ...base, title: `${STAFF_ROLE_INFO[role].label} available`, body: `A rated ${STAFF_ROLE_INFO[role].label.toLowerCase()} (rating ${rating}) is unhappy at a rival and willing to join for ${money(salary)} per season plus a ${money(fee)} release fee.`, choices: [{ id: 'accept', label: 'Hire', description: `${money(fee)} fee, ${money(salary)}/season` }, { id: 'decline', label: 'Decline', description: '' }], data: { role, rating, salary, fee } };
       break;

@@ -22,6 +22,8 @@ export interface DifficultyConfig {
   bankruptcyEndsCareer: boolean;
   /** Sponsor patience multiplier. */
   sponsorPatience: number;
+  /** Multiplier on the value of sponsorship offers made to the player. */
+  sponsorIncome: number;
   /** Driver salary demand multiplier. */
   salaryDemand: number;
 }
@@ -30,7 +32,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   casual: {
     id: 'casual',
     label: 'Casual',
-    description: 'Generous starting funds, forgiving board, rescue loans whenever money runs out. Learn the ropes.',
+    description: 'Generous starting funds and sponsors, forgiving board, rescue loans whenever money runs out. Learn the ropes.',
     startingCash: 1.6,
     reliabilityMultiplier: 0.75,
     aiMarketAggression: 0.8,
@@ -40,6 +42,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     canBeSacked: false,
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.4,
+    sponsorIncome: 1.8,
     salaryDemand: 0.9,
   },
   standard: {
@@ -55,6 +58,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     canBeSacked: false,
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.0,
+    sponsorIncome: 1.35,
     salaryDemand: 1.0,
   },
   realistic: {
@@ -70,6 +74,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     canBeSacked: true,
     bankruptcyEndsCareer: false,
     sponsorPatience: 0.85,
+    sponsorIncome: 1.1,
     salaryDemand: 1.08,
   },
   hardcore: {
@@ -85,6 +90,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     canBeSacked: true,
     bankruptcyEndsCareer: true,
     sponsorPatience: 0.7,
+    sponsorIncome: 1.0,
     salaryDemand: 1.15,
   },
 };

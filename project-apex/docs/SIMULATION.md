@@ -28,15 +28,20 @@ A 30-point spread in car performance is worth about 1.4 s per lap; a 25-point dr
 2. **Lap time** = pace model + compound offset (soft −0.68 s, hard +0.55 s, intermediates/wets depending on wetness) + wear penalty (0.017 s per % wear, plus a steep cliff) + fuel mass (0.032 s/kg) + instruction offsets + damage + dirty air (up to 0.32 s inside 1.3 s, worse at hard-to-pass tracks) + Gaussian noise (σ from 0.11 to 0.43 s by consistency).
 3. **Incidents**:
    - *Mistakes*: base 1.05% per lap, scaled by inconsistency, pace mode, wetness, fatigue, pressure, slicks on a wet track, confidence and the first lap. Outcomes: small time loss, spin (5-12 s), or crash (DNF, possible injury).
-   - *Mechanical failure*: per-lap probability = division rate × difficulty multiplier × e^((50 − reliability index)/28) × pace-mode factor × crew factor. 45% of failures give a **warning** first; nursing the car in Conserve mode slows the hidden damage and can save the finish.
+   - *Mechanical failure*: per-lap probability = division rate × difficulty multiplier × e^((field average reliability − reliability index)/28) × pace-mode factor × crew factor. Judging reliability against the field keeps breakdown rates stable as a series develops over the years (about 0.5-1 mechanical retirement per race). 45% of failures give a **warning** first; nursing the car in Conserve mode slows the hidden damage and can save the finish.
    - *Track limits and jump starts* give time penalties.
 4. **Pit stops**: pit-lane loss for the circuit, plus stationary time from the chief mechanic, a slow-stop chance, damage repairs and any time penalty being served. Under SC/VSC the effective loss shrinks.
 5. **Battles**: cars are resolved front to back. If a car's lap would put it ahead of the car in front, it must pass:
    ```
-   logit = 3.4 × pace advantage(s) + (attack − defence)/22 − 3.6 × overtaking difficulty + 0.6
-           + DRS 0.9 + ERS overtake 0.45 − defending 0.35 + attack mode 0.25 + wet skill difference
+   logit = 2.2 × gap closed this lap(s) + 2.5 × underlying pace advantage(s/lap, ×0.3 on lap 1)
+           + (attack − defence)/22 − 3.6 × overtaking difficulty − 0.8 + series modifier
+           + DRS 0.8 + ERS overtake 0.45 − defending 0.35 + attack mode 0.25 + wet skill difference
+           − 1.4 if the car ahead passed this one in the last two laps
    P(pass) = sigmoid(logit)
    ```
+   The underlying pace advantage ignores the lap's random noise, so a pass needs a genuinely faster car, fresher tyres or a mistake ahead, not one lucky lap; the re-pass penalty stops cars swapping places every lap. The series modifier reflects how well cars follow: junior cars +0.2 … −0.3, Formula 1 −1.1 (dirty air). A car can make at most two passes per lap (three on lap 1). Driving modes are worth a few tenths (conserve +0.38 s, push −0.18 s, attack −0.32 s; ERS overtake −0.32 s).
+
+   Typical results over many simulated races: Formula 1 about 45 on-track passes per race (plus 10-15 position changes on lap 1), safety car in about a third of races, 1-2 retirements, winning margin around 8 s; the junior series 30-50 passes, closer finishes, and dry races usually run without a pit stop (tyres last a sprint race, but stopping for softs stays an option).
    A failed attempt leaves the attacker 0.25-0.65 s behind (and in dirty air). Every attempt carries a contact risk (aggression, wetness, first lap, attack/defend modes); collisions cause damage, punctures or retirements, and the stewards may hand out time penalties and penalty points (12 points = race ban). Team orders (hold / let your team-mate by) are respected.
 6. **Safety cars**: crashes and stopped cars can trigger a safety car (3-5 laps, field compresses, no overtaking) or a VSC (1-3 laps, everyone slower, gaps kept). The chance scales with the circuit's safety-car risk.
 7. **Tyres, fuel, energy, fatigue** update. Running out of fuel retires the car; ERS (F1) charges and depletes by mode.
@@ -79,23 +84,25 @@ All values scale from each division's *typical budget* B (F5 $1.2M, F4 $3M, F3 $
 
 | Flow | Size for an average team |
 | --- | --- |
-| Sponsorship (title 0.2B, two majors 0.1B, three minors 0.035B) × appeal | ≈ 0.5B |
+| Sponsorship (title 0.2B, two majors 0.1B, three minors 0.035B) × appeal; the player's offers × difficulty (Casual 1.8, Standard 1.35, Realistic 1.1, Hardcore 1.0) | ≈ 0.5B (AI) |
 | Constructors' prize money (P1 0.42B … P10 0.10B) | ≈ 0.24B |
 | Race prize money, driver backing | ≈ 0.05-0.1B |
 | Race operations | 0.13B |
 | Entry fee | 0.03B |
-| Driver and staff salaries (rating-driven, × division salary factor 0.7 … 3.0) | 0.1-0.2B |
+| Driver salaries (rating-driven, × division salary factor 0.7 … 3.0) | 0.02-0.1B |
+| Staff salaries: series scale (F5 $26k … F1 $600k for typical staff) × role weight (technical director 1.6, engineer and strategist 1.0, chief mechanic 0.85, academy director 0.65, driver coach 0.6, scout 0.55) × e^(0.04 × rating above the series' typical staff) | 0.1-0.15B |
 | Facility upkeep (6k × 2^(level−1) per facility) | ≈ 0.05B |
-| R&D (minor 0.016B / 3 weeks, major 0.05B / 6 weeks, radical 0.11B / 10 weeks) | discretionary |
+| R&D (minor 0.016B / 3 weeks / +1.4, major 0.05B / 6 weeks / +3.5, radical 0.11B / 10 weeks / +6.5 base gain) | discretionary |
 
 Sponsor appeal follows reputation and results. Sponsors pay per race plus bonuses, judge an expectation (constructors' position, podiums, wins or points finishes), cut payments or walk away if unhappy, and offer renewals if happy. A negative balance accrues interest; past the difficulty's overdraft limit the board injects emergency money (limited per difficulty), and in Hardcore insolvency ends the career. AI owners take a share of surplus cash above 1.6B at the end of each season so relegated F1 money does not distort lower series forever.
 
 ## 7. Development
 
-- **R&D**: expected gain = base gain × (0.68 + TD/190) × facility multiplier × TD specialisation × philosophy × ((100 − rating)/50)^1.15 / (1 + 0.32 × upgrades this season). Projects run through design, manufacture (possible 1-3 week delay) and testing, then resolve as success (×0.8-1.15), underwhelming (×0.15-0.5), breakthrough (×1.5-2.1) or reliability compromise (gain plus a reliability loss). Concurrent projects are limited by engineering capacity (2 + engineering level ÷ 2, +1 with a Technical Director rated 70+; a radical concept uses two slots). Minor updates are the most money-efficient, major packages the most capacity-efficient, radical concepts a high-risk leap.
-- **Regulations**: announced in week 30. At season end every car is pulled back: `new = 50 + (fieldMean − 50) × 0.2 + (rating − fieldMean) × carry + adaptation`, with carry 0.82 (stable), 0.70 (minor) or 0.42 (major, harsher on the focus area).
+- **R&D**: expected gain = base gain × (0.68 + TD/190) × facility multiplier × TD specialisation × philosophy × ((100 − rating)/50)^1.6 / (1 + 0.32 × upgrades this season). Projects run through design, manufacture (possible 1-3 week delay) and testing, then resolve as success (×0.8-1.15), underwhelming (×0.15-0.5), breakthrough (×1.5-2.1) or reliability compromise (gain plus a reliability loss). Concurrent projects are limited by engineering capacity (2 + engineering level ÷ 2, +1 with a Technical Director rated 70+; a radical concept uses two slots). Minor updates are the most money-efficient, major packages the most capacity-efficient, radical concepts a high-risk leap.
+- **Regulations**: announced in week 30. Development is permanent: at season end no car loses rating relative to its rivals. Teams behind the field average close part of the gap (8% under stable rules, 16% minor, 28% major, more in the focus area) and strong engineering departments find up to about a point per component. The only reduction is a series-wide speed limit: once a series' average component passes 66, every car in that series is slowed by exactly the same amount, so the order and the gaps are unchanged. Junior series take many seasons to reach it. Because gains persist, upgrades are smaller than before and diminishing returns steeper; in a 10-season simulation every series levels off around 68-70 with a 6-15 point spread.
+- **Promotion**: a promoted car is rebuilt to the new series' rules at about that field's average (−1 to +3 depending on engineering strength).
 - **Drivers**: a monthly tick adds `(potential − overall) × age factor × 0.03 × coaching × training intensity × morale × philosophy × variation`, distributed by training focus. Drivers over 31 decline in pace, qualifying, braking, wet skill and fitness; experience keeps growing with races. Intense training risks injury. Rare late bloomers gain potential.
-- **Staff** age, gain experience, drift in rating and retire.
+- **Staff** age, gain experience, drift in rating and retire. Every off-season new staff enter the profession so each role keeps about 14 unemployed candidates across all levels; candidates are more willing than before to take a job in a lower series.
 
 ## 8. AI managers
 

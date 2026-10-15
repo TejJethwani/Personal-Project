@@ -86,26 +86,36 @@ export function weakestComponent(car: Car, keys: ComponentKey[] = COMPONENT_KEYS
 }
 
 /**
- * Season rollover: regulation changes pull every car back towards the new
- * baseline. Teams keep part of their advantage (carry-over) depending on the
- * magnitude of the rule change. A focused regulation (e.g. new aero rules)
- * resets that area harder.
+ * Season rollover. A car keeps everything its team has developed and never
+ * loses ground on its rivals over the winter. New rules let teams behind the
+ * field average close part of the gap (more under bigger rule changes, most in
+ * the area the rules focus on), and strong engineering organisations find a
+ * little extra in the new rules.
+ *
+ * `seriesShift` is a speed limit for the whole series: once its average
+ * passes the regulation ceiling, every car in the series is slowed by exactly
+ * the same amount, so the order and the gaps between teams are unchanged.
  */
-export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotice, baseline: number, divisionMean: Record<ComponentKey, number>, engineeringStrength: number): void {
-  const carry = notice.magnitude === 'major' ? 0.42 : notice.magnitude === 'minor' ? 0.7 : 0.82;
+export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotice, divisionMean: Record<ComponentKey, number>, engineeringStrength: number, seriesShift: Record<ComponentKey, number>): void {
+  const catchUp = notice.magnitude === 'major' ? 0.28 : notice.magnitude === 'minor' ? 0.16 : 0.08;
   for (const key of COMPONENT_KEYS) {
-    let c = carry;
-    if (notice.focus === key) c *= 0.6;
     const current = car.components[key];
-    const mean = divisionMean[key] ?? baseline;
-    // Strong engineering organisations understand new rules faster.
-    const adapt = (engineeringStrength - 0.5) * 5 + rng.normal(0, 1.6);
-    // The field's average is pulled back to the regulation baseline; each team keeps
-    // part of its advantage relative to the field.
-    const next = baseline + (mean - baseline) * 0.2 + (current - mean) * c + adapt;
-    car.components[key] = Math.round(clamp(next, 15, 95) * 10) / 10;
+    const mean = divisionMean[key] ?? current;
+    const share = notice.focus === key ? Math.min(0.5, catchUp * 1.5) : catchUp;
+    const catchGain = Math.max(0, mean - current) * share;
+    const adapt = Math.max(0, (engineeringStrength - 0.4) * 1.2 + rng.normal(0, 0.3));
+    const next = current + catchGain + adapt - (seriesShift[key] ?? 0);
+    car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
   }
   car.developmentLevel = emptyDevLevels();
+}
+
+/** Average component rating above which a series' regulations slow every car equally. */
+export const REGULATION_CEILING = 66;
+
+/** Uniform per-component slow-down for a series whose field average passed the ceiling. */
+export function seriesShiftFor(divisionMean: Record<ComponentKey, number>): Record<ComponentKey, number> {
+  return Object.fromEntries(COMPONENT_KEYS.map((k) => [k, Math.max(0, (divisionMean[k] ?? 0) - REGULATION_CEILING)])) as Record<ComponentKey, number>;
 }
 
 /**
@@ -115,8 +125,8 @@ export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotic
  * never competes unchanged in F1.
  */
 export function rebaseCarForDivision(car: Car, rng: Rng, baseline: number, engineeringStrength: number, promoted: boolean): void {
-  // Newcomers start a few points behind the established field; relegated teams a little ahead.
-  const offset = promoted ? -3 + engineeringStrength * 6 : 2 + engineeringStrength * 5;
+  // Newcomers start close to the established field's average; relegated teams a little ahead.
+  const offset = promoted ? -1 + engineeringStrength * 4 : 2 + engineeringStrength * 5;
   const oldMean = COMPONENT_KEYS.reduce((s, k) => s + car.components[k], 0) / COMPONENT_KEYS.length;
   for (const key of COMPONENT_KEYS) {
     const shape = (car.components[key] - oldMean) * 0.35;

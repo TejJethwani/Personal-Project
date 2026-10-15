@@ -52,7 +52,7 @@ export interface ProjectQuote {
 
 /** Diminishing returns: high ratings and repeated upgrades in one season yield less. */
 export function diminishing(rating: number, devLevel: number): number {
-  return ((100 - clamp(rating, 0, 99)) / 50) ** 1.15 / (1 + 0.32 * devLevel);
+  return ((100 - clamp(rating, 0, 99)) / 50) ** 1.6 / (1 + 0.32 * devLevel);
 }
 
 export function quoteProject(state: GameState, team: Team, component: ComponentKey, scale: RnDScale): ProjectQuote {
@@ -146,7 +146,7 @@ export function progressProjects(state: GameState, team: Team): RnDCompletion[] 
     } else if (roll < breakthroughP + q.risk * 0.5 && p.component !== 'reliability') {
       outcome = 'reliabilityCompromise';
       factor = rng.range(0.7, 1.0);
-      reliabilityLoss = Math.round(rng.range(1, 3.5) * (p.scale === 'minor' ? 0.6 : p.scale === 'major' ? 1 : 1.5) * 10) / 10;
+      reliabilityLoss = Math.round(rng.range(0.5, 1.75) * (p.scale === 'minor' ? 0.6 : p.scale === 'major' ? 1 : 1.5) * 10) / 10;
     } else if (roll < breakthroughP + q.risk * 1.5) {
       outcome = 'underwhelming';
       factor = rng.range(0.15, 0.5);

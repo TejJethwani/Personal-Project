@@ -41,7 +41,7 @@ function StaffTab() {
   const budgetCap = Math.max(team.cash * 0.25, DIVISIONS[team.division].typicalBudget * 0.06);
   const market = Object.values(game.staff)
     .filter((s) => !s.retired && s.role === role && s.contract?.teamId !== team.id)
-    .filter((s) => !affordable || (staffExpectedSalary(s.rating, team.division) <= budgetCap && (!s.contract || staffBuyoutFee(game, s) <= team.cash * 0.5)))
+    .filter((s) => !affordable || (staffExpectedSalary(s.rating, team.division, s.role) <= budgetCap && (!s.contract || staffBuyoutFee(game, s) <= team.cash * 0.5)))
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 25);
   return (
@@ -136,7 +136,7 @@ function StaffTab() {
                 <td>{s.experience}</td>
                 <td className="text-xs">{s.specialization}</td>
                 <td>{s.contract ? <TeamLink team={game.teams[s.contract.teamId]} short /> : <Badge tone="blue">Free</Badge>}</td>
-                <td>{money(staffExpectedSalary(s.rating, team.division))}</td>
+                <td>{money(staffExpectedSalary(s.rating, team.division, s.role))}</td>
                 <td className="text-apex-muted">{s.contract ? money(staffBuyoutFee(game, s)) : '—'}</td>
                 <td className="text-right">
                   <Button size="xs" variant="outline" onClick={() => setHiring({ staff: s, mode: 'hire' })}>
@@ -158,7 +158,7 @@ function StaffOfferModal({ target, onClose }: { target: { staff: StaffMember; mo
   const game = useGame();
   const act = useStore((s) => s.act);
   const team = playerTeam(game);
-  const expected = target ? staffExpectedSalary(target.staff.rating, team.division) : 0;
+  const expected = target ? staffExpectedSalary(target.staff.rating, team.division, target.staff.role) : 0;
   const [salary, setSalary] = useState(expected);
   const [years, setYears] = useState(2);
   const [result, setResult] = useState<StaffOfferResult | null>(null);

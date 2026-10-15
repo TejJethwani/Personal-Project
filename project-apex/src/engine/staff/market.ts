@@ -22,7 +22,7 @@ export function staffBuyoutFee(state: GameState, s: StaffMember): number {
 }
 
 function staffUtility(state: GameState, team: Team, s: StaffMember, salary: number): number {
-  const expected = staffExpectedSalary(s.rating, team.division) * (team.isPlayer ? DIFFICULTIES[state.settings.difficulty].salaryDemand : 1);
+  const expected = staffExpectedSalary(s.rating, team.division, s.role) * (team.isPlayer ? DIFFICULTIES[state.settings.difficulty].salaryDemand : 1);
   let u = Math.log(Math.max(1, salary) / expected) * 1.4;
   const current = s.contract ? state.teams[s.contract.teamId] : null;
   if (current && current.id !== team.id) {
@@ -31,7 +31,7 @@ function staffUtility(state: GameState, team: Team, s: StaffMember, salary: numb
   } else {
     // Ambitious staff look for a step up in level.
     const levelFor = s.rating >= 80 ? 4 : s.rating >= 68 ? 3 : s.rating >= 56 ? 2 : s.rating >= 44 ? 1 : 0;
-    u -= Math.max(0, levelFor - DIVISIONS[team.division].tier) * 0.35;
+    u -= Math.max(0, levelFor - DIVISIONS[team.division].tier) * 0.18;
     u += (team.reputation - DIVISIONS[team.division].typicalReputation) / 80;
   }
   return u;
@@ -51,8 +51,8 @@ export function hireStaffMember(state: GameState, teamId: string, staffId: strin
   const u = staffUtility(state, team, s, salary) + rng.normal(0, 0.04);
   if (u < 0) {
     const ask = roundMoney(salary * Math.exp((-u + 0.03) / 1.4));
-    const expected = staffExpectedSalary(s.rating, team.division);
-    if (ask > expected * 3) return { accepted: false, message: `${staffName(s)} is not interested in joining ${team.name}.`, fee };
+    const expected = staffExpectedSalary(s.rating, team.division, s.role);
+    if (ask > expected * 4) return { accepted: false, message: `${staffName(s)} is not interested in joining ${team.name}.`, fee };
     return { accepted: false, message: `${staffName(s)} would join for ${ask.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} per season.`, askingSalary: ask, fee };
   }
   // Execute: pay release fee, replace current holder of the role.
@@ -92,7 +92,7 @@ export function extendStaff(state: GameState, teamId: string, staffId: string, s
   const s = state.staff[staffId];
   assertRule(team && s && s.contract?.teamId === team.id, 'That person does not work for this team.');
   assertRule(years >= 1 && years <= 4, 'Staff contracts run 1-4 seasons.');
-  const expected = staffExpectedSalary(s.rating, team.division) * (team.isPlayer ? DIFFICULTIES[state.settings.difficulty].salaryDemand : 1);
+  const expected = staffExpectedSalary(s.rating, team.division, s.role) * (team.isPlayer ? DIFFICULTIES[state.settings.difficulty].salaryDemand : 1);
   const u = Math.log(salary / expected) * 1.4 + 0.25;
   if (u < 0) {
     const ask = roundMoney(salary * Math.exp((-u + 0.03) / 1.4));

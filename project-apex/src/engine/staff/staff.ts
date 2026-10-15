@@ -2,7 +2,9 @@ import { DIVISIONS } from '../config/divisions';
 import { ECONOMY_TUNING } from '../config/tuning';
 import { STAFF_SPECIALIZATIONS } from '../data/names';
 import { nextId, pickNationality, randomName, type GenContext } from '../drivers/generate';
+import type { Rng } from '../rng';
 import type { DivisionId, GameState, StaffMember, StaffRole, Team } from '../types';
+import { DIVISION_ORDER } from '../types';
 import { clamp, roundMoney } from '../util';
 
 export const STAFF_ROLES: StaffRole[] = [
@@ -28,9 +30,16 @@ export const STAFF_ROLE_INFO: Record<StaffRole, { label: string; effect: string 
 /** Rating used when a role is vacant. */
 export const VACANT_RATING = 18;
 
-export function staffExpectedSalary(rating: number, division: DivisionId): number {
+/**
+ * Salary a staff member expects per season. Pay depends on the role (a
+ * technical director earns far more than a scout), on the series (an F1 team
+ * pays many times what a club team can) and on the rating relative to that
+ * series' typical staff.
+ */
+export function staffExpectedSalary(rating: number, division: DivisionId, role: StaffRole): number {
   const t = ECONOMY_TUNING;
-  return roundMoney(t.staffSalaryBase * Math.exp(t.staffSalaryRate * (rating - 30)) * DIVISIONS[division].salaryFactor);
+  const cfg = DIVISIONS[division];
+  return roundMoney(t.staffSalaryScale[division] * t.staffRoleWeight[role] * Math.exp(t.staffSalaryRate * (rating - cfg.staffRatingMean)));
 }
 
 export function generateStaff(ctx: GenContext, role: StaffRole, targetRating: number): StaffMember {
@@ -86,4 +95,23 @@ export function teamStaffSalaries(state: GameState, team: Team): number {
 
 export function fullStaff(team: Team): boolean {
   return STAFF_ROLES.every((r) => team.staff[r] !== null);
+}
+
+/** Unemployed staff kept available in every role. */
+export const STAFF_POOL_PER_ROLE = 14;
+
+/**
+ * New people enter the profession every year: top up the pool of unemployed
+ * staff in each role, with ratings spread across every series' level.
+ */
+export function replenishStaffPool(state: GameState, rng: Rng, perRole = STAFF_POOL_PER_ROLE): void {
+  const ctx: GenContext = { rng, ids: state, season: state.season };
+  for (const role of STAFF_ROLES) {
+    let free = Object.values(state.staff).filter((s) => !s.retired && !s.contract && s.role === role).length;
+    while (free++ < perRole) {
+      const level = rng.weighted(DIVISION_ORDER.map((d, i) => ({ item: DIVISIONS[d].staffRatingMean, weight: [1.5, 2, 2.5, 3, 3][i] ?? 2 })));
+      const s = generateStaff(ctx, role, level + rng.normal(0, 7));
+      state.staff[s.id] = s;
+    }
+  }
 }

@@ -230,7 +230,7 @@ export function CarPage() {
               <div className="label">Next season</div>
               <p>{regNext ? regNext.text : 'Changes for next season are announced around week 30.'}</p>
             </div>
-            <p className="text-xs text-apex-muted">At the end of each season cars are rebuilt to the new rules: the field average returns to the baseline and teams keep part of their advantage (more under stable rules, less under major changes). Promoted teams build an all-new car to their new series' regulations.</p>
+            <p className="text-xs text-apex-muted">Your car keeps all of its development from season to season; no rating drops over the winter. New rules let teams behind the field average close part of the gap (more under bigger rule changes). Promoted teams build an all-new car to their new series' regulations, starting close to that field's average.</p>
             <div className="flex items-center gap-2 text-xs text-apex-muted">
               <TeamDot team={team} /> Development this season: {Object.values(team.car.developmentLevel).reduce((a, b) => a + b, 0).toFixed(1)} upgrade units
             </div>

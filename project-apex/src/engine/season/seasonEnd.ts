@@ -1,6 +1,6 @@
 import { DIFFICULTIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
-import { applyRegulationReset, COMPONENT_KEYS, overallPace, rebaseCarForDivision } from '../car/car';
+import { applyRegulationReset, COMPONENT_KEYS, overallPace, rebaseCarForDivision, seriesShiftFor } from '../car/car';
 import { boardSeasonReview, canBeSacked } from '../board';
 import { divisionStandings } from '../championship/standings';
 import { ageDrivers } from '../drivers/development';
@@ -15,7 +15,7 @@ import { seasonPerformance } from '../race/weekend';
 import { Rng } from '../rng';
 import { playerTeam, teamsInDivision } from '../selectors';
 import { ageStaff } from '../staff/market';
-import { staffExpectedSalary, staffRating } from '../staff/staff';
+import { replenishStaffPool, staffExpectedSalary, staffRating } from '../staff/staff';
 import { academyCapacity } from '../team/facilities';
 import type {
   DivisionId,
@@ -34,7 +34,7 @@ import { buildAllCalendars } from './calendar';
 import { computeDivisionMoves, type DivisionMove } from './promotion';
 import { COMPONENT_INFO } from '../car/car';
 
-export const POOL_TARGET = 255;
+export const POOL_TARGET = 330;
 
 /** History keeps every classification but drops qualifying detail and rounds times. */
 function compactResult(r: RaceResult): RaceResult {
@@ -58,10 +58,10 @@ export function announceRegulations(state: GameState): void {
     const focus = magnitude === 'stable' ? null : rng.pick(COMPONENT_KEYS.filter((k) => k !== 'reliability'));
     const text =
       magnitude === 'major'
-        ? `Sweeping new technical regulations for ${DIVISIONS[division].name}${focus ? `, focused on ${COMPONENT_INFO[focus].label.toLowerCase()}` : ''}. Expect the order to be shaken up.`
+        ? `Sweeping new technical regulations for ${DIVISIONS[division].name}${focus ? `, focused on ${COMPONENT_INFO[focus].label.toLowerCase()}` : ''}. Teams further back will close part of the gap.`
         : magnitude === 'minor'
-          ? `Minor rule tweaks for ${DIVISIONS[division].name}${focus ? ` affecting ${COMPONENT_INFO[focus].label.toLowerCase()}` : ''}. Most of this year's development carries over.`
-          : `Stable regulations for ${DIVISIONS[division].name}. Teams keep most of their development.`;
+          ? `Minor rule tweaks for ${DIVISIONS[division].name}${focus ? ` affecting ${COMPONENT_INFO[focus].label.toLowerCase()}` : ''}. All development carries over; teams behind gain a little.`
+          : `Stable regulations for ${DIVISIONS[division].name}. Every team keeps all of its development.`;
     return { division, season: state.season + 1, magnitude, focus, text };
   });
   const pDiv = playerTeam(state).division;
@@ -338,7 +338,8 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
     const staying = teamsInDivision(state, division).filter((t) => !movers.has(t.id));
     const all = teamsInDivision(state, division);
     const means = Object.fromEntries(COMPONENT_KEYS.map((k) => [k, all.reduce((s, t) => s + t.car.components[k], 0) / Math.max(1, all.length)])) as Record<(typeof COMPONENT_KEYS)[number], number>;
-    for (const t of staying) applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, 50, means, engineeringStrength(state, t, division));
+    const shift = seriesShiftFor(means);
+    for (const t of staying) applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), shift);
     baselines[division] = staying.length ? staying.reduce((s, t) => s + overallPace(t.car), 0) / staying.length : 50;
   }
   for (const m of moves.promotions) applyMove(state, m, true, baselines);
@@ -379,6 +380,7 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   ageStaff(state);
   renewStaffContracts(state);
   replenishDriverPool(state);
+  replenishStaffPool(state, Rng.from(state.seed, 'staffPool', state.season));
 
   state.results = {};
   state.calendars = buildAllCalendars(state, state.season);
@@ -439,10 +441,10 @@ function processContractsAndRetirements(state: GameState): string[] {
     if (d.age >= 34) p = (d.age - 33) * 0.12 + (d.contract ? 0 : 0.25) + (ovr < 55 ? 0.1 : 0);
     if (d.age >= 41) p = 1;
     const unemployed = !d.contract && !d.futureContract;
-    if (unemployed && d.age >= 28) p = Math.max(p, 0.3 + (d.age - 28) * 0.05);
-    if (unemployed && d.age >= 24 && ovr < 47) p = Math.max(p, 0.5);
-    if (unemployed && d.age >= 19 && ovr < 42) p = Math.max(p, 0.6);
-    if (unemployed && d.age >= 22 && ovr < 34) p = 1;
+    if (unemployed && d.age >= 29) p = Math.max(p, 0.2 + (d.age - 29) * 0.05);
+    if (unemployed && d.age >= 25 && ovr < 44) p = Math.max(p, 0.35);
+    if (unemployed && d.age >= 21 && ovr < 38) p = Math.max(p, 0.45);
+    if (unemployed && d.age >= 23 && ovr < 32) p = 1;
     if (d.futureContract && d.age < 41) p *= 0.2;
     if (p <= 0 || !rng.chance(p)) continue;
     const team = d.contract ? state.teams[d.contract.teamId] : null;
@@ -465,7 +467,7 @@ function processContractsAndRetirements(state: GameState): string[] {
     if (!s.contract || s.contract.endSeason >= season) continue;
     const team = state.teams[s.contract.teamId];
     if (team && !team.isPlayer && s.rating >= DIVISIONS[team.division].staffRatingMean - 6 && s.age < 62) {
-      s.contract = { teamId: team.id, salary: roundMoney(staffExpectedSalary(s.rating, team.division)), startSeason: season, endSeason: season + 1 };
+      s.contract = { teamId: team.id, salary: roundMoney(staffExpectedSalary(s.rating, team.division, s.role)), startSeason: season, endSeason: season + 1 };
       continue;
     }
     if (team) {
@@ -490,7 +492,7 @@ function replenishDriverPool(state: GameState): void {
   const rng = Rng.from(state.seed, 'rookies', state.season);
   const ctx = { rng, ids: state, season: state.season };
   const active = () => Object.values(state.drivers).filter((d) => !d.retired).length;
-  let prospects = Math.max(10, Math.min(34, 290 - active()));
+  let prospects = Math.max(12, Math.min(40, 360 - active()));
   while (prospects-- > 0) {
     const p = generateProspect(ctx, rng.range(0, 1.6));
     state.drivers[p.id] = p;
