@@ -82,7 +82,8 @@ export function offerUtility(state: GameState, team: Team, d: Driver, offer: Dri
     if (d.personality === 'ambitious') mult *= 1.4;
     if (d.age <= 20) mult *= 0.75;
     if (d.age >= 32) mult *= 0.6;
-    divisionScore = -gap * mult;
+    // One level below their ambition is a compromise; several levels is unthinkable.
+    divisionScore = -gap * (0.5 + 0.28 * gap) * mult;
   } else if (gap < 0) {
     divisionScore = Math.min(1.2, -gap * 0.45);
   }

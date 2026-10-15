@@ -444,6 +444,14 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
             <Toggle checked={car.autoStrategy} onChange={(v) => onCommand({ type: 'autoStrategy', value: v })} label={<span className="text-xs">Auto pit calls</span>} />
             <Toggle checked={car.autoInstructions} onChange={(v) => onCommand({ type: 'autoInstructions', value: v })} label={<span className="text-xs">Strategist pace</span>} />
           </div>
+          <div className="flex flex-wrap items-center gap-1 text-[11px] text-apex-muted">
+            <span className="label mr-1">Stints</span>
+            {car.stints.map((s, i) => (
+              <span key={i} className="flex items-center gap-1 rounded bg-white/[0.04] px-1.5 py-0.5">
+                <TireIcon compound={s.compound} size={13} /> L{s.fromLap}–{s.toLap ?? race.lap}
+              </span>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="label mr-1">Box</span>
             {allowedCompounds(race.division).map((c) => (

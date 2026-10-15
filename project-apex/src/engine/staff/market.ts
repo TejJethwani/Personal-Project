@@ -46,7 +46,7 @@ export function hireStaffMember(state: GameState, teamId: string, staffId: strin
   assertRule(s.contract?.teamId !== team.id, `${staffName(s)} already works for you.`);
   assertRule(state.phase !== 'seasonReview' && state.phase !== 'gameOver', 'The staff market is closed right now.');
   const fee = staffBuyoutFee(state, s);
-  assertRule(team.cash >= fee, 'Not enough cash for the release fee.');
+  if (fee > 0) assertRule(team.cash >= fee, 'Not enough cash for the release fee.');
   const rng = Rng.from(state.seed, 'staffMood', s.id, team.id, currentAbsWeek(state));
   const u = staffUtility(state, team, s, salary) + rng.normal(0, 0.04);
   if (u < 0) {

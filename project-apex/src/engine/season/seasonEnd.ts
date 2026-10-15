@@ -220,14 +220,16 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
   const seasonAwards = awards(state, standings);
   const board = boardSeasonReview(state);
 
-  // Reputation.
+  // Reputation moves towards what this season's result deserves in this division.
   for (const division of DIVISION_ORDER) {
     const cfg = DIVISIONS[division];
+    const spread = (cfg.reputationRange[1] - cfg.reputationRange[0]) / 9;
     standings[division].constructors.forEach((r, i) => {
       const t = state.teams[r.id];
-      let delta = (5.5 - (i + 1)) * 0.8 + (cfg.typicalReputation - t.reputation) * 0.06;
-      if (i === 0) delta += 3;
-      t.reputation = clamp(t.reputation + delta, 1, 99);
+      const target = cfg.typicalReputation + (5.5 - (i + 1)) * spread;
+      let next = t.reputation + (target - t.reputation) * 0.35;
+      if (i === 0) next += 2;
+      t.reputation = clamp(next, 1, 99);
     });
   }
 
@@ -342,6 +344,14 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   for (const m of moves.promotions) applyMove(state, m, true, baselines);
   for (const m of moves.relegations) applyMove(state, m, false, baselines);
 
+  // AI owners take surplus profits out of very cash-rich teams (an economic sink,
+  // so parachute money from a higher division does not distort a series forever).
+  for (const t of Object.values(state.teams)) {
+    if (t.isPlayer) continue;
+    const B = DIVISIONS[t.division].typicalBudget;
+    if (t.cash > B * 1.6) postTransaction(state, t, 'other', -(t.cash - B * 1.6) * 0.3, 'Owner dividend');
+  }
+
   // Finance summaries and ledger reset.
   for (const t of Object.values(state.teams)) {
     const totals = seasonTotals(t, state.season);
@@ -430,8 +440,8 @@ function processContractsAndRetirements(state: GameState): string[] {
     if (d.age >= 41) p = 1;
     const unemployed = !d.contract && !d.futureContract;
     if (unemployed && d.age >= 28) p = Math.max(p, 0.3 + (d.age - 28) * 0.05);
-    if (unemployed && d.age >= 25 && ovr < 42) p = Math.max(p, 0.6);
-    if (unemployed && d.age >= 19 && ovr < 38) p = Math.max(p, 0.7);
+    if (unemployed && d.age >= 24 && ovr < 47) p = Math.max(p, 0.5);
+    if (unemployed && d.age >= 19 && ovr < 42) p = Math.max(p, 0.6);
     if (unemployed && d.age >= 22 && ovr < 34) p = 1;
     if (d.futureContract && d.age < 41) p *= 0.2;
     if (p <= 0 || !rng.chance(p)) continue;
@@ -480,7 +490,7 @@ function replenishDriverPool(state: GameState): void {
   const rng = Rng.from(state.seed, 'rookies', state.season);
   const ctx = { rng, ids: state, season: state.season };
   const active = () => Object.values(state.drivers).filter((d) => !d.retired).length;
-  let prospects = Math.max(14, Math.min(34, 300 - active()));
+  let prospects = Math.max(10, Math.min(34, 290 - active()));
   while (prospects-- > 0) {
     const p = generateProspect(ctx, rng.range(0, 1.6));
     state.drivers[p.id] = p;

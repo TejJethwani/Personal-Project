@@ -1,4 +1,4 @@
-import { aiWeekly, aiStaff } from '../ai/manager';
+import { aiStaff, aiTry, aiWeekly } from '../ai/manager';
 import { aiBidForPlayerDrivers, aiFillSeats, aiOffseasonRound } from '../ai/market';
 import { boardRaceUpdate, canBeSacked, setSeasonObjectives } from '../board';
 import { DIFFICULTIES } from '../config/difficulty';
@@ -91,7 +91,7 @@ function startSeason(state: GameState): AdvanceResult {
   const team = playerTeam(state);
   assertRule(eventLineup(state, team).every((s) => !!s.driverId), 'You need two race drivers before the season can start.');
   for (const t of Object.values(state.teams)) {
-    if (!t.isPlayer) aiFillSeats(state, t, 5, true);
+    if (!t.isPlayer) aiTry(() => aiFillSeats(state, t, 5, true));
     chargeEntryFee(state, t);
   }
   if (team.objectives.length === 0) setSeasonObjectives(state);
@@ -104,13 +104,13 @@ function startSeason(state: GameState): AdvanceResult {
 
 function offseasonWeek(state: GameState): AdvanceResult {
   const round = state.week + 7;
-  aiOffseasonRound(state, round);
-  if (round % 2 === 0) for (const t of Object.values(state.teams)) if (!t.isPlayer) aiStaff(state, t, Rng.from(state.seed, 'offStaff', t.id, state.season, round));
+  aiTry(() => aiOffseasonRound(state, round));
+  if (round % 2 === 0) for (const t of Object.values(state.teams)) if (!t.isPlayer && t.cash > 0) aiTry(() => aiStaff(state, t, Rng.from(state.seed, 'offStaff', t.id, state.season, round)));
   state.week += 1;
   if (state.week % 2 === 0) refreshSponsorOffers(state);
   if (state.week >= 0) {
     // Pre-season: every AI seat is filled, objectives are set.
-    for (const t of Object.values(state.teams)) if (!t.isPlayer) aiFillSeats(state, t, 6, true);
+    for (const t of Object.values(state.teams)) if (!t.isPlayer) aiTry(() => aiFillSeats(state, t, 6, true));
     state.week = 0;
     state.phase = 'preseason';
     setSeasonObjectives(state);
@@ -176,6 +176,33 @@ function monthly(state: GameState): void {
   refreshSponsorOffers(state);
   driverInterview(state);
   contractReminders(state);
+  titleFights(state);
+}
+
+/** Title fights and rivalries emerge from the standings. */
+function titleFights(state: GameState): void {
+  const player = playerTeam(state);
+  for (const division of DIVISION_ORDER) {
+    if (division !== 'F1' && division !== player.division) continue;
+    const done = state.calendars[division].filter((e) => e.completed).length;
+    if (done < Math.ceil(state.calendars[division].length / 2)) continue;
+    const key = `rivalry:${state.season}:${division}`;
+    if (state.processed[key]) continue;
+    const [a, b] = divisionStandings(state, division).drivers;
+    if (!a || !b || a.points === 0 || a.points - b.points > Math.max(8, a.points * 0.1)) continue;
+    state.processed[key] = true;
+    const da = state.drivers[a.id];
+    const db = state.drivers[b.id];
+    const sameTeam = a.teamId && a.teamId === b.teamId;
+    addNews(state, {
+      category: 'championship',
+      headline: sameTeam ? `CIVIL WAR AT ${state.teams[a.teamId!].name.toUpperCase()}: ${da.lastName.toUpperCase()} VS ${db.lastName.toUpperCase()}` : `TITLE FIGHT: ${driverName(da).toUpperCase()} VS ${driverName(db).toUpperCase()}`,
+      body: `Only ${a.points - b.points} points separate ${driverName(da)} and ${driverName(db)} at the top of the ${DIVISIONS[division].name} standings with ${state.calendars[division].length - done} rounds to go.${sameTeam ? ' The team-mates are barely speaking.' : ''}`,
+      division,
+      driverIds: [a.id, b.id],
+      importance: a.teamId === player.id || b.teamId === player.id ? 3 : 2,
+    });
+  }
 }
 
 function driverInterview(state: GameState): void {

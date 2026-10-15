@@ -69,6 +69,7 @@ function DriverPractice({ driverId }: { driverId: string }) {
       title={<DriverLink driver={d} className="font-display text-lg uppercase" />}
       actions={
         <>
+          <Badge tone="blue">Confidence {Math.round(d.confidence)}</Badge>
           <Badge tone={best >= 85 ? 'green' : best >= 65 ? 'amber' : 'neutral'}>Best setup {Math.round(best)}%</Badge>
           <Badge>Runs left {remaining}</Badge>
         </>

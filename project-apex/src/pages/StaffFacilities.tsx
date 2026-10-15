@@ -65,6 +65,11 @@ function StaffTab() {
               ) : (
                 <div className="mt-1 font-semibold text-red-300">Vacant</div>
               )}
+              {s && s.history.length > 1 && (
+                <div className="mt-1 truncate text-[11px] text-apex-muted">
+                  Career: {[...new Set(s.history.map((h) => game.teams[h.teamId]?.shortName ?? '?'))].join(' → ')}
+                </div>
+              )}
               <div className="mt-2 text-[11px] text-apex-dim">{STAFF_ROLE_INFO[r].effect}</div>
             </button>
           );

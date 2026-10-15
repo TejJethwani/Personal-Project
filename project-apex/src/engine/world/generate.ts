@@ -313,13 +313,13 @@ export function createWorld(config: NewCareerConfig): GameState {
   // Free agents across all levels, plus unsigned youth prospects.
   for (const division of DIVISION_ORDER) {
     const cfg = DIVISIONS[division];
-    const count = division === 'F1' ? 6 : division === 'F5' ? 12 : 8;
+    const count = division === 'F1' ? 8 : division === 'F5' ? 14 : 10;
     for (let i = 0; i < count; i++) {
       const d = generateDriver(build.ctx, { targetOverall: cfg.driverRatingMean - 3 + rng.normal(0, cfg.driverRatingSd), age: raceAgeFor(rng, division), division });
       state.drivers[d.id] = d;
     }
   }
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 36; i++) {
     const p = generateProspect(build.ctx, rng.range(0, 1.5));
     state.drivers[p.id] = p;
   }

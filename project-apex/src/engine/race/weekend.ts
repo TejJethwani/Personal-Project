@@ -729,6 +729,19 @@ function generateRaceNews(state: GameState, result: RaceResult): void {
       importance: 2,
     });
   }
+  // The team principal's statement after notable weekends.
+  if (playerEntries.length) {
+    const best = Math.min(...playerEntries.map((e) => (e.status === 'finished' ? e.position : 99)));
+    const dnfs = playerEntries.filter((e) => e.status !== 'finished').length;
+    const pTeam = playerTeam(state);
+    let quote: string | null = null;
+    if (best === 1) quote = 'This is what we have been working for. Every single person in the factory earned this win.';
+    else if (best <= 3) quote = 'A podium for a team our size is huge. We keep our feet on the ground and keep pushing.';
+    else if (dnfs === playerEntries.length) quote = 'A painful day. We will analyse every failure and come back stronger.';
+    if (quote) {
+      addNews(state, { category: 'interview', headline: `${pTeam.principal.toUpperCase()}: "${quote.split('.')[0].toUpperCase()}"`, body: `${pTeam.principal}, Team Principal of ${pTeam.name}, after ${circuit.name}: "${quote}"`, division: result.division, teamIds: [pTeam.id], importance: 2 });
+    }
+  }
   // Career milestones.
   if (winner.career.wins > 1 && winner.career.wins % 10 === 0) {
     addNews(state, { category: 'milestone', headline: fill(TEMPLATES.milestone[0], { driver: driverName(winner).toUpperCase(), n: winner.career.wins }), body: `${driverName(winner)} has now won ${winner.career.wins} races.`, division: result.division, driverIds: [winner.id], importance: 1 });

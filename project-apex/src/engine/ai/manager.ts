@@ -11,7 +11,7 @@ import { hireStaffMember } from '../staff/market';
 import { STAFF_ROLES, staffExpectedSalary, staffRating, teamStaffSalaries } from '../staff/staff';
 import { canUpgradeFacility, FACILITY_KEYS, facilityUpgradeCost, seasonFacilityUpkeep, startFacilityUpgrade } from '../team/facilities';
 import type { AIPersonality, ComponentKey, FacilityKey, GameState, RnDScale, Team } from '../types';
-import { clamp, roundMoney } from '../util';
+import { clamp, GameRuleError, roundMoney } from '../util';
 import { eventLineup } from '../race/weekend';
 import { aiEnsureSubstitute, aiFillSeats, aiInSeasonMarket } from './market';
 
@@ -152,15 +152,27 @@ export function aiFinancialSafety(state: GameState, team: Team): void {
   addNews(state, { category: 'finance', headline: fill(pickTemplate(state, 'rescue', TEMPLATES.rescue), { team: team.name.toUpperCase() }), body: `${team.name} were close to collapse with debts of ${Math.round(-team.cash / 1000)}k before a takeover. The new owners promise a more prudent approach.`, division: team.division, teamIds: [team.id], importance: 1 });
 }
 
+/**
+ * AI decisions go through the same validated actions as the player's. A
+ * decision that breaks a rule is simply not taken: it must never stall the world.
+ */
+export function aiTry(fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    if (!(err instanceof GameRuleError)) throw err;
+  }
+}
+
 /** One week of AI management for one team. */
 export function aiWeekly(state: GameState, team: Team): void {
   if (team.isPlayer) return;
   const rng = Rng.from(state.seed, 'ai', team.id, state.season, state.week);
-  aiFinancialSafety(state, team);
-  if (team.raceDrivers.includes(null)) aiFillSeats(state, team, 3, true);
-  if (eventLineup(state, team).some((s) => !s.driverId)) aiEnsureSubstitute(state, team);
-  aiRnD(state, team, rng);
-  aiFacilities(state, team, rng);
-  if (state.week % 3 === 0) aiStaff(state, team, rng);
-  aiInSeasonMarket(state, team);
+  aiTry(() => aiFinancialSafety(state, team));
+  if (team.raceDrivers.includes(null)) aiTry(() => aiFillSeats(state, team, 3, true));
+  if (eventLineup(state, team).some((s) => !s.driverId)) aiTry(() => aiEnsureSubstitute(state, team));
+  aiTry(() => aiRnD(state, team, rng));
+  aiTry(() => aiFacilities(state, team, rng));
+  if (state.week % 3 === 0 && team.cash > 0) aiTry(() => aiStaff(state, team, rng));
+  aiTry(() => aiInSeasonMarket(state, team));
 }
