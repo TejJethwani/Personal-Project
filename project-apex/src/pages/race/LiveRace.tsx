@@ -369,7 +369,7 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
             {car.autoInstructions && <Badge tone="blue">Strategist</Badge>}
           </div>
           <Segmented<PaceMode>
-            className="w-full justify-between"
+            fill
             value={car.instructions.pace}
             onChange={(v) => onCommand({ type: 'pace', value: v })}
             options={[
@@ -379,17 +379,18 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
               { value: 'attack', label: 'Attack', title: 'Maximum attack: fastest, but wears tyres and risks mistakes' },
             ]}
           />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
             <div>
               <div className="label mb-1">Tyres</div>
               <Segmented<TireMode>
                 size="xs"
+                fill
                 value={car.instructions.tires}
                 onChange={(v) => onCommand({ type: 'tires', value: v })}
                 options={[
                   { value: 'preserve', label: 'Preserve' },
                   { value: 'normal', label: 'Normal' },
-                  { value: 'aggressive', label: 'Aggr.' },
+                  { value: 'aggressive', label: 'Aggressive' },
                 ]}
               />
             </div>
@@ -398,6 +399,7 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
                 <div className="label mb-1">Fuel mix</div>
                 <Segmented<FuelMode>
                   size="xs"
+                  fill
                   value={car.instructions.fuel}
                   onChange={(v) => onCommand({ type: 'fuel', value: v })}
                   options={[
@@ -409,10 +411,11 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
               </div>
             )}
             {cfg.ers && (
-              <div className="col-span-2">
+              <div>
                 <div className="label mb-1">Energy (ERS)</div>
                 <Segmented<ErsMode>
                   size="xs"
+                  fill
                   value={car.instructions.ers}
                   onChange={(v) => onCommand({ type: 'ers', value: v })}
                   options={[

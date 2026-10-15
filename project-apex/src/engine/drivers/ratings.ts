@@ -79,7 +79,7 @@ export function targetDivisionFor(rating: number): DivisionId {
 /** Ambition: young drivers aspire to where their potential leads. */
 export function aspirationTier(d: Driver): number {
   const ovr = overall(d);
-  const lookAhead = d.age <= 21 ? Math.min(d.potential, ovr + 6) : ovr;
+  const lookAhead = d.age <= 21 ? Math.min(d.potential, ovr + 3) : ovr;
   return DIVISIONS[targetDivisionFor(lookAhead)].tier;
 }
 

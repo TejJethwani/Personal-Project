@@ -1,7 +1,7 @@
 import { AI_PERSONALITIES, DIFFICULTIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
 import { generateDriver, raceAgeFor } from '../drivers/generate';
-import { driverName, expectedSalary, overall } from '../drivers/ratings';
+import { aspirationTier, driverName, expectedSalary, overall } from '../drivers/ratings';
 import { createTransferBid } from '../events/opportunities';
 import { evaluateDriverOffer } from '../market/negotiation';
 import { buyoutQuote, executeSigning, nextSeasonRaceContracts, releaseDriver } from '../market/transfers';
@@ -155,10 +155,11 @@ export function aiEnsureSubstitute(state: GameState, team: Team): void {
   }
   if (team.reserveDriverId) return; // reserve exists but is unavailable; keep it simple
   const cfg = DIVISIONS[team.division];
-  // Drivers realistic about a reserve role: at or below the division's level.
+  // Most willing first: drivers whose ambition does not exceed this series, then by value.
+  const willing = (d: Driver) => (aspirationTier(d) <= cfg.tier ? 1 : 0) + (d.age >= 33 ? 1 : 0);
   const pool = activeDrivers(state)
-    .filter((d) => !d.contract && !d.futureContract && d.age >= 16 && !d.injury && (overall(d) <= cfg.driverRatingMean - 2 || d.age >= 33))
-    .sort((a, b) => aiCandidateValue(team, b) - aiCandidateValue(team, a));
+    .filter((d) => !d.contract && !d.futureContract && d.age >= 16 && !d.injury)
+    .sort((a, b) => willing(b) - willing(a) || aiCandidateValue(team, b) - aiCandidateValue(team, a));
   for (const d of pool.slice(0, 12)) {
     if (tryAiSign(state, team, d, 'reserve', false, 4, false)) return;
   }
@@ -173,6 +174,11 @@ export function aiEnsureSubstitute(state: GameState, team: Team): void {
       return;
     }
   }
+  // Nobody available: a journeyman steps in on a one-year deal.
+  const rng = Rng.from(state.seed, 'substitute', team.id, state.season, state.week);
+  const sub = generateDriver({ rng, ids: state, season: state.season }, { targetOverall: cfg.driverRatingMean - 6 + rng.normal(0, 2), age: rng.int(24, 34), division: team.division, archetype: 'journeyman' });
+  state.drivers[sub.id] = sub;
+  executeSigning(state, team, sub, { driverId: sub.id, role: 'reserve', salary: roundMoney(expectedSalary(sub, team.division) * 0.5), years: 1, signingBonus: 0, winBonus: 0, podiumBonus: 0, status: 'number2', startNextSeason: false }, 0);
 }
 
 /** Off-season transfer round for every AI team (best teams choose first). */

@@ -80,7 +80,7 @@ export function offerUtility(state: GameState, team: Team, d: Driver, offer: Dri
   if (gap > 0) {
     let mult = 1.15;
     if (d.personality === 'ambitious') mult *= 1.4;
-    if (d.age <= 20) mult *= 0.75;
+    if (d.age <= 21) mult *= 0.6; // young drivers expect to climb the ladder step by step
     if (d.age >= 32) mult *= 0.6;
     // One level below their ambition is a compromise; several levels is unthinkable.
     divisionScore = -gap * (0.5 + 0.28 * gap) * mult;
@@ -100,7 +100,9 @@ export function offerUtility(state: GameState, team: Team, d: Driver, offer: Dri
     role = offer.status === 'number1' ? 0.35 : offer.status === 'number2' ? -0.3 * statusMult : 0;
   } else if (offer.role === 'reserve') {
     const weak = ovr < cfg.driverRatingMean - 5 || d.age >= 33;
-    role = weak ? -0.45 : -1.35;
+    role = weak ? -0.35 : -0.85;
+    // Without a drive, a paid reserve role keeps a career alive.
+    if (!d.contract) role *= 0.6;
   }
   factors.push({ label: offer.role === 'reserve' ? 'Reserve role' : 'Driver status', value: role });
 
@@ -218,7 +220,7 @@ export function evaluateDriverOffer(state: GameState, team: Team, d: Driver, off
     const neededSalary = roundMoney(offer.salary * Math.exp((gap + 0.05) / w));
     const expected = roleExpectedSalary(state, d, team, offer.role);
     const statusFixable = offer.role === 'race' && offer.status === 'number2' && gap < 0.45;
-    if (gap < 1.6 && neededSalary < Math.max(expected * 3.5, offer.salary * 1.6)) {
+    if (gap < 2 && neededSalary < Math.max(expected * 4.5, offer.salary * 1.8)) {
       eval0.response = 'counter';
       eval0.counter = statusFixable ? { salary: offer.salary, years: offer.years, status: 'equal' } : { salary: neededSalary, years: offer.years };
       eval0.message = statusFixable

@@ -83,3 +83,7 @@ To add, rename or reorder a section, change the HTML and the navigation updates 
 ## Publishing
 
 The site is plain HTML, CSS and JavaScript, so it works on GitHub Pages: in the repository settings, open **Pages** and deploy from this branch's root folder.
+
+## PROJECT APEX (motorsport management game)
+
+The [`project-apex/`](project-apex/) folder contains a separate project: a browser-based motorsport team management simulator in React and TypeScript. Take a Formula 5 backmarker through five divisions to Formula 1. See [`project-apex/README.md`](project-apex/README.md) for setup (`npm install && npm run dev`), gameplay and documentation.

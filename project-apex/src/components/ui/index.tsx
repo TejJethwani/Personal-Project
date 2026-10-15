@@ -103,9 +103,9 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
   );
 }
 
-export function Segmented<T extends string | number>({ options, value, onChange, size = 'sm', className }: { options: { value: T; label: ReactNode; title?: string; disabled?: boolean }[]; value: T; onChange: (v: T) => void; size?: 'xs' | 'sm'; className?: string }) {
+export function Segmented<T extends string | number>({ options, value, onChange, size = 'sm', className, fill = false }: { options: { value: T; label: ReactNode; title?: string; disabled?: boolean }[]; value: T; onChange: (v: T) => void; size?: 'xs' | 'sm'; className?: string; fill?: boolean }) {
   return (
-    <div className={cn('inline-flex rounded-md border border-apex-line2 bg-apex-bg p-0.5', className)}>
+    <div className={cn('inline-flex max-w-full rounded-md border border-apex-line2 bg-apex-bg p-0.5', fill && 'flex w-full', className)}>
       {options.map((o) => (
         <button
           key={String(o.value)}
@@ -114,6 +114,7 @@ export function Segmented<T extends string | number>({ options, value, onChange,
           onClick={() => onChange(o.value)}
           className={cn(
             'rounded px-2.5 font-semibold transition-colors disabled:opacity-30',
+            fill && 'min-w-0 flex-1 truncate px-1',
             size === 'xs' ? 'h-6 text-[11px]' : 'h-7 text-xs',
             value === o.value ? 'bg-apex-red text-white shadow' : 'text-apex-muted hover:text-white',
           )}

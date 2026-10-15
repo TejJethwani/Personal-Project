@@ -107,8 +107,9 @@ project-apex/
 
 ## Testing
 
-`npm test` runs 43 tests across eight files:
+`npm test` runs 46 tests across nine files:
 
+- **World**: 250+ drivers, ten teams per division, a valid state, a Formula 5 start that is not overpowered, divisions getting progressively stronger.
 - **Race**: determinism with the same seed; identical results at every playback speed (lap-by-lap, key events, straight to the end); identical outcome after a JSON save/resume mid-race; valid classification; a race cannot be recorded twice; strategy changes the result; a much faster car wins most but not all races; better drivers beat worse drivers in equal cars; unreliable cars break down more; knockout qualifying and grid penalties.
 - **Championship**: points presets, fastest-lap and pole rules, count-back tie-breaks, standings equal the sum of results.
 - **Contracts**: a star refuses a Formula 5 team; fair offers to suitable free agents succeed; repeated offers get the same answer; talks break down after lowballing; release with severance; invalid terms rejected; no double pre-contracts; max two race contracts next season; buyouts move money from buyer to seller; academy capacity.

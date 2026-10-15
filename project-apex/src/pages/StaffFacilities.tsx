@@ -191,6 +191,11 @@ function StaffOfferModal({ target, onClose }: { target: { staff: StaffMember; mo
         <Field label="Years">
           <Segmented value={years} onChange={setYears} options={[1, 2, 3, 4].map((y) => ({ value: y, label: `${y}` }))} />
         </Field>
+        {target.mode === 'hire' && team.staff[s.role] && (
+          <div className="rounded-md border border-amber-600/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+            This replaces your current {STAFF_ROLE_INFO[s.role].label.toLowerCase()}, {staffName(game.staff[team.staff[s.role]!])}, who will be paid severance.
+          </div>
+        )}
         {result && !result.accepted && (
           <div className="rounded-md border border-amber-600/40 bg-amber-500/10 p-3 text-sm">
             {result.message}
