@@ -84,8 +84,11 @@ export const useStore = create<Store>((set, get) => ({
       const msg = typeof opts.success === 'function' ? opts.success(result) : opts.success;
       if (msg) get().toast('success', msg);
       if (game.settings.autosave) {
+        // During a live race, save only once playback pauses for a while
+        // instead of serialising the whole career after every lap.
+        const racing = game.phase === 'weekend' && game.weekend?.phase === 'race';
         if (autosaveTimer) clearTimeout(autosaveTimer);
-        autosaveTimer = setTimeout(() => void get().autosaveNow(), 1200);
+        autosaveTimer = setTimeout(() => void get().autosaveNow(), racing ? 8000 : 1200);
       }
       return result;
     } catch (err) {
