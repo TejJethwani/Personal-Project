@@ -19,7 +19,7 @@ const PU_GROUP: ComponentKey[] = ['powerUnit', 'reliability'];
 
 export function engineeringCapacity(state: GameState, team: Team): number {
   const td = staffRating(state, team, 'technicalDirector');
-  return 1 + Math.floor(team.facilities.engineering.level / 2) + (td >= 70 ? 1 : 0);
+  return 2 + Math.floor(team.facilities.engineering.level / 2) + (td >= 70 ? 1 : 0);
 }
 
 export function capacityUsed(team: Team): number {
@@ -156,7 +156,7 @@ export function progressProjects(state: GameState, team: Team): RnDCompletion[] 
     const car = team.car;
     car.components[p.component] = Math.round(clamp(car.components[p.component] + gain, 1, 99) * 100) / 100;
     if (reliabilityLoss > 0) car.components.reliability = Math.round(clamp(car.components.reliability - reliabilityLoss, 1, 99) * 100) / 100;
-    car.developmentLevel[p.component] += p.scale === 'minor' ? 1 : p.scale === 'major' ? 1.6 : 2.2;
+    car.developmentLevel[p.component] += p.scale === 'minor' ? 1 : p.scale === 'major' ? 1.8 : 3;
     team.rnd = team.rnd.filter((x) => x.id !== p.id);
     const completion: RnDCompletion = { id: p.id, component: p.component, scale: p.scale, outcome, gain, reliabilityLoss, season: state.season, week: state.week, cost: p.cost };
     team.rndHistory.push(completion);

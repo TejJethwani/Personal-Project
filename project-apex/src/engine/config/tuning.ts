@@ -115,9 +115,9 @@ export const ECONOMY_TUNING = {
   facilityUpkeepGrowth: 2,
   /** R&D: cost as fraction of division typical budget, base gain, base weeks, capacity used. */
   rnd: {
-    minor: { cost: 0.016, gain: 3.0, weeks: 4, capacity: 1, risk: 0.08 },
-    major: { cost: 0.042, gain: 6.6, weeks: 8, capacity: 2, risk: 0.15 },
-    radical: { cost: 0.09, gain: 12.5, weeks: 12, capacity: 3, risk: 0.28 },
+    minor: { cost: 0.016, gain: 2.6, weeks: 3, capacity: 1, risk: 0.08 },
+    major: { cost: 0.05, gain: 6.5, weeks: 6, capacity: 1, risk: 0.15 },
+    radical: { cost: 0.11, gain: 12, weeks: 10, capacity: 2, risk: 0.28 },
   },
   /** Sponsor value as a share of typical budget for an average team. */
   sponsorShare: { title: 0.2, major: 0.1, minor: 0.035 },

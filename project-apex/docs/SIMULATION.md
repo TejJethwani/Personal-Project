@@ -86,13 +86,13 @@ All values scale from each division's *typical budget* B (F5 $1.2M, F4 $3M, F3 $
 | Entry fee | 0.03B |
 | Driver and staff salaries (rating-driven, × division salary factor 0.7 … 3.0) | 0.1-0.2B |
 | Facility upkeep (6k × 2^(level−1) per facility) | ≈ 0.05B |
-| R&D (minor 0.016B, major 0.042B, radical 0.09B per project) | discretionary |
+| R&D (minor 0.016B / 3 weeks, major 0.05B / 6 weeks, radical 0.11B / 10 weeks) | discretionary |
 
 Sponsor appeal follows reputation and results. Sponsors pay per race plus bonuses, judge an expectation (constructors' position, podiums, wins or points finishes), cut payments or walk away if unhappy, and offer renewals if happy. A negative balance accrues interest; past the difficulty's overdraft limit the board injects emergency money (limited per difficulty), and in Hardcore insolvency ends the career. AI owners take a share of surplus cash above 1.6B at the end of each season so relegated F1 money does not distort lower series forever.
 
 ## 7. Development
 
-- **R&D**: expected gain = base gain × (0.68 + TD/190) × facility multiplier × TD specialisation × philosophy × ((100 − rating)/50)^1.15 / (1 + 0.32 × upgrades this season). Projects run through design, manufacture (possible 1-3 week delay) and testing, then resolve as success (×0.8-1.15), underwhelming (×0.15-0.5), breakthrough (×1.5-2.1) or reliability compromise (gain plus a reliability loss). Concurrent projects are limited by engineering capacity.
+- **R&D**: expected gain = base gain × (0.68 + TD/190) × facility multiplier × TD specialisation × philosophy × ((100 − rating)/50)^1.15 / (1 + 0.32 × upgrades this season). Projects run through design, manufacture (possible 1-3 week delay) and testing, then resolve as success (×0.8-1.15), underwhelming (×0.15-0.5), breakthrough (×1.5-2.1) or reliability compromise (gain plus a reliability loss). Concurrent projects are limited by engineering capacity (2 + engineering level ÷ 2, +1 with a Technical Director rated 70+; a radical concept uses two slots). Minor updates are the most money-efficient, major packages the most capacity-efficient, radical concepts a high-risk leap.
 - **Regulations**: announced in week 30. At season end every car is pulled back: `new = 50 + (fieldMean − 50) × 0.2 + (rating − fieldMean) × carry + adaptation`, with carry 0.82 (stable), 0.70 (minor) or 0.42 (major, harsher on the focus area).
 - **Drivers**: a monthly tick adds `(potential − overall) × age factor × 0.03 × coaching × training intensity × morale × philosophy × variation`, distributed by training focus. Drivers over 31 decline in pace, qualifying, braking, wet skill and fitness; experience keeps growing with races. Intense training risks injury. Rare late bloomers gain potential.
 - **Staff** age, gain experience, drift in rating and retire.

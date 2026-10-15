@@ -219,7 +219,7 @@ function createPlayerTeam(build: WorldBuild, config: NewCareerConfig): Team {
   team.reputation = Math.round(clamp(6 + fs.reputationBonus, 1, 20));
   team.cash = roundMoney(cfg.typicalBudget * 0.42 * fs.cashFactor * diff.startingCash);
   // A basic car: lower midfield, not overpowered.
-  team.car = generateCar(rng, 47.5, 3);
+  team.car = generateCar(rng, 48.5, 2.5);
   team.facilities = facilitiesAt({ engineering: 2, manufacturing: 1, simulator: 1, aeroCenter: 1, trainingAcademy: 1, fitness: 1, scouting: 1, strategy: 1 }, 1);
   // Small staff: four key roles, three vacancies to fill.
   hireStaff(build, team, 'technicalDirector', 35 + rng.normal(0, 2));

@@ -116,7 +116,7 @@ export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotic
  */
 export function rebaseCarForDivision(car: Car, rng: Rng, baseline: number, engineeringStrength: number, promoted: boolean): void {
   // Newcomers start a few points behind the established field; relegated teams a little ahead.
-  const offset = promoted ? -5 + engineeringStrength * 7 : 2 + engineeringStrength * 5;
+  const offset = promoted ? -3 + engineeringStrength * 6 : 2 + engineeringStrength * 5;
   const oldMean = COMPONENT_KEYS.reduce((s, k) => s + car.components[k], 0) / COMPONENT_KEYS.length;
   for (const key of COMPONENT_KEYS) {
     const shape = (car.components[key] - oldMean) * 0.35;
