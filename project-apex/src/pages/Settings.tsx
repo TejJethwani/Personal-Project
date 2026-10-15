@@ -63,7 +63,7 @@ export function SettingsPage() {
             <Field label="Difficulty" hint={DIFFICULTIES[game.settings.difficulty].description}>
               <Select<Difficulty>
                 value={game.settings.difficulty}
-                onChange={async (v) => (await askConfirm(`Switch difficulty to ${DIFFICULTIES[v].label}? This changes finances, reliability and AI behaviour from now on.`)) && act((g) => setDifficulty(g, v), { success: `Difficulty: ${DIFFICULTIES[v].label}` })}
+                onChange={async (v) => (await askConfirm(`Switch difficulty to ${DIFFICULTIES[v].label}? This changes finances, reliability, car development and AI behaviour from now on.`)) && act((g) => setDifficulty(g, v), { success: `Difficulty: ${DIFFICULTIES[v].label}` })}
                 options={(Object.keys(DIFFICULTIES) as Difficulty[]).map((d) => ({ value: d, label: DIFFICULTIES[d].label }))}
               />
             </Field>

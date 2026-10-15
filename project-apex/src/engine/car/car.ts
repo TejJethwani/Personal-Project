@@ -1,3 +1,4 @@
+import type { CarDevelopmentRules } from '../config/difficulty';
 import type { Rng } from '../rng';
 import type { Car, Circuit, ComponentKey, PaceComponentKey, RegulationNotice } from '../types';
 import { clamp } from '../util';
@@ -86,29 +87,53 @@ export function weakestComponent(car: Car, keys: ComponentKey[] = COMPONENT_KEYS
 }
 
 /**
- * Season rollover. A car keeps everything its team has developed and never
- * loses ground on its rivals over the winter. New rules let teams behind the
- * field average close part of the gap (more under bigger rule changes, most in
- * the area the rules focus on), and strong engineering organisations find a
- * little extra in the new rules.
+ * Season rollover. What survives the winter depends on the difficulty's
+ * development rules, which apply to every team alike.
  *
- * `seriesShift` is a speed limit for the whole series: once its average
- * passes the regulation ceiling, every car in the series is slowed by exactly
- * the same amount, so the order and the gaps between teams are unchanged.
+ * When development is kept (Casual, Standard), a car keeps everything its team
+ * has developed and never loses ground on its rivals. New rules let teams
+ * behind the field average close part of the gap (more under bigger rule
+ * changes, most in the area the rules focus on), and strong engineering
+ * organisations find a little extra. `seriesShift` is a speed limit for the
+ * whole series: once its average passes the regulation ceiling, every car is
+ * slowed by exactly the same amount, so the order and gaps are unchanged.
+ *
+ * When development is not kept (Realistic, Hardcore), the series average is
+ * pulled back toward the regulation baseline and each car keeps only part of
+ * its advantage over the field, less under bigger rule changes.
  */
-export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotice, divisionMean: Record<ComponentKey, number>, engineeringStrength: number, seriesShift: Record<ComponentKey, number>): void {
+export function applyRegulationReset(
+  car: Car,
+  rng: Rng,
+  notice: RegulationNotice,
+  divisionMean: Record<ComponentKey, number>,
+  engineeringStrength: number,
+  seriesShift: Record<ComponentKey, number>,
+  rules: CarDevelopmentRules,
+): void {
+  const keepsDevelopment = rules.fieldKept >= 1 && rules.carry[notice.magnitude] >= 1;
   const catchUp = notice.magnitude === 'major' ? 0.28 : notice.magnitude === 'minor' ? 0.16 : 0.08;
   for (const key of COMPONENT_KEYS) {
     const current = car.components[key];
     const mean = divisionMean[key] ?? current;
-    const share = notice.focus === key ? Math.min(0.5, catchUp * 1.5) : catchUp;
-    const catchGain = Math.max(0, mean - current) * share;
-    const adapt = Math.max(0, (engineeringStrength - 0.4) * 1.2 + rng.normal(0, 0.3));
-    const next = current + catchGain + adapt - (seriesShift[key] ?? 0);
+    let next: number;
+    if (keepsDevelopment) {
+      const share = notice.focus === key ? Math.min(0.5, catchUp * 1.5) : catchUp;
+      const catchGain = Math.max(0, mean - current) * share;
+      const adapt = Math.max(0, (engineeringStrength - 0.4) * 1.2 + rng.normal(0, 0.3));
+      next = current + catchGain + adapt - (seriesShift[key] ?? 0);
+    } else {
+      const carry = rules.carry[notice.magnitude] * (notice.focus === key ? 0.6 : 1);
+      const adapt = (engineeringStrength - 0.5) * 5 + rng.normal(0, 1.6);
+      next = REGULATION_BASELINE + (mean - REGULATION_BASELINE) * rules.fieldKept + (current - mean) * carry + adapt;
+    }
     car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
   }
   car.developmentLevel = emptyDevLevels();
 }
+
+/** Component rating a series' average returns toward when rules take development away. */
+export const REGULATION_BASELINE = 50;
 
 /** Average component rating above which a series' regulations slow every car equally. */
 export const REGULATION_CEILING = 66;

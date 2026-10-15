@@ -1,5 +1,6 @@
 import { FlaskConical, Gauge, ScrollText } from 'lucide-react';
 import { useState } from 'react';
+import { DIFFICULTIES } from '@/engine/config/difficulty';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { COMPONENT_INFO, COMPONENT_KEYS, carRating, overallPace, PACE_COMPONENTS, trackPerformance } from '@/engine/car/car';
 import { cancelProject, canStartProject, capacityUsed, engineeringCapacity, estimateRivalComponent, projectPhase, quoteProject, RND_SCALE_LABELS, RND_SCALES, startProject } from '@/engine/car/rnd';
@@ -10,6 +11,15 @@ import { Badge, Button, Empty, Panel, Progress, RatingBar, SectionTitle, Segment
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
 import { askConfirm } from '@/store/confirm';
+
+/** What the winter does to car development at this difficulty. */
+function developmentRuleText(difficulty: keyof typeof DIFFICULTIES): string {
+  const rules = DIFFICULTIES[difficulty].carDevelopment;
+  if (rules.playerNeverLoses) return 'On Casual your car keeps every upgrade: its ratings never drop over the winter.';
+  if (rules.fieldKept >= 1) return 'Your car keeps all of its development from season to season. If a series gets faster than its regulations allow, every car in it is slowed by the same amount, so the order and gaps stay the same.';
+  const kept = Math.round(rules.carry.stable * 100);
+  return `On ${DIFFICULTIES[difficulty].label} the winter rule changes take development away from every team: the series is pulled back toward the regulation baseline and each car keeps about ${kept}% of its advantage under stable rules (less under bigger changes). Upgrades are ${rules.upgradeScale}× bigger to make up for it.`;
+}
 
 function estimatedPace(game: ReturnType<typeof useGame>, viewer: Team, t: Team): { value: number; unc: number } {
   if (viewer.id === t.id) return { value: overallPace(t.car), unc: 0 };
@@ -230,7 +240,7 @@ export function CarPage() {
               <div className="label">Next season</div>
               <p>{regNext ? regNext.text : 'Changes for next season are announced around week 30.'}</p>
             </div>
-            <p className="text-xs text-apex-muted">Your car keeps all of its development from season to season; no rating drops over the winter. New rules let teams behind the field average close part of the gap (more under bigger rule changes). Promoted teams build an all-new car to their new series' regulations, starting close to that field's average.</p>
+            <p className="text-xs text-apex-muted">{developmentRuleText(game.settings.difficulty)} Promoted teams build an all-new car to their new series' regulations, starting close to that field's average.</p>
             <div className="flex items-center gap-2 text-xs text-apex-muted">
               <TeamDot team={team} /> Development this season: {Object.values(team.car.developmentLevel).reduce((a, b) => a + b, 0).toFixed(1)} upgrade units
             </div>

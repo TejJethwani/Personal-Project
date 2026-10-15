@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { applyRegulationReset, COMPONENT_KEYS, generateCar, REGULATION_CEILING, seriesShiftFor } from '../car/car';
+import { DIFFICULTIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
+import { quoteProject } from '../car/rnd';
 import { generateSponsorOffer } from '../finance/sponsors';
 import { simulateEventRace } from '../race/weekend';
 import { Rng } from '../rng';
@@ -34,12 +36,51 @@ describe('car development carries over', () => {
     const mean = flat(76);
     const shift = seriesShiftFor(mean);
     expect(shift.aerodynamics).toBeCloseTo(76 - REGULATION_CEILING);
-    applyRegulationReset(fast, new Rng(3), notice, mean, 0.4, shift);
-    applyRegulationReset(slow, new Rng(4), notice, mean, 0.4, shift);
+    const rules = DIFFICULTIES.standard.carDevelopment;
+    applyRegulationReset(fast, new Rng(3), notice, mean, 0.4, shift, rules);
+    applyRegulationReset(slow, new Rng(4), notice, mean, 0.4, shift, rules);
     for (const k of COMPONENT_KEYS) {
       expect(fast.components[k]).toBeGreaterThan(slow.components[k]);
       expect(fast.components[k]).toBeGreaterThanOrEqual(80 - shift[k]);
     }
+  });
+});
+
+describe('car development by difficulty', () => {
+  const pushAbove = (s: GameState, rating: number) => {
+    for (const t of teamsInDivision(s, 'F5')) for (const k of COMPONENT_KEYS) t.car.components[k] = rating + (t.isPlayer ? 0 : (t.name.length % 5) - 2);
+  };
+
+  it('on Casual the player\'s car never loses rating, even when its series hits the speed limit', () => {
+    const s = makeGame(306, { difficulty: 'casual' });
+    playSeason(s);
+    pushAbove(s, REGULATION_CEILING + 8);
+    const me = playerTeam(s);
+    const before = { ...me.car.components };
+    beginOffseason(s, false);
+    if (me.division === 'F5') for (const k of COMPONENT_KEYS) expect(me.car.components[k]).toBeGreaterThanOrEqual(before[k]);
+    const aiAfter = teamsInDivision(s, 'F5').filter((t) => !t.isPlayer).map((t) => t.car.components.aerodynamics);
+    expect(Math.max(...aiAfter)).toBeLessThan(REGULATION_CEILING + 8);
+  });
+
+  it('on Hardcore winter rule changes take most development away from every team', () => {
+    const s = makeGame(307, { difficulty: 'hardcore' });
+    playSeason(s);
+    pushAbove(s, 64);
+    const me = playerTeam(s);
+    const staying = teamsInDivision(s, 'F5').map((t) => t.id);
+    beginOffseason(s, false);
+    const after = staying.map((id) => s.teams[id]).filter((t) => t.division === 'F5');
+    const mean = after.reduce((x, t) => x + t.car.components.chassis, 0) / after.length;
+    expect(mean).toBeLessThan(58);
+    if (me.division === 'F5') expect(me.car.components.chassis).toBeLessThan(64);
+  });
+
+  it('upgrades are bigger on the difficulties where they do not last', () => {
+    const casual = makeGame(308, { difficulty: 'casual' });
+    const hardcore = makeGame(308, { difficulty: 'hardcore' });
+    const gain = (s: GameState) => quoteProject(s, playerTeam(s), 'aerodynamics', 'major').expectedGain;
+    expect(gain(hardcore)).toBeGreaterThan(gain(casual) * 1.5);
   });
 });
 

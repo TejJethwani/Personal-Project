@@ -1,4 +1,4 @@
-import { PHILOSOPHIES } from '../config/difficulty';
+import { DIFFICULTIES, PHILOSOPHIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
 import { ECONOMY_TUNING } from '../config/tuning';
 import { nextId } from '../drivers/generate';
@@ -64,7 +64,8 @@ export function quoteProject(state: GameState, team: Team, component: ComponentK
   const cost = roundMoney(cfg.cost * div.rndCostScale * (1.15 - manufacturing * 0.03));
   const weeks = Math.max(2, Math.round(cfg.weeks * (1.18 - manufacturing * 0.025 - td / 450) * (philosophy?.rndDuration ?? 1)));
   const efficiency = (0.68 + td / 190) * facilityMultiplier(team, component) * tdSpecBonus(state, team, component) * (philosophy?.rndGain ?? 1);
-  const expectedGain = Math.round(cfg.gain * efficiency * diminishing(team.car.components[component], team.car.developmentLevel[component]) * 100) / 100;
+  const upgradeScale = DIFFICULTIES[state.settings.difficulty].carDevelopment.upgradeScale;
+  const expectedGain = Math.round(cfg.gain * upgradeScale * efficiency * diminishing(team.car.components[component], team.car.developmentLevel[component]) * 100) / 100;
   const risk = clamp(cfg.risk * (1.3 - manufacturing * 0.04 - td / 320), 0.02, 0.6);
   return { component, scale, cost, weeks, expectedGain, risk, capacity: cfg.capacity };
 }

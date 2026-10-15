@@ -1,5 +1,17 @@
 import type { AIPersonality, Difficulty, FinancialStart, Philosophy } from '../types';
 
+/** What happens to car development over the winter. */
+export interface CarDevelopmentRules {
+  /** Share of a series' average gain kept at the rollover; below 1 the series is pulled back toward the regulation baseline. */
+  fieldKept: number;
+  /** Share of each car's advantage over its field kept under stable, minor and major rule changes. */
+  carry: { stable: number; minor: number; major: number };
+  /** Multiplier on the size of R&D upgrades (bigger when they do not last). */
+  upgradeScale: number;
+  /** The player's car is exempt from the series speed limit, so it never loses rating. */
+  playerNeverLoses: boolean;
+}
+
 export interface DifficultyConfig {
   id: Difficulty;
   label: string;
@@ -26,13 +38,15 @@ export interface DifficultyConfig {
   sponsorIncome: number;
   /** Driver salary demand multiplier. */
   salaryDemand: number;
+  /** Car development over the winter (applies to every team in the world). */
+  carDevelopment: CarDevelopmentRules;
 }
 
 export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   casual: {
     id: 'casual',
     label: 'Casual',
-    description: 'Generous starting funds and sponsors, forgiving board, rescue loans whenever money runs out. Learn the ropes.',
+    description: 'Generous starting funds and sponsors, forgiving board, rescue loans whenever money runs out. Your car never loses its upgrades. Learn the ropes.',
     startingCash: 1.6,
     reliabilityMultiplier: 0.75,
     aiMarketAggression: 0.8,
@@ -43,12 +57,13 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.4,
     sponsorIncome: 1.8,
+    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: true },
     salaryDemand: 0.9,
   },
   standard: {
     id: 'standard',
     label: 'Standard',
-    description: 'The intended experience. Money is tight, the board is patient, and one emergency rescue is available.',
+    description: 'The intended experience. Money is tight, the board is patient, and one emergency rescue is available. Upgrades carry over between seasons.',
     startingCash: 1.0,
     reliabilityMultiplier: 1.0,
     aiMarketAggression: 1.0,
@@ -59,12 +74,13 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.0,
     sponsorIncome: 1.35,
+    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: false },
     salaryDemand: 1.0,
   },
   realistic: {
     id: 'realistic',
     label: 'Realistic',
-    description: 'Sharper rivals, demanding sponsors and a board that will fire you if results and finances collapse.',
+    description: 'Sharper rivals, demanding sponsors and a board that will fire you if results and finances collapse. Winter rule changes take back part of every car\'s development.',
     startingCash: 0.85,
     reliabilityMultiplier: 1.15,
     aiMarketAggression: 1.2,
@@ -75,12 +91,13 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 0.85,
     sponsorIncome: 1.1,
+    carDevelopment: { fieldKept: 0.5, carry: { stable: 0.9, minor: 0.8, major: 0.6 }, upgradeScale: 1.4, playerNeverLoses: false },
     salaryDemand: 1.08,
   },
   hardcore: {
     id: 'hardcore',
     label: 'Hardcore',
-    description: 'Fragile cars, ruthless contract competition, no rescues. Insolvency ends your career.',
+    description: 'Fragile cars, ruthless contract competition, no rescues. Insolvency ends your career. Bigger upgrades, but winter rule changes wipe out most of every car\'s development.',
     startingCash: 0.7,
     reliabilityMultiplier: 1.4,
     aiMarketAggression: 1.4,
@@ -91,6 +108,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: true,
     sponsorPatience: 0.7,
     sponsorIncome: 1.0,
+    carDevelopment: { fieldKept: 0.2, carry: { stable: 0.82, minor: 0.7, major: 0.42 }, upgradeScale: 1.85, playerNeverLoses: false },
     salaryDemand: 1.15,
   },
 };

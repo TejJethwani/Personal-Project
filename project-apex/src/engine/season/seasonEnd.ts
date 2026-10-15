@@ -56,12 +56,14 @@ export function announceRegulations(state: GameState): void {
     const majorP = division === 'F1' ? 0.2 : 0.14;
     const magnitude: RegulationNotice['magnitude'] = roll < majorP ? 'major' : roll < majorP + 0.45 ? 'minor' : 'stable';
     const focus = magnitude === 'stable' ? null : rng.pick(COMPONENT_KEYS.filter((k) => k !== 'reliability'));
+    const keeps = DIFFICULTIES[state.settings.difficulty].carDevelopment.fieldKept >= 1;
+    const area = (word: string) => (focus ? ` ${word} ${COMPONENT_INFO[focus].label.toLowerCase()}` : '');
     const text =
       magnitude === 'major'
-        ? `Sweeping new technical regulations for ${DIVISIONS[division].name}${focus ? `, focused on ${COMPONENT_INFO[focus].label.toLowerCase()}` : ''}. Teams further back will close part of the gap.`
+        ? `Sweeping new technical regulations for ${DIVISIONS[division].name}${area(', focused on').replace(' ,', ',')}. ${keeps ? 'Teams further back will close part of the gap.' : 'Expect the order to be shaken up.'}`
         : magnitude === 'minor'
-          ? `Minor rule tweaks for ${DIVISIONS[division].name}${focus ? ` affecting ${COMPONENT_INFO[focus].label.toLowerCase()}` : ''}. All development carries over; teams behind gain a little.`
-          : `Stable regulations for ${DIVISIONS[division].name}. Every team keeps all of its development.`;
+          ? `Minor rule tweaks for ${DIVISIONS[division].name}${area('affecting')}. ${keeps ? 'All development carries over; teams behind gain a little.' : "Most of this year's development carries over."}`
+          : `Stable regulations for ${DIVISIONS[division].name}. ${keeps ? 'Every team keeps all of its development.' : 'Teams keep most of their development.'}`;
     return { division, season: state.season + 1, magnitude, focus, text };
   });
   const pDiv = playerTeam(state).division;
@@ -333,13 +335,18 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   const regs = Object.fromEntries(state.nextRegulations.map((n) => [n.division, n])) as Record<DivisionId, RegulationNotice>;
   const movers = new Set([...moves.promotions, ...moves.relegations].map((m) => m.teamId));
   const baselines = {} as Record<DivisionId, number>;
+  const devRules = DIFFICULTIES[state.settings.difficulty].carDevelopment;
   for (const division of DIVISION_ORDER) {
     const notice = regs[division] ?? { division, season: state.season + 1, magnitude: 'stable', focus: null, text: '' };
     const staying = teamsInDivision(state, division).filter((t) => !movers.has(t.id));
     const all = teamsInDivision(state, division);
     const means = Object.fromEntries(COMPONENT_KEYS.map((k) => [k, all.reduce((s, t) => s + t.car.components[k], 0) / Math.max(1, all.length)])) as Record<(typeof COMPONENT_KEYS)[number], number>;
     const shift = seriesShiftFor(means);
-    for (const t of staying) applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), shift);
+    const noShift = seriesShiftFor({} as typeof means);
+    for (const t of staying) {
+      const exempt = t.isPlayer && devRules.playerNeverLoses;
+      applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), exempt ? noShift : shift, devRules);
+    }
     baselines[division] = staying.length ? staying.reduce((s, t) => s + overallPace(t.car), 0) / staying.length : 50;
   }
   for (const m of moves.promotions) applyMove(state, m, true, baselines);
