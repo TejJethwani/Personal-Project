@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { applyRegulationReset, COMPONENT_KEYS, generateCar, REGULATION_CEILING, seriesShiftFor } from '../car/car';
+import { applyRegulationReset, COMPONENT_KEYS, finishDevelopmentBoost, generateCar, rebaseCarForDivision, REGULATION_CEILING, seriesShiftFor } from '../car/car';
 import { DIFFICULTIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
 import { quoteProject } from '../car/rnd';
-import { generateSponsorOffer } from '../finance/sponsors';
+import { generateSponsorOffer, rescaleSponsorDeals, signSponsor } from '../finance/sponsors';
 import { simulateEventRace } from '../race/weekend';
 import { Rng } from '../rng';
 import { beginOffseason } from '../season/seasonEnd';
@@ -81,6 +81,59 @@ describe('car development by difficulty', () => {
     const hardcore = makeGame(308, { difficulty: 'hardcore' });
     const gain = (s: GameState) => quoteProject(s, playerTeam(s), 'aerodynamics', 'major').expectedGain;
     expect(gain(hardcore)).toBeGreaterThan(gain(casual) * 1.5);
+  });
+});
+
+describe('promotion, boosts and upgrade costs', () => {
+  it('on Casual and Standard a promoted car keeps its whole advantage over the field', () => {
+    const car = generateCar(new Rng(5), 50, 0);
+    car.components = flat(58);
+    rebaseCarForDivision(car, new Rng(6), flat(50), flat(60), 0.5, true, DIFFICULTIES.standard.carDevelopment.promotionCarry);
+    for (const k of COMPONENT_KEYS) expect(car.components[k]).toBeCloseTo(68, 5);
+  });
+
+  it('on Hardcore a promoted car keeps only part of its advantage', () => {
+    const car = generateCar(new Rng(5), 50, 0);
+    car.components = flat(58);
+    rebaseCarForDivision(car, new Rng(6), flat(50), flat(60), 0.5, true, DIFFICULTIES.hardcore.carDevelopment.promotionCarry);
+    const avg = COMPONENT_KEYS.reduce((x, k) => x + car.components[k], 0) / COMPONENT_KEYS.length;
+    expect(avg).toBeLessThan(65);
+    expect(avg).toBeGreaterThan(59);
+  });
+
+  it('the season-end boost rewards the top, helps the bottom and gives mid-table the least', () => {
+    expect(finishDevelopmentBoost(1)).toBeGreaterThan(finishDevelopmentBoost(3));
+    expect(finishDevelopmentBoost(10)).toBeGreaterThan(finishDevelopmentBoost(7));
+    const middle = Math.min(finishDevelopmentBoost(5), finishDevelopmentBoost(6));
+    for (let p = 1; p <= 10; p++) expect(finishDevelopmentBoost(p)).toBeGreaterThanOrEqual(middle);
+    const s = makeGame(309, { difficulty: 'casual' });
+    playSeason(s);
+    const me = playerTeam(s);
+    const pos = s.lastSeasonReview!.position;
+    expect(s.lastSeasonReview!.developmentBoost).toBe(finishDevelopmentBoost(pos));
+    const before = { ...me.car.components };
+    beginOffseason(s, false);
+    if (me.division === 'F5') for (const k of COMPONENT_KEYS) expect(me.car.components[k]).toBeGreaterThanOrEqual(before[k] + finishDevelopmentBoost(pos) - 0.01);
+  });
+
+  it('Formula 1 upgrades are affordable for a newly promoted team', () => {
+    const s = makeGame(310);
+    const me = playerTeam(s);
+    me.division = 'F1';
+    me.facilities.manufacturing.level = 4;
+    expect(quoteProject(s, me, 'aerodynamics', 'minor').cost).toBeLessThan(1_300_000);
+    expect(quoteProject(s, me, 'aerodynamics', 'major').cost).toBeLessThan(4_000_000);
+  });
+
+  it('sponsor deals pay more after promotion, with targets eased', () => {
+    const s = makeGame(311);
+    const me = playerTeam(s);
+    signSponsor(s, s.player.sponsorOffers.find((o) => o.tier === 'title')!.id);
+    const deal = me.sponsors[0];
+    deal.endSeason = s.season + 2;
+    const before = deal.perRace;
+    rescaleSponsorDeals(s, me, 'F5', 'F4');
+    expect(deal.perRace).toBeGreaterThan(before * 1.4);
   });
 });
 

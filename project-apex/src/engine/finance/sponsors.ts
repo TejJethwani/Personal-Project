@@ -8,8 +8,9 @@ import { nextId } from '../drivers/generate';
 import { Rng } from '../rng';
 import { currentAbsWeek } from '../season/calendar';
 import { raceDrivers, teamsInDivision } from '../selectors';
-import type { GameState, SponsorDeal, SponsorExpectation, SponsorOffer, SponsorRisk, SponsorTier, Team } from '../types';
+import type { DivisionId, GameState, SponsorDeal, SponsorExpectation, SponsorOffer, SponsorRisk, SponsorTier, Team } from '../types';
 import { assertRule, clamp, roundMoney } from '../util';
+import { addNews } from '../news/news';
 import { postTransaction } from './ledger';
 
 export const TIER_LABELS: Record<SponsorTier, string> = { title: 'Title Partner', major: 'Major Partner', minor: 'Official Supplier' };
@@ -247,5 +248,42 @@ export function expectationProgress(e: SponsorExpectation, position: number, sta
     }
     case 'pointsFinishes':
       return { met: stats.pointsFinishes >= e.target, text: `${stats.pointsFinishes}/${e.target} points finishes`, ratio: stats.pointsFinishes / e.target };
+  }
+}
+
+/**
+ * Sponsors renegotiate when the team changes series: promotion clauses lift
+ * per-race payments and bonuses (part of the way to the new series' rates) and
+ * soften targets for the step up; relegation cuts them to the lower series.
+ */
+export function rescaleSponsorDeals(state: GameState, team: Team, from: DivisionId, to: DivisionId): void {
+  const perRaceScale = (d: DivisionId) => DIVISIONS[d].typicalBudget / DIVISIONS[d].races;
+  const ratio = perRaceScale(to) / perRaceScale(from);
+  const promoted = ratio > 1;
+  const factor = promoted ? 1 + (ratio - 1) * 0.6 : ratio;
+  let changed = 0;
+  for (const d of team.sponsors) {
+    if (d.endSeason < state.season + 1) continue;
+    d.perRace = roundMoney(d.perRace * factor);
+    d.winBonus = roundMoney(d.winBonus * factor);
+    d.podiumBonus = roundMoney(d.podiumBonus * factor);
+    d.pointsBonus = roundMoney(d.pointsBonus * factor);
+    if (d.championshipBonus) d.championshipBonus = { ...d.championshipBonus, amount: roundMoney(d.championshipBonus.amount * factor) };
+    if (promoted) {
+      const e = d.expectation;
+      d.expectation = e.type === 'constructorPosition' ? { ...e, target: Math.max(e.target, 6) } : { ...e, target: Math.round(e.target * 0.5 * 10) / 10 };
+    }
+    changed++;
+  }
+  if (changed && team.isPlayer) {
+    addNews(state, {
+      category: 'sponsor',
+      headline: promoted ? 'SPONSORS STEP UP AFTER PROMOTION' : 'SPONSORS CUT BACK AFTER RELEGATION',
+      body: promoted
+        ? `${changed} sponsor deal${changed > 1 ? 's' : ''} carry over into ${DIVISIONS[to].name} with payments raised by ${Math.round((factor - 1) * 100)}% and targets eased for the step up.`
+        : `${changed} sponsor deal${changed > 1 ? 's' : ''} carry over into ${DIVISIONS[to].name}, with payments cut to ${Math.round(factor * 100)}% of their old value.`,
+      teamIds: [team.id],
+      importance: 2,
+    });
   }
 }

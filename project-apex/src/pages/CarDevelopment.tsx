@@ -15,10 +15,10 @@ import { askConfirm } from '@/store/confirm';
 /** What the winter does to car development at this difficulty. */
 function developmentRuleText(difficulty: keyof typeof DIFFICULTIES): string {
   const rules = DIFFICULTIES[difficulty].carDevelopment;
-  if (rules.playerNeverLoses) return 'On Casual your car keeps every upgrade: its ratings never drop over the winter.';
-  if (rules.fieldKept >= 1) return 'Your car keeps all of its development from season to season. If a series gets faster than its regulations allow, every car in it is slowed by the same amount, so the order and gaps stay the same.';
+  const boost = ' At season end every team gets a development boost by championship position: the top teams are rewarded, the bottom teams get catch-up help, mid-table gets the least.';
+  if (rules.playerNeverLoses) return `Your car keeps every upgrade season after season: its ratings never drop over the winter, and promotion carries its advantage over the field into the new series.${boost}`;
   const kept = Math.round(rules.carry.stable * 100);
-  return `On ${DIFFICULTIES[difficulty].label} the winter rule changes take development away from every team: the series is pulled back toward the regulation baseline and each car keeps about ${kept}% of its advantage under stable rules (less under bigger changes). Upgrades are ${rules.upgradeScale}× bigger to make up for it.`;
+  return `On ${DIFFICULTIES[difficulty].label} the winter rule changes take development away from every team: the series is pulled back toward the regulation baseline and each car keeps about ${kept}% of its advantage under stable rules (less under bigger changes). Upgrades are ${rules.upgradeScale}× bigger to make up for it.${boost}`;
 }
 
 function estimatedPace(game: ReturnType<typeof useGame>, viewer: Team, t: Team): { value: number; unc: number } {
@@ -240,7 +240,7 @@ export function CarPage() {
               <div className="label">Next season</div>
               <p>{regNext ? regNext.text : 'Changes for next season are announced around week 30.'}</p>
             </div>
-            <p className="text-xs text-apex-muted">{developmentRuleText(game.settings.difficulty)} Promoted teams build an all-new car to their new series' regulations, starting close to that field's average.</p>
+            <p className="text-xs text-apex-muted">{developmentRuleText(game.settings.difficulty)}</p>
             <div className="flex items-center gap-2 text-xs text-apex-muted">
               <TeamDot team={team} /> Development this season: {Object.values(team.car.developmentLevel).reduce((a, b) => a + b, 0).toFixed(1)} upgrade units
             </div>

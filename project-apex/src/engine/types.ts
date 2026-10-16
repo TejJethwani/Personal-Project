@@ -998,6 +998,8 @@ export interface SeasonReviewSummary {
   retirements: string[];
   regulation: RegulationNotice | null;
   notes: string[];
+  /** Season-end car development boost earned by the finishing position (absent in older saves). */
+  developmentBoost?: number;
   /** Finished in a promotion place but held no licence for the series above (absent in older saves). */
   missedPromotion?: { to: DivisionId; failed: string[] } | null;
 }

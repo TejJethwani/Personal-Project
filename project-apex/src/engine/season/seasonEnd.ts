@@ -1,13 +1,13 @@
 import { DIFFICULTIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
-import { applyRegulationReset, COMPONENT_KEYS, overallPace, rebaseCarForDivision, seriesShiftFor } from '../car/car';
+import { applyDevelopmentBoost, applyRegulationReset, COMPONENT_KEYS, finishDevelopmentBoost, rebaseCarForDivision, seriesShiftFor } from '../car/car';
 import { boardSeasonReview, canBeSacked } from '../board';
 import { divisionStandings } from '../championship/standings';
 import { ageDrivers } from '../drivers/development';
 import { generateDriver, generateProspect, raceAgeFor } from '../drivers/generate';
 import { computeOverall, driverName, overall } from '../drivers/ratings';
 import { postTransaction, seasonTotals } from '../finance/ledger';
-import { expectationProgress, generateSponsorOffer, refreshSponsorOffers } from '../finance/sponsors';
+import { expectationProgress, generateSponsorOffer, refreshSponsorOffers, rescaleSponsorDeals } from '../finance/sponsors';
 import { overdraftLimit } from '../finance/weekly';
 import { placeDriver } from '../market/transfers';
 import { addNews, fill, pickTemplate, TEMPLATES } from '../news/news';
@@ -18,6 +18,7 @@ import { ageStaff } from '../staff/market';
 import { replenishStaffPool, staffExpectedSalary, staffRating } from '../staff/staff';
 import { academyCapacity } from '../team/facilities';
 import type {
+  ComponentKey,
   DivisionId,
   DivisionSeasonHistory,
   GameState,
@@ -29,7 +30,7 @@ import type {
   Team,
 } from '../types';
 import { DIVISION_ORDER } from '../types';
-import { assertRule, clamp, roundMoney } from '../util';
+import { assertRule, clamp, ordinal, roundMoney } from '../util';
 import { buildAllCalendars } from './calendar';
 import { computeDivisionMoves, licensingChecks, type DivisionMove } from './promotion';
 import { COMPONENT_INFO } from '../car/car';
@@ -290,6 +291,7 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
     regulation: state.nextRegulations.find((n) => n.division === (promoted?.to ?? relegated?.to ?? player.division)) ?? null,
     notes,
     missedPromotion,
+    developmentBoost: finishDevelopmentBoost(pStand),
   };
   state.lastSeasonReview = summary;
   state.phase = 'seasonReview';
@@ -306,11 +308,12 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
   return summary;
 }
 
-function applyMove(state: GameState, move: DivisionMove, promoted: boolean, baselines: Record<DivisionId, number>): void {
+function applyMove(state: GameState, move: DivisionMove, promoted: boolean, oldMeans: Record<DivisionId, Record<ComponentKey, number>>, newMeans: Record<DivisionId, Record<ComponentKey, number>>, carry: number): void {
   const team = state.teams[move.teamId];
   const rng = Rng.from(state.seed, 'move', team.id, state.season);
   team.division = move.to;
-  rebaseCarForDivision(team.car, rng, baselines[move.to], engineeringStrength(state, team, move.to), promoted);
+  rebaseCarForDivision(team.car, rng, oldMeans[move.from], newMeans[move.to], engineeringStrength(state, team, move.to), promoted, carry);
+  if (team.isPlayer) rescaleSponsorDeals(state, team, move.from, move.to);
   const last = team.history[team.history.length - 1];
   if (promoted) {
     team.stats.promotions += 1;
@@ -347,23 +350,36 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   // Regulation resets for every car, then rebase movers to their new division.
   const regs = Object.fromEntries(state.nextRegulations.map((n) => [n.division, n])) as Record<DivisionId, RegulationNotice>;
   const movers = new Set([...moves.promotions, ...moves.relegations].map((m) => m.teamId));
-  const baselines = {} as Record<DivisionId, number>;
+  type Means = Record<(typeof COMPONENT_KEYS)[number], number>;
+  const fieldMean = (teams: Team[]): Means => Object.fromEntries(COMPONENT_KEYS.map((k) => [k, teams.reduce((s, t) => s + t.car.components[k], 0) / Math.max(1, teams.length)])) as Means;
+  const oldMeans = {} as Record<DivisionId, Means>;
+  const newMeans = {} as Record<DivisionId, Means>;
   const devRules = DIFFICULTIES[state.settings.difficulty].carDevelopment;
   for (const division of DIVISION_ORDER) {
     const notice = regs[division] ?? { division, season: state.season + 1, magnitude: 'stable', focus: null, text: '' };
     const staying = teamsInDivision(state, division).filter((t) => !movers.has(t.id));
-    const all = teamsInDivision(state, division);
-    const means = Object.fromEntries(COMPONENT_KEYS.map((k) => [k, all.reduce((s, t) => s + t.car.components[k], 0) / Math.max(1, all.length)])) as Record<(typeof COMPONENT_KEYS)[number], number>;
+    const means = fieldMean(teamsInDivision(state, division));
+    oldMeans[division] = means;
     const shift = seriesShiftFor(means);
-    const noShift = seriesShiftFor({} as typeof means);
+    const noShift = seriesShiftFor({} as Means);
     for (const t of staying) {
       const exempt = t.isPlayer && devRules.playerNeverLoses;
       applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), exempt ? noShift : shift, devRules);
     }
-    baselines[division] = staying.length ? staying.reduce((s, t) => s + overallPace(t.car), 0) / staying.length : 50;
+    newMeans[division] = fieldMean(staying);
   }
-  for (const m of moves.promotions) applyMove(state, m, true, baselines);
-  for (const m of moves.relegations) applyMove(state, m, false, baselines);
+  // Season-end positions decide each team's development boost (applied after the moves).
+  const finish = new Map(Object.values(state.teams).map((t) => [t.id, t.history.at(-1)?.season === state.season ? t.history.at(-1)!.position : 0]));
+  for (const m of moves.promotions) applyMove(state, m, true, oldMeans, newMeans, devRules.promotionCarry);
+  for (const m of moves.relegations) applyMove(state, m, false, oldMeans, newMeans, devRules.promotionCarry);
+  for (const t of Object.values(state.teams)) {
+    const pos = finish.get(t.id) ?? 0;
+    if (pos > 0) applyDevelopmentBoost(t.car, finishDevelopmentBoost(pos));
+  }
+  const playerBoost = finishDevelopmentBoost(finish.get(player.id) ?? 0);
+  if ((finish.get(player.id) ?? 0) > 0) {
+    addNews(state, { category: 'engineering', headline: `DEVELOPMENT BOOST: +${playerBoost.toFixed(1)}`, body: `Finishing ${ordinal(finish.get(player.id)!)} earns ${player.name} a season-end development boost of +${playerBoost.toFixed(1)} to every area of the car. The top teams are rewarded and the bottom teams get catch-up help; mid-table gets the least.`, teamIds: [player.id], importance: 2 });
+  }
 
   // AI owners take surplus profits out of very cash-rich teams (an economic sink,
   // so parachute money from a higher division does not distort a series forever).

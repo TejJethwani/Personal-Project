@@ -1,4 +1,5 @@
 import type { CarDevelopmentRules } from '../config/difficulty';
+import { ECONOMY_TUNING } from '../config/tuning';
 import type { Rng } from '../rng';
 import type { Car, Circuit, ComponentKey, PaceComponentKey, RegulationNotice } from '../types';
 import { clamp } from '../util';
@@ -145,17 +146,44 @@ export function seriesShiftFor(divisionMean: Record<ComponentKey, number>): Reco
 
 /**
  * Promotion/relegation: the car is rebuilt to the new division's regulations.
- * Its relative standing is derived from the team's engineering strength
- * (facilities and technical director), not its old car numbers, so an F5 car
- * never competes unchanged in F1.
+ * A promoted car keeps `carry` of its advantage over its old field as an
+ * advantage over its new field (all of it on Casual and Standard); the rest is
+ * a fresh start near the new field's average, set by the team's engineering
+ * strength. A relegated car starts a little ahead of its new field.
  */
-export function rebaseCarForDivision(car: Car, rng: Rng, baseline: number, engineeringStrength: number, promoted: boolean): void {
-  // Newcomers start close to the established field's average; relegated teams a little ahead.
-  const offset = promoted ? -1 + engineeringStrength * 4 : 2 + engineeringStrength * 5;
-  const oldMean = COMPONENT_KEYS.reduce((s, k) => s + car.components[k], 0) / COMPONENT_KEYS.length;
+export function rebaseCarForDivision(
+  car: Car,
+  rng: Rng,
+  oldFieldMean: Record<ComponentKey, number>,
+  newFieldMean: Record<ComponentKey, number>,
+  engineeringStrength: number,
+  promoted: boolean,
+  carry: number,
+): void {
+  const fieldAvg = COMPONENT_KEYS.reduce((s, k) => s + (newFieldMean[k] ?? 50), 0) / COMPONENT_KEYS.length;
+  const carAvg = COMPONENT_KEYS.reduce((s, k) => s + car.components[k], 0) / COMPONENT_KEYS.length;
   for (const key of COMPONENT_KEYS) {
-    const shape = (car.components[key] - oldMean) * 0.35;
-    car.components[key] = Math.round(clamp(baseline + offset + shape + rng.normal(0, 1.5), 15, 92) * 10) / 10;
+    const noise = rng.normal(0, 1.5);
+    let next: number;
+    if (promoted) {
+      const advantage = car.components[key] - (oldFieldMean[key] ?? car.components[key]);
+      const freshStart = -1 + engineeringStrength * 4 + noise;
+      next = (newFieldMean[key] ?? fieldAvg) + advantage * carry + freshStart * (1 - carry);
+    } else {
+      next = fieldAvg + 2 + engineeringStrength * 5 + (car.components[key] - carAvg) * 0.35 + noise;
+    }
+    car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
   }
   car.developmentLevel = emptyDevLevels();
+}
+
+/** Development boost at season end for a championship position (1-based). */
+export function finishDevelopmentBoost(position: number): number {
+  const table = ECONOMY_TUNING.finishDevelopmentBoost;
+  return table[Math.min(table.length, Math.max(1, position)) - 1] ?? 0;
+}
+
+/** Add a season-end boost to every component. */
+export function applyDevelopmentBoost(car: Car, boost: number): void {
+  for (const key of COMPONENT_KEYS) car.components[key] = Math.round(clamp(car.components[key] + boost, 1, 99) * 100) / 100;
 }

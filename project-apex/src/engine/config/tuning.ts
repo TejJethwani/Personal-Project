@@ -131,10 +131,16 @@ export const ECONOMY_TUNING = {
   facilityUpkeepGrowth: 2,
   /** R&D: cost as fraction of division typical budget, base gain, base weeks, capacity used. */
   rnd: {
-    minor: { cost: 0.016, gain: 1.4, weeks: 3, capacity: 1, risk: 0.08 },
-    major: { cost: 0.05, gain: 3.5, weeks: 6, capacity: 1, risk: 0.15 },
-    radical: { cost: 0.11, gain: 6.5, weeks: 10, capacity: 2, risk: 0.28 },
+    minor: { cost: 0.012, gain: 1.4, weeks: 3, capacity: 1, risk: 0.08 },
+    major: { cost: 0.037, gain: 3.5, weeks: 6, capacity: 1, risk: 0.15 },
+    radical: { cost: 0.082, gain: 6.5, weeks: 10, capacity: 2, risk: 0.28 },
   },
+  /**
+   * Car development boost (rating points added to every component) at season
+   * end by championship position: the top teams are rewarded, the bottom
+   * teams get catch-up help, the middle gets the least.
+   */
+  finishDevelopmentBoost: [2.0, 1.6, 1.2, 0.8, 0.5, 0.5, 0.8, 1.1, 1.4, 1.8],
   /** Sponsor value as a share of typical budget for an average team. */
   sponsorShare: { title: 0.2, major: 0.1, minor: 0.035 },
   sponsorSlots: { title: 1, major: 2, minor: 3 },

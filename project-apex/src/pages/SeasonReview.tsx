@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { ArrowDown, ArrowUp, CheckCircle2, Crown, XCircle } from 'lucide-react';
+import { DIFFICULTIES } from '@/engine/config/difficulty';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { driverName } from '@/engine/drivers/ratings';
 import { beginOffseason } from '@/engine/season/seasonEnd';
@@ -10,6 +11,13 @@ import { Badge, Button, Empty, Panel, SectionTitle, Stat } from '@/components/ui
 import { money, ordinal } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
 import { askConfirm } from '@/store/confirm';
+
+/** What promotion does to the car at this difficulty. */
+function carryText(difficulty: keyof typeof DIFFICULTIES): string {
+  const carry = DIFFICULTIES[difficulty].carDevelopment.promotionCarry;
+  if (carry >= 1) return 'Your car carries all of its development into the new series: its advantage over your current field becomes its advantage over the new one.';
+  return `Your car is rebuilt to the new regulations and keeps about ${Math.round(carry * 100)}% of its advantage over the field.`;
+}
 
 export function SeasonReview() {
   const game = useGame();
@@ -62,6 +70,11 @@ export function SeasonReview() {
                 </Badge>
               )}
               <Badge className="px-3 py-1 text-xs">Prize money {money(review.prizeMoney)}</Badge>
+              {review.developmentBoost !== undefined && (
+                <Badge tone="blue" className="px-3 py-1 text-xs" title="Added to every area of the car when the off-season starts. Top finishers are rewarded, the bottom teams get catch-up help, mid-table gets the least.">
+                  Car development boost +{review.developmentBoost.toFixed(1)}
+                </Badge>
+              )}
             </div>
           </div>
           <TeamCar team={team} width={320} />
@@ -142,7 +155,7 @@ export function SeasonReview() {
                 </div>
                 <h2 className="mt-2 font-display text-3xl font-black uppercase">Promotion to {to.name}</h2>
                 <p className="mt-2 max-w-2xl text-sm text-white/80">
-                  {to.tagline}. {to.races} races. Typical team budget {money(to.typicalBudget)} (you have {money(team.cash)}). Entry fee {money(to.entryFee)}, race operations {money(to.raceOperationsCost)} per race, promotion bonus {money(to.promotionBonus)}. Your car will be rebuilt to the new regulations; drivers, staff, facilities and history come with you.
+                  {to.tagline}. {to.races} races. Typical team budget {money(to.typicalBudget)} (you have {money(team.cash)}). Entry fee {money(to.entryFee)}, race operations {money(to.raceOperationsCost)} per race, promotion bonus {money(to.promotionBonus)}. {carryText(game.settings.difficulty)} Sponsor deals carry over with higher payments. Drivers, staff, facilities and history come with you.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   {licensingChecks(game, team, offer.to).map((c) => (

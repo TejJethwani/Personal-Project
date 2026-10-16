@@ -10,6 +10,8 @@ export interface CarDevelopmentRules {
   upgradeScale: number;
   /** The player's car is exempt from the series speed limit, so it never loses rating. */
   playerNeverLoses: boolean;
+  /** Share of a promoted car's advantage over its old field that it keeps over its new field. */
+  promotionCarry: number;
 }
 
 export interface DifficultyConfig {
@@ -46,7 +48,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   casual: {
     id: 'casual',
     label: 'Casual',
-    description: 'Generous starting funds and sponsors, forgiving board, rescue loans whenever money runs out. Your car never loses its upgrades. Learn the ropes.',
+    description: 'Generous starting funds and sponsors, forgiving board, rescue loans whenever money runs out. Your car keeps every upgrade, season after season and through promotion. Learn the ropes.',
     startingCash: 1.6,
     reliabilityMultiplier: 0.75,
     aiMarketAggression: 0.8,
@@ -57,13 +59,13 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.4,
     sponsorIncome: 1.8,
-    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: true },
+    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: true, promotionCarry: 1 },
     salaryDemand: 0.9,
   },
   standard: {
     id: 'standard',
     label: 'Standard',
-    description: 'The intended experience. Money is tight, the board is patient, and one emergency rescue is available. Upgrades carry over between seasons.',
+    description: 'The intended experience. Money is tight, the board is patient, and one emergency rescue is available. Your car keeps every upgrade, season after season and through promotion.',
     startingCash: 1.0,
     reliabilityMultiplier: 1.0,
     aiMarketAggression: 1.0,
@@ -74,7 +76,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.0,
     sponsorIncome: 1.35,
-    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: false },
+    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: true, promotionCarry: 1 },
     salaryDemand: 1.0,
   },
   realistic: {
@@ -91,7 +93,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 0.85,
     sponsorIncome: 1.1,
-    carDevelopment: { fieldKept: 0.5, carry: { stable: 0.9, minor: 0.8, major: 0.6 }, upgradeScale: 1.4, playerNeverLoses: false },
+    carDevelopment: { fieldKept: 0.5, carry: { stable: 0.9, minor: 0.8, major: 0.6 }, upgradeScale: 1.4, playerNeverLoses: false, promotionCarry: 0.5 },
     salaryDemand: 1.08,
   },
   hardcore: {
@@ -108,7 +110,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: true,
     sponsorPatience: 0.7,
     sponsorIncome: 1.0,
-    carDevelopment: { fieldKept: 0.2, carry: { stable: 0.82, minor: 0.7, major: 0.42 }, upgradeScale: 1.85, playerNeverLoses: false },
+    carDevelopment: { fieldKept: 0.2, carry: { stable: 0.82, minor: 0.7, major: 0.42 }, upgradeScale: 1.85, playerNeverLoses: false, promotionCarry: 0.25 },
     salaryDemand: 1.15,
   },
 };

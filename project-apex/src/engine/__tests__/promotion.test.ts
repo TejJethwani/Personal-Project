@@ -3,7 +3,7 @@ import { DIVISIONS } from '../config/divisions';
 import { COMPONENT_KEYS, overallPace } from '../car/car';
 import { ATTRIBUTE_KEYS } from '../drivers/ratings';
 import { computeDivisionMoves, licensingChecks, promotionPicture } from '../season/promotion';
-import { playerTeam, raceDrivers } from '../selectors';
+import { playerTeam, raceDrivers, teamsInDivision } from '../selectors';
 import { STAFF_ROLES } from '../staff/staff';
 import { FACILITY_KEYS } from '../team/facilities';
 import type { DivisionId, GameState } from '../types';
@@ -71,8 +71,9 @@ describe('promotion and licensing', () => {
       const team = playerTeam(s);
       path.push(team.division);
       expect(DIVISIONS[team.division].entryFee).toBeGreaterThan(entryBefore);
-      // Newly promoted car is rebuilt to the new regulations, not carried over at 95.
-      expect(overallPace(team.car)).toBeLessThan(80);
+      // On Standard a promoted car keeps its advantage over the field: still the class of its new series.
+      const rivals = teamsInDivision(s, team.division).filter((t) => t.id !== team.id);
+      expect(overallPace(team.car)).toBeGreaterThan(Math.max(...rivals.map((t) => overallPace(t.car))));
       expect(s.history[s.history.length - 1].promotions.some((p) => p.teamId === team.id)).toBe(true);
     }
     expect(path).toEqual(['F5', 'F4', 'F3', 'F2', 'F1']);
