@@ -129,11 +129,28 @@ export const ECONOMY_TUNING = {
   facilityCostGrowth: 2.15,
   facilityUpkeepBase: 6_000,
   facilityUpkeepGrowth: 2,
-  /** R&D: cost as fraction of division typical budget, base gain, base weeks, capacity used. */
+  /**
+   * R&D packages: cost as a fraction of the division's typical budget, base
+   * gain (rating points before team efficiency and diminishing returns), base
+   * weeks, engineering capacity used, base risk, and development load (how much
+   * it counts towards this season's diminishing returns on the component).
+   */
   rnd: {
-    minor: { cost: 0.012, gain: 1.4, weeks: 3, capacity: 1, risk: 0.08 },
-    major: { cost: 0.037, gain: 3.5, weeks: 6, capacity: 1, risk: 0.15 },
-    radical: { cost: 0.082, gain: 6.5, weeks: 10, capacity: 2, risk: 0.28 },
+    quick: { cost: 0.005, gain: 2, weeks: 2, capacity: 1, risk: 0.05, load: 0.5 },
+    minor: { cost: 0.01, gain: 4, weeks: 4, capacity: 1, risk: 0.08, load: 1 },
+    major: { cost: 0.022, gain: 7, weeks: 7, capacity: 1, risk: 0.14, load: 1.8 },
+    radical: { cost: 0.04, gain: 10, weeks: 10, capacity: 2, risk: 0.24, load: 3 },
+  },
+  /** Approach: multipliers on gain, risk, cost and breakthrough chance. */
+  rndApproach: {
+    safe: { gain: 0.85, risk: 0.5, cost: 1, breakthrough: 0.6 },
+    balanced: { gain: 1, risk: 1, cost: 1, breakthrough: 1 },
+    ambitious: { gain: 1.25, risk: 1.8, cost: 1.15, breakthrough: 1.6 },
+  },
+  /** Timeline: multipliers on weeks, cost and risk. */
+  rndTimeline: {
+    normal: { weeks: 1, cost: 1, risk: 1 },
+    rush: { weeks: 0.6, cost: 1.4, risk: 1.3 },
   },
   /**
    * Car development boost (rating points added to every component) at season

@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { DIFFICULTIES } from '@/engine/config/difficulty';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { COMPONENT_INFO, COMPONENT_KEYS, carRating, overallPace, PACE_COMPONENTS, trackPerformance } from '@/engine/car/car';
-import { cancelProject, canStartProject, capacityUsed, engineeringCapacity, estimateRivalComponent, projectPhase, quoteProject, RND_SCALE_LABELS, RND_SCALES, startProject } from '@/engine/car/rnd';
+import { cancelProject, canStartProject, capacityUsed, engineeringCapacity, estimateRivalComponent, projectOptions, projectPhase, quoteProject, RND_APPROACH_LABELS, RND_APPROACHES, RND_SCALE_LABELS, RND_SCALES, RND_TIMELINE_LABELS, RND_TIMELINES, startProject } from '@/engine/car/rnd';
 import { playerTeam, teamsInDivision } from '@/engine/selectors';
-import type { ComponentKey, RnDScale, Team } from '@/engine/types';
+import type { ComponentKey, RnDApproach, RnDScale, RnDTimeline, Team } from '@/engine/types';
 import { TeamDot, TeamLink } from '@/components/common';
-import { Badge, Button, Empty, Panel, Progress, RatingBar, SectionTitle, Segmented, Select, Stat } from '@/components/ui';
+import { Badge, Button, cn, Empty, Panel, Progress, RatingBar, SectionTitle, Segmented, Select, Stat } from '@/components/ui';
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
 import { askConfirm } from '@/store/confirm';
@@ -16,7 +16,7 @@ import { askConfirm } from '@/store/confirm';
 function developmentRuleText(difficulty: keyof typeof DIFFICULTIES): string {
   const rules = DIFFICULTIES[difficulty].carDevelopment;
   const boost = ' At season end every team gets a development boost by championship position: the top teams are rewarded, the bottom teams get catch-up help, mid-table gets the least.';
-  if (rules.playerNeverLoses) return `Your car keeps every upgrade season after season: its ratings never drop over the winter, and promotion carries its advantage over the field into the new series.${boost}`;
+  if (rules.fieldKept >= 1) return `Your car keeps every upgrade season after season: its ratings never drop over the winter, and promotion carries its advantage over the field into the new series.${boost}`;
   const kept = Math.round(rules.carry.stable * 100);
   return `On ${DIFFICULTIES[difficulty].label} the winter rule changes take development away from every team: the series is pulled back toward the regulation baseline and each car keeps about ${kept}% of its advantage under stable rules (less under bigger changes). Upgrades are ${rules.upgradeScale}× bigger to make up for it.${boost}`;
 }
@@ -28,15 +28,29 @@ function estimatedPace(game: ReturnType<typeof useGame>, viewer: Team, t: Team):
   return { value: value + (overallPace(t.car) - PACE_COMPONENTS.reduce((s, k) => s + t.car.components[k], 0) / PACE_COMPONENTS.length), unc: parts[0].uncertainty * 0.6 };
 }
 
+const APPROACH_HINT: Record<RnDApproach, string> = {
+  safe: 'Proven ideas: smaller gain, half the risk, fewer breakthroughs.',
+  balanced: 'The standard programme.',
+  ambitious: 'Push the concept: +25% gain and more breakthroughs, but much riskier and 15% dearer.',
+};
+
+const TIMELINE_HINT: Record<RnDTimeline, string> = {
+  normal: 'Standard design, build and test schedule.',
+  rush: 'About 40% faster, but 40% dearer and riskier.',
+};
+
 export function CarPage() {
   const game = useGame();
   const act = useStore((s) => s.act);
   const team = playerTeam(game);
   const cfg = DIVISIONS[team.division];
   const [component, setComponent] = useState<ComponentKey>('aerodynamics');
-  const [scale, setScale] = useState<RnDScale>('minor');
-  const quote = quoteProject(game, team, component, scale);
-  const check = canStartProject(game, team, component, scale);
+  const [scale, setScale] = useState<RnDScale>('major');
+  const [approach, setApproach] = useState<RnDApproach>('balanced');
+  const [timeline, setTimeline] = useState<RnDTimeline>('normal');
+  const options = { approach, timeline };
+  const quote = quoteProject(game, team, component, scale, options);
+  const check = canStartProject(game, team, component, scale, options);
   const cap = engineeringCapacity(game, team);
   const used = capacityUsed(team);
   const rivals = teamsInDivision(game, team.division);
@@ -96,28 +110,56 @@ export function CarPage() {
         <Panel title="Start an R&D project" icon={<FlaskConical size={15} className="text-apex-red" />} actions={<span className="text-xs text-apex-muted">Capacity {used}/{cap}</span>}>
           <Progress value={(used / cap) * 100} className="mb-4" />
           <div className="space-y-4">
+            <div>
+              <div className="label mb-1.5">1. Component</div>
+              <Select<ComponentKey> value={component} onChange={setComponent} className="w-full" options={COMPONENT_KEYS.map((k) => ({ value: k, label: `${COMPONENT_INFO[k].label} (${team.car.components[k].toFixed(0)})` }))} />
+            </div>
+            <div>
+              <div className="label mb-1.5">2. Package</div>
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                {RND_SCALES.map((s) => {
+                  const q = quoteProject(game, team, component, s, options);
+                  const active = s === scale;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setScale(s)}
+                      className={cn('rounded-lg border p-2.5 text-left transition-colors', active ? 'border-apex-red bg-apex-red/10' : 'border-apex-line bg-apex-bg/40 hover:border-apex-line2')}
+                    >
+                      <div className="text-xs font-semibold">{RND_SCALE_LABELS[s]}</div>
+                      <div className={cn('num text-2xl font-black leading-tight', active ? 'text-apex-red' : 'text-white')}>+{q.expectedGain.toFixed(1)}</div>
+                      <div className="text-[11px] text-apex-muted">
+                        {money(q.cost)} · {q.weeks} wk{q.capacity > 1 ? ` · ${q.capacity} slots` : ''}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <div className="label mb-1.5">Component</div>
-                <Select<ComponentKey> value={component} onChange={setComponent} className="w-full" options={COMPONENT_KEYS.map((k) => ({ value: k, label: `${COMPONENT_INFO[k].label} (${team.car.components[k].toFixed(0)})` }))} />
+                <div className="label mb-1.5">3. Approach</div>
+                <Segmented fill value={approach} onChange={setApproach} options={RND_APPROACHES.map((a) => ({ value: a, label: RND_APPROACH_LABELS[a] }))} />
+                <div className="mt-1 text-[11px] text-apex-muted">{APPROACH_HINT[approach]}</div>
               </div>
               <div>
-                <div className="label mb-1.5">Scale</div>
-                <Segmented value={scale} onChange={setScale} options={RND_SCALES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))} />
+                <div className="label mb-1.5">4. Timeline</div>
+                <Segmented fill value={timeline} onChange={setTimeline} options={RND_TIMELINES.map((t) => ({ value: t, label: RND_TIMELINE_LABELS[t] }))} />
+                <div className="mt-1 text-[11px] text-apex-muted">{TIMELINE_HINT[timeline]}</div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 rounded-lg border border-apex-line bg-apex-bg/50 p-4 sm:grid-cols-4">
               <Stat label="Cost" value={money(quote.cost)} />
               <Stat label="Duration" value={`${quote.weeks} wk`} sub="design → build → test" />
-              <Stat label="Expected gain" value={`+${quote.expectedGain.toFixed(1)}`} sub={`${COMPONENT_INFO[component].short}`} />
+              <Stat label="Gain" value={`+${quote.expectedGain.toFixed(1)}`} sub={`${COMPONENT_INFO[component].short} ${team.car.components[component].toFixed(0)} → ${Math.min(99, team.car.components[component] + quote.expectedGain).toFixed(0)}`} accent />
               <Stat label="Risk" value={`${Math.round(quote.risk * 100)}%`} sub={`uses ${quote.capacity} capacity`} />
             </div>
             <p className="text-xs text-apex-muted">
-              Outcomes: success, underwhelming, breakthrough, or a reliability compromise found in testing. Repeated upgrades to the same area this season and already-strong components return less. Better Technical Director, Aero Center, Engineering and Manufacturing facilities improve gains, cost and risk.
+              Risk is the chance testing finds a problem: an underwhelming result or a reliability compromise. Breakthroughs can deliver up to twice the expected gain. Catching up with the field is easier than stretching a lead, very strong components return less, and repeated upgrades to the same area this season return less. A better Technical Director and Aero Center, Engineering and Manufacturing facilities improve gains, cost and risk.
             </p>
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-amber-300">{!check.ok && check.reason}</span>
-              <Button variant="primary" disabled={!check.ok} onClick={() => act((g) => startProject(g, team.id, component, scale), { success: `${RND_SCALE_LABELS[scale]} started on ${COMPONENT_INFO[component].label}.` })}>
+              <Button variant="primary" disabled={!check.ok} onClick={() => act((g) => startProject(g, team.id, component, scale, options), { success: `${RND_SCALE_LABELS[scale]} started on ${COMPONENT_INFO[component].label}.` })}>
                 Start project ({money(quote.cost)})
               </Button>
             </div>
@@ -135,7 +177,11 @@ export function CarPage() {
                   <div key={p.id} className="rounded-lg border border-apex-line p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-semibold">
-                        {COMPONENT_INFO[p.component].label} <span className="text-xs text-apex-muted">· {RND_SCALE_LABELS[p.scale]}</span>
+                        {COMPONENT_INFO[p.component].label}{' '}
+                        <span className="text-xs text-apex-muted">
+                          · {RND_SCALE_LABELS[p.scale]} · {RND_APPROACH_LABELS[projectOptions(p).approach]}
+                          {projectOptions(p).timeline === 'rush' ? ' · rushed' : ''}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge tone={phase === 'testing' ? 'purple' : phase === 'manufacture' ? 'amber' : 'blue'}>{phase}</Badge>

@@ -110,7 +110,8 @@ export function aiFillSeats(state: GameState, team: Team, round: number, despera
         continue;
       }
     }
-    const list = candidates(state, team, { includeContracted: round >= 2 && (team.aiPersonality === 'recruiter' || team.aiPersonality === 'obsessive'), forNextSeason: false, role: 'race' });
+    // No last-minute poaching when a seat must be filled: that would only open a hole elsewhere.
+    const list = candidates(state, team, { includeContracted: !desperate && round >= 2 && (team.aiPersonality === 'recruiter' || team.aiPersonality === 'obsessive'), forNextSeason: false, role: 'race' });
     let signed = false;
     for (const d of list.slice(0, 8)) {
       if (tryAiSign(state, team, d, 'race', false, round, true)) {

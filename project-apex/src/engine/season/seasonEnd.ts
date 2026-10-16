@@ -1,6 +1,6 @@
 import { DIFFICULTIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
-import { applyDevelopmentBoost, applyRegulationReset, COMPONENT_KEYS, finishDevelopmentBoost, rebaseCarForDivision, seriesShiftFor } from '../car/car';
+import { applyDevelopmentBoost, applyRegulationReset, COMPONENT_KEYS, finishDevelopmentBoost, rebaseCarForDivision } from '../car/car';
 import { boardSeasonReview, canBeSacked } from '../board';
 import { divisionStandings } from '../championship/standings';
 import { ageDrivers } from '../drivers/development';
@@ -312,7 +312,7 @@ function applyMove(state: GameState, move: DivisionMove, promoted: boolean, oldM
   const team = state.teams[move.teamId];
   const rng = Rng.from(state.seed, 'move', team.id, state.season);
   team.division = move.to;
-  rebaseCarForDivision(team.car, rng, oldMeans[move.from], newMeans[move.to], engineeringStrength(state, team, move.to), promoted, carry);
+  rebaseCarForDivision(team.car, rng, oldMeans[move.from], newMeans[move.to], engineeringStrength(state, team, move.to), promoted, carry, team.isPlayer);
   if (team.isPlayer) rescaleSponsorDeals(state, team, move.from, move.to);
   const last = team.history[team.history.length - 1];
   if (promoted) {
@@ -360,12 +360,7 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
     const staying = teamsInDivision(state, division).filter((t) => !movers.has(t.id));
     const means = fieldMean(teamsInDivision(state, division));
     oldMeans[division] = means;
-    const shift = seriesShiftFor(means);
-    const noShift = seriesShiftFor({} as Means);
-    for (const t of staying) {
-      const exempt = t.isPlayer && devRules.playerNeverLoses;
-      applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), exempt ? noShift : shift, devRules);
-    }
+    for (const t of staying) applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), devRules);
     newMeans[division] = fieldMean(staying);
   }
   // Season-end positions decide each team's development boost (applied after the moves).

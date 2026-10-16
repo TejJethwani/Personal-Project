@@ -6,12 +6,17 @@ import { postTransaction } from '../finance/ledger';
 import { addNews, fill, pickTemplate, TEMPLATES } from '../news/news';
 import { Rng, stableNoise } from '../rng';
 import { hasSpecialization, staffRating } from '../staff/staff';
-import type { ComponentKey, GameState, RnDCompletion, RnDOutcome, RnDPhase, RnDProject, RnDScale, Team } from '../types';
+import type { ComponentKey, GameState, RnDApproach, RnDCompletion, RnDOptions, RnDOutcome, RnDPhase, RnDProject, RnDScale, RnDTimeline, Team } from '../types';
 import { assertRule, clamp, roundMoney } from '../util';
 import { COMPONENT_INFO, COMPONENT_KEYS } from './car';
 
-export const RND_SCALES: RnDScale[] = ['minor', 'major', 'radical'];
-export const RND_SCALE_LABELS: Record<RnDScale, string> = { minor: 'Minor update', major: 'Major package', radical: 'Radical concept' };
+export const RND_SCALES: RnDScale[] = ['quick', 'minor', 'major', 'radical'];
+export const RND_SCALE_LABELS: Record<RnDScale, string> = { quick: 'Quick fix', minor: 'Minor update', major: 'Major package', radical: 'Radical concept' };
+export const RND_APPROACHES: RnDApproach[] = ['safe', 'balanced', 'ambitious'];
+export const RND_APPROACH_LABELS: Record<RnDApproach, string> = { safe: 'Safe', balanced: 'Balanced', ambitious: 'Ambitious' };
+export const RND_TIMELINES: RnDTimeline[] = ['normal', 'rush'];
+export const RND_TIMELINE_LABELS: Record<RnDTimeline, string> = { normal: 'Normal', rush: 'Rush' };
+export const DEFAULT_RND_OPTIONS: RnDOptions = { approach: 'balanced', timeline: 'normal' };
 
 const AERO_GROUP: ComponentKey[] = ['aerodynamics', 'cornering', 'straightLine', 'cooling'];
 const MECH_GROUP: ComponentKey[] = ['chassis', 'suspension', 'braking', 'tireEfficiency'];
@@ -19,7 +24,7 @@ const PU_GROUP: ComponentKey[] = ['powerUnit', 'reliability'];
 
 export function engineeringCapacity(state: GameState, team: Team): number {
   const td = staffRating(state, team, 'technicalDirector');
-  return 2 + Math.floor(team.facilities.engineering.level / 2) + (td >= 70 ? 1 : 0);
+  return 1 + Math.floor((team.facilities.engineering.level + 1) / 2) + (td >= 70 ? 1 : 0);
 }
 
 export function capacityUsed(team: Team): number {
@@ -43,6 +48,8 @@ function facilityMultiplier(team: Team, component: ComponentKey): number {
 export interface ProjectQuote {
   component: ComponentKey;
   scale: RnDScale;
+  approach: RnDApproach;
+  timeline: RnDTimeline;
   cost: number;
   weeks: number;
   expectedGain: number;
@@ -50,28 +57,45 @@ export interface ProjectQuote {
   capacity: number;
 }
 
-/** Diminishing returns: high ratings and repeated upgrades in one season yield less. */
-export function diminishing(rating: number, devLevel: number): number {
-  return ((100 - clamp(rating, 0, 99)) / 50) ** 1.6 / (1 + 0.32 * devLevel);
+/** Average rating of a component across the team's series. */
+export function fieldComponentMean(state: GameState, team: Team, component: ComponentKey): number {
+  const field = Object.values(state.teams).filter((t) => t.division === team.division);
+  return field.reduce((s, t) => s + t.car.components[component], 0) / Math.max(1, field.length);
 }
 
-export function quoteProject(state: GameState, team: Team, component: ComponentKey, scale: RnDScale): ProjectQuote {
+/**
+ * Diminishing returns. Catching up with the field is easier than stretching a
+ * lead (`lead` = rating above the series average), gains fade gradually above
+ * 65 towards the top of the scale, and repeated upgrades to the same
+ * component this season return less.
+ */
+export function diminishing(rating: number, devLevel: number, lead = 0): number {
+  const relative = clamp(1 - lead / 45, 0.4, 1.15);
+  const limit = clamp((100 - rating) / 35, 0.03, 1);
+  return (relative * limit) / (1 + 0.4 * devLevel);
+}
+
+export function quoteProject(state: GameState, team: Team, component: ComponentKey, scale: RnDScale, options: RnDOptions = DEFAULT_RND_OPTIONS): ProjectQuote {
   const cfg = ECONOMY_TUNING.rnd[scale];
+  const approach = ECONOMY_TUNING.rndApproach[options.approach];
+  const timeline = ECONOMY_TUNING.rndTimeline[options.timeline];
   const div = DIVISIONS[team.division];
   const td = staffRating(state, team, 'technicalDirector');
   const philosophy = team.isPlayer ? PHILOSOPHIES[state.player.philosophy] : null;
   const manufacturing = team.facilities.manufacturing.level;
-  const cost = roundMoney(cfg.cost * div.rndCostScale * (1.15 - manufacturing * 0.03));
-  const weeks = Math.max(2, Math.round(cfg.weeks * (1.18 - manufacturing * 0.025 - td / 450) * (philosophy?.rndDuration ?? 1)));
+  const cost = roundMoney(cfg.cost * div.rndCostScale * (1.15 - manufacturing * 0.03) * approach.cost * timeline.cost);
+  const weeks = Math.max(1, Math.round(cfg.weeks * (1.18 - manufacturing * 0.025 - td / 450) * (philosophy?.rndDuration ?? 1) * timeline.weeks));
   const efficiency = (0.68 + td / 190) * facilityMultiplier(team, component) * tdSpecBonus(state, team, component) * (philosophy?.rndGain ?? 1);
   const upgradeScale = DIFFICULTIES[state.settings.difficulty].carDevelopment.upgradeScale;
-  const expectedGain = Math.round(cfg.gain * upgradeScale * efficiency * diminishing(team.car.components[component], team.car.developmentLevel[component]) * 100) / 100;
-  const risk = clamp(cfg.risk * (1.3 - manufacturing * 0.04 - td / 320), 0.02, 0.6);
-  return { component, scale, cost, weeks, expectedGain, risk, capacity: cfg.capacity };
+  const rating = team.car.components[component];
+  const lead = rating - fieldComponentMean(state, team, component);
+  const expectedGain = Math.round(cfg.gain * approach.gain * upgradeScale * efficiency * diminishing(rating, team.car.developmentLevel[component], lead) * 100) / 100;
+  const risk = clamp(cfg.risk * (1.3 - manufacturing * 0.04 - td / 320) * approach.risk * timeline.risk, 0.02, 0.75);
+  return { component, scale, approach: options.approach, timeline: options.timeline, cost, weeks, expectedGain, risk, capacity: cfg.capacity };
 }
 
-export function canStartProject(state: GameState, team: Team, component: ComponentKey, scale: RnDScale): { ok: boolean; reason?: string; quote: ProjectQuote } {
-  const quote = quoteProject(state, team, component, scale);
+export function canStartProject(state: GameState, team: Team, component: ComponentKey, scale: RnDScale, options: RnDOptions = DEFAULT_RND_OPTIONS): { ok: boolean; reason?: string; quote: ProjectQuote } {
+  const quote = quoteProject(state, team, component, scale, options);
   if (state.phase === 'seasonReview' || state.phase === 'gameOver') return { ok: false, reason: 'Development is frozen until the new season.', quote };
   if (team.rnd.some((p) => p.component === component)) return { ok: false, reason: `A ${COMPONENT_INFO[component].label} project is already running.`, quote };
   if (capacityUsed(team) + quote.capacity > engineeringCapacity(state, team)) return { ok: false, reason: 'Not enough engineering capacity. Upgrade the Engineering Department or wait for a project to finish.', quote };
@@ -79,11 +103,12 @@ export function canStartProject(state: GameState, team: Team, component: Compone
   return { ok: true, quote };
 }
 
-export function startProject(state: GameState, teamId: string, component: ComponentKey, scale: RnDScale): RnDProject {
+export function startProject(state: GameState, teamId: string, component: ComponentKey, scale: RnDScale, options: RnDOptions = DEFAULT_RND_OPTIONS): RnDProject {
   const team = state.teams[teamId];
   assertRule(team, 'Unknown team.');
   assertRule(COMPONENT_KEYS.includes(component), 'Unknown component.');
-  const check = canStartProject(state, team, component, scale);
+  assertRule(RND_SCALES.includes(scale) && RND_APPROACHES.includes(options.approach) && RND_TIMELINES.includes(options.timeline), 'Unknown project options.');
+  const check = canStartProject(state, team, component, scale, options);
   assertRule(check.ok, check.reason ?? 'Cannot start project.');
   const q = check.quote;
   const project: RnDProject = {
@@ -98,10 +123,17 @@ export function startProject(state: GameState, teamId: string, component: Compon
     capacity: q.capacity,
     startedSeason: state.season,
     startedWeek: state.week,
+    approach: options.approach,
+    timeline: options.timeline,
   };
   team.rnd.push(project);
-  postTransaction(state, team, 'development', -q.cost, `${RND_SCALE_LABELS[scale]}: ${COMPONENT_INFO[component].label}`);
+  postTransaction(state, team, 'development', -q.cost, `${RND_SCALE_LABELS[scale]} (${RND_APPROACH_LABELS[options.approach].toLowerCase()}${options.timeline === 'rush' ? ', rushed' : ''}): ${COMPONENT_INFO[component].label}`);
   return project;
+}
+
+/** Options a stored project was started with (older saves default to balanced, normal). */
+export function projectOptions(p: RnDProject): RnDOptions {
+  return { approach: p.approach ?? 'balanced', timeline: p.timeline ?? 'normal' };
 }
 
 export function cancelProject(state: GameState, teamId: string, projectId: string): void {
@@ -126,7 +158,7 @@ export function progressProjects(state: GameState, team: Team): RnDCompletion[] 
   for (const p of [...team.rnd]) {
     p.weeksElapsed += 1;
     const rng = Rng.from(state.seed, 'rnd', p.id, p.weeksElapsed);
-    const q = quoteProject(state, team, p.component, p.scale);
+    const q = quoteProject(state, team, p.component, p.scale, projectOptions(p));
     // Manufacturing hiccups can delay a project once.
     if (p.delayWeeks === 0 && projectPhase(p) === 'manufacture' && rng.chance(q.risk * 0.18)) {
       p.delayWeeks = rng.int(1, 3);
@@ -136,7 +168,7 @@ export function progressProjects(state: GameState, team: Team): RnDCompletion[] 
     }
     if (p.weeksElapsed < p.weeksTotal + p.delayWeeks) continue;
     // Testing reveals the outcome.
-    const breakthroughP = 0.07 + (p.scale === 'radical' ? 0.05 : 0) + td / 2000;
+    const breakthroughP = (0.07 + (p.scale === 'radical' ? 0.05 : 0) + td / 2000) * ECONOMY_TUNING.rndApproach[projectOptions(p).approach].breakthrough;
     const roll = rng.next();
     let outcome: RnDOutcome = 'success';
     let factor = rng.range(0.8, 1.15);
@@ -147,7 +179,7 @@ export function progressProjects(state: GameState, team: Team): RnDCompletion[] 
     } else if (roll < breakthroughP + q.risk * 0.5 && p.component !== 'reliability') {
       outcome = 'reliabilityCompromise';
       factor = rng.range(0.7, 1.0);
-      reliabilityLoss = Math.round(rng.range(0.5, 1.75) * (p.scale === 'minor' ? 0.6 : p.scale === 'major' ? 1 : 1.5) * 10) / 10;
+      reliabilityLoss = Math.round(rng.range(0.5, 1.75) * (p.scale === 'quick' ? 0.4 : p.scale === 'minor' ? 0.6 : p.scale === 'major' ? 1 : 1.5) * 10) / 10;
     } else if (roll < breakthroughP + q.risk * 1.5) {
       outcome = 'underwhelming';
       factor = rng.range(0.15, 0.5);
@@ -157,7 +189,7 @@ export function progressProjects(state: GameState, team: Team): RnDCompletion[] 
     const car = team.car;
     car.components[p.component] = Math.round(clamp(car.components[p.component] + gain, 1, 99) * 100) / 100;
     if (reliabilityLoss > 0) car.components.reliability = Math.round(clamp(car.components.reliability - reliabilityLoss, 1, 99) * 100) / 100;
-    car.developmentLevel[p.component] += p.scale === 'minor' ? 1 : p.scale === 'major' ? 1.8 : 3;
+    car.developmentLevel[p.component] += ECONOMY_TUNING.rnd[p.scale].load;
     team.rnd = team.rnd.filter((x) => x.id !== p.id);
     const completion: RnDCompletion = { id: p.id, component: p.component, scale: p.scale, outcome, gain, reliabilityLoss, season: state.season, week: state.week, cost: p.cost };
     team.rndHistory.push(completion);

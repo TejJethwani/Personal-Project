@@ -92,23 +92,31 @@ All values scale from each division's *typical budget* B (F5 $1.2M, F4 $3M, F3 $
 | Driver salaries (rating-driven, × division salary factor 0.7 … 3.0) | 0.02-0.1B |
 | Staff salaries: series scale (F5 $26k … F1 $600k for typical staff) × role weight (technical director 1.6, engineer and strategist 1.0, chief mechanic 0.85, academy director 0.65, driver coach 0.6, scout 0.55) × e^(0.04 × rating above the series' typical staff) | 0.1-0.15B |
 | Facility upkeep (6k × 2^(level−1) per facility) | ≈ 0.05B |
-| R&D (minor 0.012B / 3 weeks / +1.4, major 0.037B / 6 weeks / +3.5, radical 0.082B / 10 weeks / +6.5 base gain; ×0.85 in F2 and ×0.65 in F1, so an F1 minor update costs about $1.2M) | discretionary |
+| R&D: quick fix 0.005B, minor update 0.01B, major package 0.022B, radical concept 0.04B (×0.85 in F2, ×0.65 in F1: an F1 radical concept costs about $4M); ambitious approach ×1.15, rushed build ×1.4 | discretionary (AI teams budget about 4.5% of the series' R&D cost scale a season, more for big teams) |
 
 Sponsor appeal follows reputation and results. Sponsors pay per race plus bonuses, judge an expectation (constructors' position, podiums, wins or points finishes), cut payments or walk away if unhappy, and offer renewals if happy. A negative balance accrues interest; past the difficulty's overdraft limit the board injects emergency money (limited per difficulty), and in Hardcore insolvency ends the career. AI owners take a share of surplus cash above 1.6B at the end of each season so relegated F1 money does not distort lower series forever.
 
 ## 7. Development
 
-- **R&D**: expected gain = base gain × (0.68 + TD/190) × facility multiplier × TD specialisation × philosophy × ((100 − rating)/50)^1.6 / (1 + 0.32 × upgrades this season). Projects run through design, manufacture (possible 1-3 week delay) and testing, then resolve as success (×0.8-1.15), underwhelming (×0.15-0.5), breakthrough (×1.5-2.1) or reliability compromise (gain plus a reliability loss). Concurrent projects are limited by engineering capacity (2 + engineering level ÷ 2, +1 with a Technical Director rated 70+; a radical concept uses two slots). Minor updates are the most money-efficient, major packages the most capacity-efficient, radical concepts a high-risk leap.
+- **R&D**: every upgrade is designed by the player from three choices:
+
+  | Choice | Options |
+  | --- | --- |
+  | Package | Quick fix (+2 base, 2 weeks), Minor update (+4, 4 weeks), Major package (+7, 7 weeks), Radical concept (+10, 10 weeks, two capacity slots) |
+  | Approach | Safe (gain ×0.85, risk ×0.5, fewer breakthroughs), Balanced, Ambitious (gain ×1.25, risk ×1.8, more breakthroughs, cost ×1.15) |
+  | Timeline | Normal, or Rush (about 40% faster, cost ×1.4, risk ×1.3) |
+
+  Expected gain = base gain × approach × (0.68 + TD/190) × facility multiplier × TD specialisation × philosophy × diminishing returns, where diminishing returns = clamp(1 − lead/45, 0.4, 1.15) × clamp((100 − rating)/35, 0.03, 1) / (1 + 0.4 × development load this season) and `lead` is the component's rating above the series average: catching up is easier than stretching a lead, gains taper above 65, and repeated upgrades to the same component in one season return less. For a car near its field's average, a balanced radical concept is worth about +8-9 and an ambitious one about +10-11. Projects run through design, manufacture (possible 1-3 week delay) and testing, then resolve as success (×0.8-1.15), underwhelming (×0.15-0.5), breakthrough (×1.5-2.1) or reliability compromise (gain plus a reliability loss). Concurrent projects are limited by engineering capacity (1 + (engineering level + 1) ÷ 2, +1 with a Technical Director rated 70+).
 - **Regulations**: announced in week 30. What survives the winter depends on the difficulty (`carDevelopment` in `difficulty.ts`) and applies to every team alike:
 
   | Difficulty | Winter rule | Upgrade size |
   | --- | --- | --- |
-  | Casual | Development is kept, and the player's car never loses rating (it is exempt from the series speed limit) | ×1 |
+  | Casual | Development is kept: no car ever loses rating over the winter | ×1 |
   | Standard | Same as Casual | ×1 |
-  | Realistic | The series average is pulled halfway back to the baseline (50); each car keeps 90% / 80% / 60% of its advantage over the field under stable / minor / major rules | ×1.4 |
-  | Hardcore | The series average is pulled 80% back to the baseline; each car keeps 82% / 70% / 42% of its advantage (less in the rules' focus area) | ×1.85 |
+  | Realistic | The series average is pulled halfway back to the baseline (50); each car keeps 90% / 80% / 60% of its advantage over the field under stable / minor / major rules | ×1.15 |
+  | Hardcore | The series average is pulled 80% back to the baseline; each car keeps 82% / 70% / 42% of its advantage (less in the rules' focus area) | ×1.3 |
 
-  When development is kept, teams behind the field average close part of the gap (8% under stable rules, 16% minor, 28% major, more in the focus area) and strong engineering departments find up to about a point per component. A series-wide speed limit stops ratings creeping up forever: once a series' average component passes 66, every AI car in it is slowed by exactly the same amount (the player's car too on Realistic and Hardcore), so the order and the gaps are unchanged. Junior series take many seasons to reach it. In 8-10 season simulations every series levels off around 68-70 when development is kept, and around 54-62 on Realistic and Hardcore, each with a healthy spread between teams.
+  When development is kept, teams behind the field average close part of the gap under rule changes (12% minor, 22% major, more in the focus area) and strong engineering departments find up to about half a point per component. Nothing is ever taken away; instead ratings rise steadily (about 2-3 points a season in junior series, 4-5 in Formula 1 in simulation) and gains taper towards the top of the scale. On Realistic and Hardcore upgrades are 1.15× / 1.3× bigger but the winter takes most of them back.
 - **Season-end development boost**: every team adds a boost to every component by championship position: P1 +2.0, P2 +1.6, P3 +1.2, P4 +0.8, P5-P6 +0.5, P7 +0.8, P8 +1.1, P9 +1.4, P10 +1.8. The top teams are rewarded, the bottom teams get catch-up help, mid-table gets the least.
 - **Promotion**: a promoted car keeps a share of its advantage over its old field as an advantage over the new field: all of it on Casual and Standard, 50% on Realistic, 25% on Hardcore (the rest is a fresh start near the new field's average). Relegated cars start a little ahead of their new field. The player's sponsor deals carry over with a promotion clause: payments rise part of the way to the new series' rates (×1.6 from F5 to F4, about ×3.6 from F2 to F1) and targets are eased; relegation cuts them to the lower series' rates.
 - **Drivers**: a monthly tick adds `(potential − overall) × age factor × 0.03 × coaching × training intensity × morale × philosophy × variation`, distributed by training focus. Drivers over 31 decline in pace, qualifying, braking, wet skill and fitness; experience keeps growing with races. Intense training risks injury. Rare late bloomers gain potential.

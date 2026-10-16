@@ -110,7 +110,11 @@ function offseasonWeek(state: GameState): AdvanceResult {
   if (state.week % 2 === 0) refreshSponsorOffers(state);
   if (state.week >= 0) {
     // Pre-season: every AI seat is filled, objectives are set.
-    for (const t of Object.values(state.teams)) if (!t.isPlayer) aiTry(() => aiFillSeats(state, t, 6, true));
+    for (let pass = 0; pass < 3; pass++) {
+      const short = Object.values(state.teams).filter((t) => !t.isPlayer && t.raceDrivers.includes(null));
+      if (!short.length) break;
+      for (const t of short) aiTry(() => aiFillSeats(state, t, 6, true));
+    }
     state.week = 0;
     state.phase = 'preseason';
     setSeasonObjectives(state);

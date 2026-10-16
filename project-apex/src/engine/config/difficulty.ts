@@ -8,8 +8,6 @@ export interface CarDevelopmentRules {
   carry: { stable: number; minor: number; major: number };
   /** Multiplier on the size of R&D upgrades (bigger when they do not last). */
   upgradeScale: number;
-  /** The player's car is exempt from the series speed limit, so it never loses rating. */
-  playerNeverLoses: boolean;
   /** Share of a promoted car's advantage over its old field that it keeps over its new field. */
   promotionCarry: number;
 }
@@ -59,7 +57,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.4,
     sponsorIncome: 1.8,
-    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: true, promotionCarry: 1 },
+    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, promotionCarry: 1 },
     salaryDemand: 0.9,
   },
   standard: {
@@ -76,7 +74,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 1.0,
     sponsorIncome: 1.35,
-    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, playerNeverLoses: true, promotionCarry: 1 },
+    carDevelopment: { fieldKept: 1, carry: { stable: 1, minor: 1, major: 1 }, upgradeScale: 1, promotionCarry: 1 },
     salaryDemand: 1.0,
   },
   realistic: {
@@ -93,7 +91,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: false,
     sponsorPatience: 0.85,
     sponsorIncome: 1.1,
-    carDevelopment: { fieldKept: 0.5, carry: { stable: 0.9, minor: 0.8, major: 0.6 }, upgradeScale: 1.4, playerNeverLoses: false, promotionCarry: 0.5 },
+    carDevelopment: { fieldKept: 0.5, carry: { stable: 0.9, minor: 0.8, major: 0.6 }, upgradeScale: 1.15, promotionCarry: 0.5 },
     salaryDemand: 1.08,
   },
   hardcore: {
@@ -110,7 +108,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
     bankruptcyEndsCareer: true,
     sponsorPatience: 0.7,
     sponsorIncome: 1.0,
-    carDevelopment: { fieldKept: 0.2, carry: { stable: 0.82, minor: 0.7, major: 0.42 }, upgradeScale: 1.85, playerNeverLoses: false, promotionCarry: 0.25 },
+    carDevelopment: { fieldKept: 0.2, carry: { stable: 0.82, minor: 0.7, major: 0.42 }, upgradeScale: 1.3, promotionCarry: 0.25 },
     salaryDemand: 1.15,
   },
 };
@@ -296,7 +294,7 @@ export interface AIPersonalityConfig {
   /** Share of spare cash committed to R&D each decision. */
   rndAppetite: number;
   /** Preferred R&D scale weights. */
-  rndScale: { minor: number; major: number; radical: number };
+  rndScale: { quick: number; minor: number; major: number; radical: number };
   facilityAppetite: number;
   /** Cash reserve target as a fraction of typical budget. */
   reserve: number;
@@ -315,7 +313,7 @@ export const AI_PERSONALITIES: Record<AIPersonality, AIPersonalityConfig> = {
     label: 'Financially Conservative',
     description: 'Protects the bank balance above all else.',
     rndAppetite: 0.45,
-    rndScale: { minor: 0.7, major: 0.28, radical: 0.02 },
+    rndScale: { quick: 0.21, minor: 0.7, major: 0.28, radical: 0.02 },
     facilityAppetite: 0.4,
     reserve: 0.35,
     salaryPremium: 0.85,
@@ -328,7 +326,7 @@ export const AI_PERSONALITIES: Record<AIPersonality, AIPersonalityConfig> = {
     label: 'Aggressive Recruiter',
     description: 'Believes the right driver wins championships, and pays for them.',
     rndAppetite: 0.6,
-    rndScale: { minor: 0.5, major: 0.42, radical: 0.08 },
+    rndScale: { quick: 0.15, minor: 0.5, major: 0.42, radical: 0.08 },
     facilityAppetite: 0.45,
     reserve: 0.18,
     salaryPremium: 1.35,
@@ -341,7 +339,7 @@ export const AI_PERSONALITIES: Record<AIPersonality, AIPersonalityConfig> = {
     label: 'Engineering-Focused',
     description: 'The car comes first; drivers are interchangeable.',
     rndAppetite: 0.85,
-    rndScale: { minor: 0.35, major: 0.5, radical: 0.15 },
+    rndScale: { quick: 0.1, minor: 0.35, major: 0.5, radical: 0.15 },
     facilityAppetite: 0.75,
     reserve: 0.15,
     salaryPremium: 0.9,
@@ -354,7 +352,7 @@ export const AI_PERSONALITIES: Record<AIPersonality, AIPersonalityConfig> = {
     label: 'Youth Academy Specialist',
     description: 'Builds from within. Signs prospects early, promotes from the academy.',
     rndAppetite: 0.55,
-    rndScale: { minor: 0.6, major: 0.35, radical: 0.05 },
+    rndScale: { quick: 0.18, minor: 0.6, major: 0.35, radical: 0.05 },
     facilityAppetite: 0.6,
     reserve: 0.2,
     salaryPremium: 0.95,
@@ -367,7 +365,7 @@ export const AI_PERSONALITIES: Record<AIPersonality, AIPersonalityConfig> = {
     label: 'High-Risk Strategist',
     description: 'Radical upgrades, bold strategies, feast or famine.',
     rndAppetite: 0.8,
-    rndScale: { minor: 0.2, major: 0.4, radical: 0.4 },
+    rndScale: { quick: 0.06, minor: 0.2, major: 0.4, radical: 0.4 },
     facilityAppetite: 0.5,
     reserve: 0.08,
     salaryPremium: 1.1,
@@ -380,7 +378,7 @@ export const AI_PERSONALITIES: Record<AIPersonality, AIPersonalityConfig> = {
     label: 'Championship Obsessive',
     description: 'Every decision is about the title this year.',
     rndAppetite: 0.9,
-    rndScale: { minor: 0.4, major: 0.45, radical: 0.15 },
+    rndScale: { quick: 0.12, minor: 0.4, major: 0.45, radical: 0.15 },
     facilityAppetite: 0.55,
     reserve: 0.1,
     salaryPremium: 1.25,

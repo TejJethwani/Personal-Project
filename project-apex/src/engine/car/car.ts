@@ -91,29 +91,19 @@ export function weakestComponent(car: Car, keys: ComponentKey[] = COMPONENT_KEYS
  * Season rollover. What survives the winter depends on the difficulty's
  * development rules, which apply to every team alike.
  *
- * When development is kept (Casual, Standard), a car keeps everything its team
- * has developed and never loses ground on its rivals. New rules let teams
- * behind the field average close part of the gap (more under bigger rule
- * changes, most in the area the rules focus on), and strong engineering
- * organisations find a little extra. `seriesShift` is a speed limit for the
- * whole series: once its average passes the regulation ceiling, every car is
- * slowed by exactly the same amount, so the order and gaps are unchanged.
+ * When development is kept (Casual, Standard), no car ever loses rating: each
+ * keeps everything its team has developed. New rules let teams behind the
+ * field average close part of the gap (more under bigger rule changes, most
+ * in the area the rules focus on), and strong engineering organisations find a
+ * little extra.
  *
  * When development is not kept (Realistic, Hardcore), the series average is
  * pulled back toward the regulation baseline and each car keeps only part of
  * its advantage over the field, less under bigger rule changes.
  */
-export function applyRegulationReset(
-  car: Car,
-  rng: Rng,
-  notice: RegulationNotice,
-  divisionMean: Record<ComponentKey, number>,
-  engineeringStrength: number,
-  seriesShift: Record<ComponentKey, number>,
-  rules: CarDevelopmentRules,
-): void {
+export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotice, divisionMean: Record<ComponentKey, number>, engineeringStrength: number, rules: CarDevelopmentRules): void {
   const keepsDevelopment = rules.fieldKept >= 1 && rules.carry[notice.magnitude] >= 1;
-  const catchUp = notice.magnitude === 'major' ? 0.28 : notice.magnitude === 'minor' ? 0.16 : 0.08;
+  const catchUp = notice.magnitude === 'major' ? 0.22 : notice.magnitude === 'minor' ? 0.12 : 0;
   for (const key of COMPONENT_KEYS) {
     const current = car.components[key];
     const mean = divisionMean[key] ?? current;
@@ -121,8 +111,8 @@ export function applyRegulationReset(
     if (keepsDevelopment) {
       const share = notice.focus === key ? Math.min(0.5, catchUp * 1.5) : catchUp;
       const catchGain = Math.max(0, mean - current) * share;
-      const adapt = Math.max(0, (engineeringStrength - 0.4) * 1.2 + rng.normal(0, 0.3));
-      next = current + catchGain + adapt - (seriesShift[key] ?? 0);
+      const adapt = Math.max(0, (engineeringStrength - 0.5) * 1.0 + rng.normal(0, 0.3));
+      next = current + catchGain + adapt;
     } else {
       const carry = rules.carry[notice.magnitude] * (notice.focus === key ? 0.6 : 1);
       const adapt = (engineeringStrength - 0.5) * 5 + rng.normal(0, 1.6);
@@ -136,20 +126,13 @@ export function applyRegulationReset(
 /** Component rating a series' average returns toward when rules take development away. */
 export const REGULATION_BASELINE = 50;
 
-/** Average component rating above which a series' regulations slow every car equally. */
-export const REGULATION_CEILING = 66;
-
-/** Uniform per-component slow-down for a series whose field average passed the ceiling. */
-export function seriesShiftFor(divisionMean: Record<ComponentKey, number>): Record<ComponentKey, number> {
-  return Object.fromEntries(COMPONENT_KEYS.map((k) => [k, Math.max(0, (divisionMean[k] ?? 0) - REGULATION_CEILING)])) as Record<ComponentKey, number>;
-}
-
 /**
  * Promotion/relegation: the car is rebuilt to the new division's regulations.
  * A promoted car keeps `carry` of its advantage over its old field as an
  * advantage over its new field (all of it on Casual and Standard); the rest is
  * a fresh start near the new field's average, set by the team's engineering
- * strength. A relegated car starts a little ahead of its new field.
+ * strength. A relegated car starts near its new field's average; with full
+ * carry-over the player's relegated car keeps every rating it had.
  */
 export function rebaseCarForDivision(
   car: Car,
@@ -159,6 +142,7 @@ export function rebaseCarForDivision(
   engineeringStrength: number,
   promoted: boolean,
   carry: number,
+  keepRelegated = false,
 ): void {
   const fieldAvg = COMPONENT_KEYS.reduce((s, k) => s + (newFieldMean[k] ?? 50), 0) / COMPONENT_KEYS.length;
   const carAvg = COMPONENT_KEYS.reduce((s, k) => s + car.components[k], 0) / COMPONENT_KEYS.length;
@@ -169,8 +153,12 @@ export function rebaseCarForDivision(
       const advantage = car.components[key] - (oldFieldMean[key] ?? car.components[key]);
       const freshStart = -1 + engineeringStrength * 4 + noise;
       next = (newFieldMean[key] ?? fieldAvg) + advantage * carry + freshStart * (1 - carry);
+      // Full carry-over (Casual, Standard) never makes a component worse.
+      if (carry >= 1) next = Math.max(next, car.components[key]);
     } else {
-      next = fieldAvg + 2 + engineeringStrength * 5 + (car.components[key] - carAvg) * 0.35 + noise;
+      next = fieldAvg - 1 + engineeringStrength * 3 + (car.components[key] - carAvg) * 0.35 + noise;
+      // Full carry-over (Casual, Standard) never makes a component worse, even after relegation.
+      if (carry >= 1 && keepRelegated) next = Math.max(next, car.components[key]);
     }
     car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
   }

@@ -3,14 +3,14 @@ import { divisionAbove, DIVISIONS } from '../config/divisions';
 import { COMPONENT_KEYS, PACE_COMPONENTS } from '../car/car';
 import { canStartProject, capacityUsed, engineeringCapacity, quoteProject, RND_SCALES, startProject } from '../car/rnd';
 import { teamPosition } from '../championship/standings';
-import { postTransaction } from '../finance/ledger';
+import { postTransaction, seasonTotals } from '../finance/ledger';
 import { seasonDriverSalaries } from '../finance/weekly';
 import { addNews, fill, pickTemplate, TEMPLATES } from '../news/news';
 import { Rng } from '../rng';
 import { hireStaffMember } from '../staff/market';
 import { STAFF_ROLES, staffExpectedSalary, staffRating, teamStaffSalaries } from '../staff/staff';
 import { canUpgradeFacility, FACILITY_KEYS, facilityUpgradeCost, seasonFacilityUpkeep, startFacilityUpgrade } from '../team/facilities';
-import type { AIPersonality, ComponentKey, FacilityKey, GameState, RnDScale, Team } from '../types';
+import type { AIPersonality, ComponentKey, FacilityKey, GameState, RnDOptions, RnDScale, Team } from '../types';
 import { clamp, GameRuleError, roundMoney } from '../util';
 import { eventLineup } from '../race/weekend';
 import { aiEnsureSubstitute, aiFillSeats, aiInSeasonMarket } from './market';
@@ -48,19 +48,33 @@ function pickScale(cfg: AIPersonalityConfig, rng: Rng): RnDScale {
   return rng.weighted(RND_SCALES.map((s) => ({ item: s, weight: cfg.rndScale[s] })));
 }
 
+/**
+ * AI teams plan a yearly R&D budget, set against what development costs in
+ * their series and scaled by personality and stature (big teams spend more),
+ * so every series develops at a similar pace (a few rating points a season).
+ */
+export function aiRnDBudget(team: Team): number {
+  const stature = clamp(team.reputation / DIVISIONS[team.division].typicalReputation, 0.6, 1.5);
+  return DIVISIONS[team.division].rndCostScale * 0.045 * (cfgOf(team).rndAppetite / 0.6) * stature;
+}
+
 export function aiRnD(state: GameState, team: Team, rng: Rng): void {
   const cfg = cfgOf(team);
   if (state.phase !== 'season' || state.week > 40) return;
   let guard = 0;
   while (capacityUsed(team) < engineeringCapacity(state, team) && guard++ < 4) {
-    const spare = team.cash - aiCommittedCash(state, team);
+    const spentThisSeason = -(seasonTotals(team, state.season).byCategory.development ?? 0);
+    const budgetLeft = aiRnDBudget(team) - spentThisSeason;
+    const spare = Math.min(team.cash - aiCommittedCash(state, team), budgetLeft / Math.max(0.01, cfg.rndAppetite));
     if (spare <= 0) return;
     const order = componentPriority(state, team, rng);
     let scale = pickScale(cfg, rng);
+    // Bold personalities take ambitious concepts, cautious ones play safe.
+    const options: RnDOptions = { approach: cfg.raceRisk > 0.7 ? 'ambitious' : cfg.raceRisk < 0.35 ? 'safe' : 'balanced', timeline: 'normal' };
     let target: ComponentKey | null = null;
     for (const key of order) {
-      for (const s of [scale, 'major', 'minor'] as RnDScale[]) {
-        const check = canStartProject(state, team, key, s);
+      for (const s of [scale, 'major', 'minor', 'quick'] as RnDScale[]) {
+        const check = canStartProject(state, team, key, s, options);
         if (check.ok && check.quote.cost <= spare * cfg.rndAppetite) {
           target = key;
           scale = s;
@@ -70,7 +84,7 @@ export function aiRnD(state: GameState, team: Team, rng: Rng): void {
       if (target) break;
     }
     if (!target) return;
-    startProject(state, team.id, target, scale);
+    startProject(state, team.id, target, scale, options);
   }
 }
 

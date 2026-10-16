@@ -236,7 +236,15 @@ export interface Car {
   developmentLevel: Record<ComponentKey, number>;
 }
 
-export type RnDScale = 'minor' | 'major' | 'radical';
+export type RnDScale = 'quick' | 'minor' | 'major' | 'radical';
+/** How hard the engineers push the concept: safer gains or a bigger, riskier step. */
+export type RnDApproach = 'safe' | 'balanced' | 'ambitious';
+/** Normal build or a rushed one (faster, dearer, riskier). */
+export type RnDTimeline = 'normal' | 'rush';
+export interface RnDOptions {
+  approach: RnDApproach;
+  timeline: RnDTimeline;
+}
 export type RnDPhase = 'design' | 'manufacture' | 'testing';
 
 export interface RnDProject {
@@ -252,6 +260,9 @@ export interface RnDProject {
   capacity: number;
   startedSeason: number;
   startedWeek: number;
+  /** Absent in older saves (balanced, normal). */
+  approach?: RnDApproach;
+  timeline?: RnDTimeline;
 }
 
 export type RnDOutcome = 'success' | 'underwhelming' | 'breakthrough' | 'reliabilityCompromise';
