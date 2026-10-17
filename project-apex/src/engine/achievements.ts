@@ -93,7 +93,8 @@ export const ACHIEVEMENT_BY_ID: Record<string, AchievementDef> = Object.fromEntr
 
 /** Unlock any achievements now earned. Returns the newly unlocked ids. */
 export function checkAchievements(state: GameState, result: RaceResult | null = null): string[] {
-  if (state.mode === 'daily') return [];
+  // Daily challenges and sandbox careers (unlimited money) do not unlock achievements.
+  if (state.mode === 'daily' || state.settings.sandboxUsed) return [];
   const team = playerTeam(state);
   if (!team) return [];
   const unlocked = (state.player.achievements ??= {});

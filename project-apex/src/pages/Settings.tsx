@@ -7,6 +7,7 @@ import { DIFFICULTIES } from '@/engine/config/difficulty';
 import { customPointsProblem, DIVISIONS, POINTS_PRESETS, pointsSummary } from '@/engine/config/divisions';
 import { championshipPoints } from '@/engine/championship/standings';
 import { PointsEditor } from '@/components/PointsEditor';
+import { setSandboxMoney } from '@/engine/finance/boost';
 import { autoplayPlayerWeekend } from '@/engine/game';
 import { advanceBlocker, advanceWeek, finishWeekendAndContinue } from '@/engine/season/advance';
 import { playerTeam } from '@/engine/selectors';
@@ -94,6 +95,23 @@ export function SettingsPage() {
                 <Button size="sm" disabled={!customChanged || !!customPointsProblem(custom)} onClick={() => act((g) => setCustomPoints(g, custom), { success: 'Custom points table saved: it applies from next season.' })}>
                   Save table
                 </Button>
+              </div>
+            </div>
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.05] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    Sandbox money <Badge tone="amber">Cheat</Badge>
+                  </div>
+                  <p className="mt-0.5 text-xs text-apex-muted">The bank is topped up to $1 billion whenever it runs low. Achievements stay off for this career once it has been used.</p>
+                </div>
+                <Toggle
+                  checked={!!game.settings.sandboxMoney}
+                  onChange={async (v) => {
+                    if (v && !game.settings.sandboxUsed && !(await askConfirm('Switch on sandbox money? It is a cheat: money never runs out, and this career can no longer unlock achievements, even if you switch it off later.', 'Switch on'))) return;
+                    act((g) => setSandboxMoney(g, v), { success: v ? 'Sandbox money on.' : 'Sandbox money off.' });
+                  }}
+                />
               </div>
             </div>
           </div>

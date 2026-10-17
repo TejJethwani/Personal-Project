@@ -5,7 +5,9 @@ import { generateDriver, generateProspect, raceAgeFor } from '../drivers/generat
 import { Rng } from '../rng';
 import { replenishStaffPool } from '../staff/staff';
 import type { AIPersonality, EuroAssociationState, EuroClub, EuroLeague, EuropeState, GameState, LiveryPattern, NewCareerConfig } from '../types';
-import { createBaseState, createPlayerTeam, generateTeamFromIdentity, type WorldBuild } from '../world/generate';
+import { createBaseState, createPlayerTeam, generateTeamFromIdentity, START_YEAR, type WorldBuild } from '../world/generate';
+import { generateHeritage } from '../world/heritage';
+import { assumeControl } from '../career/manager';
 import { ASSOCIATIONS, ASSOCIATION_BY_ID, leagueWeekends, type AssociationSeed } from './data';
 import { levelMeanPower, levelPowerSpread, rollDriverSplit } from './power';
 import { buildEuroCalendars, homeCircuits, isEuropeanCircuit, leagueWeeks } from './schedule';
@@ -100,6 +102,8 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
   const european = circuits.filter(isEuropeanCircuit);
   const personalities = Object.keys(AI_PERSONALITIES) as AIPersonality[];
   const playerAssoc = ASSOCIATION_BY_ID[choice.assocId];
+  // Taking over a club: every place in the pyramid is an established club.
+  const takeover = !!config.takeover;
 
   let clubCounter = 0;
   for (const [rankIdx, assoc] of ASSOCIATIONS.entries()) {
@@ -115,7 +119,7 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
       const level = li + 1;
       const division = divisionForLevel(level);
       const leagueId = `${assoc.id}-${level}`;
-      const isPlayerLeague = own && level === assoc.levels.length;
+      const isPlayerLeague = own && level === assoc.levels.length && !takeover;
       const slots = isPlayerLeague ? lvl.teams - 1 : lvl.teams;
       const strengths = crng.shuffle(Array.from({ length: slots }, (_, i) => (slots === 1 ? 0 : 1 - (2 * i) / (slots - 1))));
       const league: EuroLeague = { id: leagueId, assocId: assoc.id, level, name: lvl.name, short: lvl.short, clubIds: [], weeks: leagueWeeks(leagueWeekends(lvl.teams)), standings: {}, division: own ? division : null };
@@ -143,6 +147,7 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
             driverNationality: (r) => (r.chance(0.45) ? assoc.nationality : undefined),
           });
           team.clubId = club.id;
+          team.heritage = generateHeritage(seed, team, START_YEAR, strengths[i], { current: lvl.name, above: assoc.levels[li - 1]?.name ?? null }, true);
           club.teamId = team.id;
           state.teams[team.id] = team;
         } else {
@@ -172,6 +177,7 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
         player.clubId = club.id;
         state.teams[player.id] = player;
         state.player.teamId = player.id;
+        state.player.managerHistory = [{ teamId: player.id, teamName: player.name, fromSeason: 1, toSeason: null, how: 'founded' }];
         europe.clubs[club.id] = club;
         league.clubIds.push(club.id);
       }
@@ -231,7 +237,7 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
   replenishStaffPool(state, rng);
 
   state.calendars = buildEuroCalendars(state, 1);
-  const player = state.teams[state.player.teamId];
-  for (const id of player.raceDrivers) if (id) state.player.scouting[id] = 100;
+  if (takeover && config.takeover!.teamId) assumeControl(state, config.takeover!.teamId, config.principalName, 'takeover');
+  for (const id of state.teams[state.player.teamId]?.raceDrivers ?? []) if (id) state.player.scouting[id] = 100;
   return state;
 }

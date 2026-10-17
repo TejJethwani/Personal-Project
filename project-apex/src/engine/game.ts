@@ -16,14 +16,29 @@ import { createEuroWorld } from './europe/world';
 import { ASSOCIATION_BY_ID } from './europe/data';
 import { ensureSeasonChallenges } from './season/challenges';
 import { applyPointsChoice } from './actions';
+import { applyStartingMoney } from './finance/boost';
+import { assertRule } from './util';
 
 export function createNewGame(config: NewCareerConfig): GameState {
+  assertRule(!config.takeover || !!config.takeover.teamId, 'Choose the team to take over.');
   const state = config.european ? createEuroWorld(config) : createWorld(config);
   if (config.points) applyPointsChoice(state, config.points);
+  applyStartingMoney(state, config.cashBoost, config.sandboxMoney);
   const team = playerTeam(state);
   setSeasonObjectives(state);
   ensureSeasonChallenges(state);
   refreshSponsorOffers(state, true);
+  if (config.takeover) {
+    const league = DIVISIONS[team.division].name;
+    addNews(state, {
+      category: 'board',
+      headline: `${team.principal.toUpperCase()} TAKES CHARGE OF ${team.name.toUpperCase()}`,
+      body: `${team.name} have appointed ${team.principal} as Team Principal. The new boss inherits the ${league} line-up, staff, car, facilities and a bank balance of $${(team.cash / 1_000_000).toFixed(1)}M. Board objectives: ${team.objectives.map((o) => o.description).join('; ')}.`,
+      teamIds: [team.id],
+      importance: 3,
+    });
+    return state;
+  }
   if (state.europe) {
     const assoc = ASSOCIATION_BY_ID[state.europe.playerAssocId];
     addNews(state, {

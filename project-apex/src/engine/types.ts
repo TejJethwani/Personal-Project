@@ -426,6 +426,20 @@ export interface BoardObjective {
   importance: 'critical' | 'major' | 'minor';
 }
 
+/** A team's story before the career began (generated with the world). */
+export interface TeamHeritage {
+  /** Year the organisation was founded. */
+  founded: number;
+  /** Championships won before the career began, and the series they came in. */
+  titles: number;
+  titlesIn: string;
+  /** Domestic cups won (European League clubs). */
+  cups: number;
+  /** Best championship finish, and where. */
+  bestFinish: number;
+  bestIn: string;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -461,6 +475,8 @@ export interface Team {
   clubId?: string;
   /** A quick-model club given a car and drivers for one race against the player; never managed. */
   guest?: boolean;
+  /** History before the career began (absent for teams founded by the player and in older saves). */
+  heritage?: TeamHeritage;
   /** Set when the team must stop operating (only possible for the player in strict modes). */
   bankruptWarnings: number;
 }
@@ -1147,6 +1163,10 @@ export interface GameSettings {
   customPoints?: number[];
   /** Edited custom table, used from the next season. */
   pendingCustomPoints?: number[] | null;
+  /** Cheat: money never runs out. */
+  sandboxMoney?: boolean;
+  /** Set for good once sandbox money has been switched on in this career. */
+  sandboxUsed?: boolean;
   autosave: boolean;
   defaultRaceSpeed: 1 | 5 | 20 | 60;
   autoSkipAiWeekends: boolean;
@@ -1175,6 +1195,18 @@ export interface PlayerProfile {
   rival?: Rivalry | null;
   /** Achievements unlocked in this career, by id (absent in older saves). */
   achievements?: Record<string, { season: number; week: number }>;
+  /** Teams managed in this career, oldest first (absent in older saves). */
+  managerHistory?: ManagerStint[];
+  /** Cash boost chosen when the career was created (applied once). */
+  startingBoost?: number;
+}
+
+export interface ManagerStint {
+  teamId: string;
+  teamName: string;
+  fromSeason: number;
+  toSeason: number | null;
+  how: 'founded' | 'takeover' | 'appointed';
 }
 
 export type ChallengeKind =
@@ -1313,4 +1345,10 @@ export interface NewCareerConfig {
   european?: { assocId: string };
   /** Championship scoring: the series' own default, Classic F1, Expanded or a custom table. */
   points?: { system: PointsChoice; custom?: number[] };
+  /** Take charge of an existing team instead of founding one ('' builds the world without choosing). */
+  takeover?: { teamId: string };
+  /** Extra starting cash on top of the team's own budget, added once. */
+  cashBoost?: number;
+  /** Cheat: the bank is topped up so money never runs out. */
+  sandboxMoney?: boolean;
 }

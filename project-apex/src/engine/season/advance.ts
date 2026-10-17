@@ -25,6 +25,7 @@ import { nextEventFor } from './calendar';
 import { applyRuleset } from '../config/ruleset';
 import { euroCompetitionsDone, euroSeasonStart, euroWeekRacing, euroWeekStart, nextPlayerEvent } from '../europe/season';
 import { announceRegulations, finalizeSeason } from './seasonEnd';
+import { sandboxTopUp } from '../finance/boost';
 import { checkAchievements } from '../achievements';
 import { ensureSeasonChallenges } from './challenges';
 import { SEASON_TWISTS, seasonTwists } from './twists';
@@ -145,6 +146,7 @@ function offseasonWeek(state: GameState): AdvanceResult {
 /** Everything that happens in the world during one in-season week. */
 export function processWeek(state: GameState): void {
   const player = playerTeam(state);
+  sandboxTopUp(state);
   checkAchievements(state);
   if (state.europe) euroWeekStart(state);
   for (const team of allTeams(state)) {

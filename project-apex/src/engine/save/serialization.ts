@@ -28,6 +28,8 @@ export interface SaveMeta {
   mode?: 'career' | 'european';
   /** League name for European League careers. */
   league?: string;
+  /** Sandbox money has been used in this career. */
+  sandbox?: boolean;
 }
 
 export function saveMeta(state: GameState): SaveMeta {
@@ -43,6 +45,7 @@ export function saveMeta(state: GameState): SaveMeta {
     difficulty: state.settings.difficulty,
     mode: european ? 'european' : 'career',
     ...(european && team ? { league: DIVISIONS[team.division].name } : {}),
+    ...(state.settings.sandboxUsed ? { sandbox: true } : {}),
   };
 }
 

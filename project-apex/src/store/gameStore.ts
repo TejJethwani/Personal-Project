@@ -6,6 +6,7 @@ import { ACHIEVEMENT_BY_ID } from '@/engine/achievements';
 import { recordAchievements } from '@/lib/profile';
 import { autosaveSlotFor, saveToSlot } from './persistence';
 import { applyRuleset } from '@/engine/config/ruleset';
+import { sandboxTopUp } from '@/engine/finance/boost';
 
 export type Page = 'hq' | 'drivers' | 'market' | 'car' | 'race' | 'championship' | 'europe' | 'finances' | 'staff' | 'news' | 'history' | 'settings' | 'seasonReview';
 
@@ -102,6 +103,7 @@ export const useStore = create<Store>((set, get) => ({
     const unlockedBefore = new Set(Object.keys(game.player.achievements ?? {}));
     try {
       const result = fn(game);
+      sandboxTopUp(game);
       set({ rev: get().rev + 1 });
       const msg = typeof opts.success === 'function' ? opts.success(result) : opts.success;
       if (msg) get().toast('success', msg);

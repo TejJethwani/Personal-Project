@@ -1,5 +1,5 @@
 import { AI_PERSONALITIES, DIFFICULTIES, FINANCIAL_STARTS } from '../config/difficulty';
-import { DIVISIONS } from '../config/divisions';
+import { divisionAbove, DIVISIONS } from '../config/divisions';
 import { applyRuleset } from '../config/ruleset';
 import { CIRCUITS } from '../data/circuits';
 import { TEAM_SEEDS } from '../data/teams';
@@ -26,6 +26,8 @@ import type {
 } from '../types';
 import { DIVISION_ORDER } from '../types';
 import { clamp, roundMoney } from '../util';
+import { generateHeritage } from './heritage';
+import { assumeControl } from '../career/manager';
 
 export const SAVE_VERSION = 2;
 export const START_YEAR = 2027;
@@ -156,10 +158,17 @@ export interface TeamGenOptions {
   driverNationality?: (rng: GenContext['rng']) => string | undefined;
 }
 
+/** The tenth Formula 5 team, racing in the seat a founded team would otherwise take. */
+const SPARE_F5_SEED: TeamIdentity = { name: 'Northern Lights Racing', shortName: 'NLR', nationality: 'FIN', primary: '#0f766e', secondary: '#a7f3d0', livery: 'fade' };
+
 function generateAiTeam(build: WorldBuild, division: DivisionId, index: number, rank: number, personality: AIPersonality): Team {
-  const seed = TEAM_SEEDS[division][index];
+  const seed = TEAM_SEEDS[division][index] ?? SPARE_F5_SEED;
   const team = baseTeam(nextId(build.state, 't'), division, build.state.season);
-  return populateTeam(build, team, seed, (4.5 - rank) / 4.5, personality); // +1 strongest .. -1 weakest
+  const strength = (4.5 - rank) / 4.5; // +1 strongest .. -1 weakest
+  populateTeam(build, team, seed, strength, personality);
+  const above = divisionAbove(division);
+  team.heritage = generateHeritage(build.state.seed, team, START_YEAR, strength, { current: DIVISIONS[division].name, above: above ? DIVISIONS[above].name : null }, false);
+  return team;
 }
 
 /** A fully staffed AI team of the given strength (+1 strongest .. -1 weakest in its division). */
@@ -336,17 +345,22 @@ export function createWorld(config: NewCareerConfig): GameState {
   const build: WorldBuild = { state, ctx: { rng, ids: state, season: 1 } };
 
   const personalities = Object.keys(AI_PERSONALITIES) as AIPersonality[];
+  // Taking over a team: every seat is an established team, Formula 5 included.
+  const takeover = !!config.takeover;
   for (const division of DIVISION_ORDER) {
-    const count = TEAM_SEEDS[division].length;
+    const count = TEAM_SEEDS[division].length + (takeover && division === 'F5' ? 1 : 0);
     const ranks = rng.shuffle([...Array(count).keys()]);
     for (let i = 0; i < count; i++) {
-      const team = generateAiTeam(build, division, i, division === 'F5' ? ranks[i] * (10 / 9) : ranks[i], rng.pick(personalities));
+      const team = generateAiTeam(build, division, i, division === 'F5' && count === 9 ? ranks[i] * (10 / 9) : ranks[i], rng.pick(personalities));
       state.teams[team.id] = team;
     }
   }
-  const player = createPlayerTeam(build, config);
-  state.teams[player.id] = player;
-  state.player.teamId = player.id;
+  if (!takeover) {
+    const player = createPlayerTeam(build, config);
+    state.teams[player.id] = player;
+    state.player.teamId = player.id;
+    state.player.managerHistory = [{ teamId: player.id, teamName: player.name, fromSeason: 1, toSeason: null, how: 'founded' }];
+  }
 
   // Free agents across all levels, plus unsigned youth prospects.
   for (const division of DIVISION_ORDER) {
@@ -366,7 +380,8 @@ export function createWorld(config: NewCareerConfig): GameState {
   replenishStaffPool(state, rng);
 
   state.calendars = buildAllCalendars(state, 1);
+  if (takeover && config.takeover!.teamId) assumeControl(state, config.takeover!.teamId, config.principalName, 'takeover');
   // The player's own drivers and staff are fully known.
-  for (const id of player.raceDrivers) if (id) state.player.scouting[id] = 100;
+  for (const id of state.teams[state.player.teamId]?.raceDrivers ?? []) if (id) state.player.scouting[id] = 100;
   return state;
 }

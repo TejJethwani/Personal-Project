@@ -9,6 +9,12 @@ import { clamp } from './util';
 
 export function setSeasonObjectives(state: GameState): BoardObjective[] {
   const team = playerTeam(state);
+  team.objectives = objectivesFor(state, team, state.player.philosophy);
+  return team.objectives;
+}
+
+/** What the board of this team would ask of its principal this season. */
+export function objectivesFor(state: GameState, team: Team, philosophy: GameState['player']['philosophy']): BoardObjective[] {
   const cfg = DIVISIONS[team.division];
   const p = projectedPosition(state, team);
   const objectives: BoardObjective[] = [];
@@ -28,9 +34,8 @@ export function setSeasonObjectives(state: GameState): BoardObjective[] {
   }
   if (p <= 4) objectives.push({ id: id('wins'), description: `Win at least ${p <= 2 ? 3 : 1} race${p <= 2 ? 's' : ''}`, type: 'wins', target: p <= 2 ? 3 : 1, importance: 'minor' });
   else objectives.push({ id: id('pod'), description: 'Score at least one podium', type: 'podiums', target: 1, importance: 'minor' });
-  if (state.player.philosophy === 'financial') objectives.push({ id: id('profit'), description: 'Make a profit this season', type: 'profit', target: 0, importance: 'major' });
+  if (philosophy === 'financial') objectives.push({ id: id('profit'), description: 'Make a profit this season', type: 'profit', target: 0, importance: 'major' });
   else objectives.push({ id: id('cash'), description: 'End the season with a positive bank balance', type: 'cashAbove', target: 0, importance: 'major' });
-  team.objectives = objectives;
   return objectives;
 }
 
