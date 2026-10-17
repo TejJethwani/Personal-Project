@@ -695,6 +695,8 @@ export interface EuroSeasonHistory {
   /** How far the player's team went in each competition. */
   player: { competition: EuroCompetition; reached: string }[];
   ranking: string[];
+  /** Clubs of the player's association that this season's table sent into Europe (absent in older saves). */
+  qualified?: Record<string, { comp: ContinentalCompetition; direct: boolean }>;
 }
 
 export interface EuropeState {

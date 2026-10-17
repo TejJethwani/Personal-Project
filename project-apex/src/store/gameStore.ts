@@ -29,6 +29,8 @@ interface Store {
   teamProfile: string | null;
   negotiation: NegotiationTarget | null;
   resultView: string | null;
+  /** Europe page tab requested by a link elsewhere (e.g. a qualification zone). */
+  europeTab: string | null;
   toasts: Toast[];
   lastSaved: number | null;
   setScreen: (s: Store['screen']) => void;
@@ -37,6 +39,7 @@ interface Store {
   openTeam: (id: string | null) => void;
   openNegotiation: (t: NegotiationTarget | null) => void;
   openResult: (eventId: string | null) => void;
+  openEurope: (tab: string | null) => void;
   newGame: (config: NewCareerConfig) => void;
   loadGame: (state: GameState) => void;
   /** Start a daily challenge world (never autosaved over the career). */
@@ -60,6 +63,7 @@ export const useStore = create<Store>((set, get) => ({
   teamProfile: null,
   negotiation: null,
   resultView: null,
+  europeTab: null,
   toasts: [],
   lastSaved: null,
   setScreen: (screen) => set({ screen }),
@@ -71,6 +75,10 @@ export const useStore = create<Store>((set, get) => ({
   openTeam: (id) => set({ teamProfile: id }),
   openNegotiation: (negotiation) => set({ negotiation }),
   openResult: (resultView) => set({ resultView }),
+  openEurope: (europeTab) => {
+    set({ page: 'europe', europeTab, driverProfile: null, teamProfile: null });
+    window.scrollTo?.({ top: 0 });
+  },
   newGame: (config) => {
     const game = createNewGame(config);
     set({ game, rev: 1, screen: 'game', page: 'hq' });

@@ -3,8 +3,7 @@ import { activeDivisions, isEuropean, levelOfDivision } from '../config/ruleset'
 import { playerTeam, teamsInDivision } from '../selectors';
 import type { CalendarEvent, ContinentalCompetition, EuroCompetition, EuroSeasonHistory, GameState, RaceResult } from '../types';
 import { associationRanking, updateCoefficients } from './coefficients';
-import { allocateEuropeanPlaces, berthsForRank, CONTINENTAL_ORDER, payParticipation, playerReached, progressContinental, startContinental } from './continental';
-import { DIVISIONS } from '../config/divisions';
+import { allocateEuropeanPlaces, CONTINENTAL_ORDER, payParticipation, playerReached, progressContinental, startContinental } from './continental';
 import { progressCups, startCups } from './cups';
 import { clearGuests, competitionName, onPlayerFixtureRace, playBackgroundFixtures, playerClubId, stageLabel } from './fixtures';
 import { liteSeasonEnd, liteTable, playLiteLeagueWeek } from './leagues';
@@ -192,21 +191,4 @@ export function euroOffseason(state: GameState): void {
   europe.cups = {};
   europe.events = [];
   europe.carry = null;
-}
-
-export type LeagueZone = 'CL' | 'EL' | 'ECL' | 'CLq' | 'ELq' | 'ECLq' | 'up' | 'down';
-
-/** What each final position of a league is worth: European places, promotion, relegation. */
-export function leagueZones(state: GameState, division: GameState['teams'][string]['division']): Map<number, LeagueZone> {
-  const zones = new Map<number, LeagueZone>();
-  if (!state.europe) return zones;
-  const cfg = DIVISIONS[division];
-  if (levelOfDivision(division) === 1) {
-    const rank = associationRanking(state).indexOf(state.europe.playerAssocId) + 1;
-    for (const b of berthsForRank(rank)) if (b.route === 'league') zones.set(b.pos, (b.direct ? b.comp : `${b.comp}q`) as LeagueZone);
-  } else {
-    for (let p = 1; p <= cfg.promotionSlots; p++) zones.set(p, 'up');
-  }
-  for (let i = 0; i < cfg.relegationSlots; i++) zones.set(cfg.teams - i, 'down');
-  return zones;
 }

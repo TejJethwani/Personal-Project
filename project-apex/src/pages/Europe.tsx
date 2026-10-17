@@ -1,5 +1,5 @@
 import { Globe2, Medal, Trophy } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { associationRanking, clubCoefficient, sum } from '@/engine/europe/coefficients';
 import { berthsForRank, leaguePhaseTable, playerReached } from '@/engine/europe/continental';
 import { ASSOCIATION_BY_ID, CONTINENTAL } from '@/engine/europe/data';
@@ -19,7 +19,11 @@ type Tab = 'overview' | ContinentalCompetition | 'cups' | 'associations' | 'hono
 
 export function EuropePage() {
   const game = useGame();
-  const [tab, setTab] = useState<Tab>('overview');
+  const requested = useStore((s) => s.europeTab);
+  const [tab, setTab] = useState<Tab>(() => (requested as Tab | null) ?? 'overview');
+  useEffect(() => {
+    if (requested) useStore.setState({ europeTab: null });
+  }, [requested]);
   if (!game.europe) return <Empty>European competitions belong to European League careers.</Empty>;
   return (
     <div className="space-y-5">

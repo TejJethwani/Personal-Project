@@ -21,6 +21,29 @@ export function TeamDot({ team, size = 10 }: { team: Team | undefined | null; si
   return <span className="inline-block shrink-0 rounded-sm" style={{ width: size, height: size, background: `linear-gradient(135deg, ${team.colors.primary} 55%, ${team.colors.secondary} 55%)`, boxShadow: '0 0 0 1px rgba(255,255,255,0.15)' }} />;
 }
 
+/** Readable text colour on a background colour. */
+function inkOn(hex: string): string {
+  const v = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(v.length === 3 ? v[i / 2] + v[i / 2] : v.slice(i, i + 2), 16) || 0);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#0b0c0f' : '#ffffff';
+}
+
+/** A team's crest: its colours in a shield with its short name. */
+export function TeamBadge({ team, size = 22, title }: { team: Pick<Team, 'shortName' | 'colors'> | undefined | null; size?: number; title?: string }) {
+  if (!team) return <span className="inline-block shrink-0" style={{ width: size, height: size * 1.1 }} />;
+  const { primary, secondary } = team.colors;
+  return (
+    <svg width={size} height={size * 1.1} viewBox="0 0 24 26" className="shrink-0" role="img" aria-label={title ?? team.shortName}>
+      {title && <title>{title}</title>}
+      <path d="M12 1 22 4v8c0 6-4.5 10.5-10 13C6.5 22.5 2 18 2 12V4z" fill={primary} stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
+      <path d="M2 17.5 22 6.5V10L3.6 20.2C2.9 19.4 2.4 18.5 2 17.5z" fill={secondary} opacity="0.85" />
+      <text x="12" y="15.4" textAnchor="middle" fontSize="6.6" fontWeight="800" fontFamily="'Barlow Condensed', sans-serif" fill={inkOn(primary)} stroke={primary} strokeWidth="0.6" paintOrder="stroke">
+        {team.shortName.slice(0, 3)}
+      </text>
+    </svg>
+  );
+}
+
 export function TeamLink({ team, short, className }: { team: Team | undefined | null; short?: boolean; className?: string }) {
   const open = useStore((s) => s.openTeam);
   if (!team) return <span className="text-apex-dim">Free agent</span>;

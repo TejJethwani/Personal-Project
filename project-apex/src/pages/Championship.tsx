@@ -7,12 +7,13 @@ import { driverName } from '@/engine/drivers/ratings';
 import { licensingChecks, promotionPicture } from '@/engine/season/promotion';
 import { playerTeam } from '@/engine/selectors';
 import type { DivisionId } from '@/engine/types';
-import { activeDivisions, divisionShort, levelOfDivision } from '@/engine/config/ruleset';
-import { leagueZones, type LeagueZone } from '@/engine/europe/season';
+import { activeDivisions, divisionShort } from '@/engine/config/ruleset';
 import { DivisionBadge, DriverLink, TeamLink } from '@/components/common';
 import { Badge, Button, cn, Panel, SectionTitle, Segmented, Tabs } from '@/components/ui';
 import { useGame, useStore } from '@/store/gameStore';
 import { CircuitGuide } from '@/components/CircuitGuide';
+import { FormStrip, TeamStandings } from '@/components/LeagueTable';
+import { recentForm } from '@/engine/championship/form';
 
 export function ChampionshipPage() {
   const game = useGame();
@@ -42,7 +43,7 @@ export function ChampionshipPage() {
       />
       {tab === 'circuits' && <CircuitGuide game={game} division={division} />}
       {tab === 'drivers' && <DriverTable division={division} />}
-      {tab === 'teams' && <TeamTable division={division} />}
+      {tab === 'teams' && <TeamStandings division={division} />}
       {tab === 'progress' && <Progression division={division} />}
       {tab === 'calendar' && <Calendar division={division} />}
       {tab === 'promotion' && <Promotion division={division} />}
@@ -54,6 +55,8 @@ function DriverTable({ division }: { division: DivisionId }) {
   const game = useGame();
   const st = divisionStandings(game, division);
   const leader = st.drivers[0]?.points ?? 0;
+  const results = seasonResults(game, division);
+  const scoring = championshipPoints(game, division).positions.length;
   return (
     <div className="panel overflow-x-auto">
       <table className="table-apex">
@@ -70,6 +73,7 @@ function DriverTable({ division }: { division: DivisionId }) {
             <th>DNF</th>
             <th>Gap</th>
             <th className="text-right">Points</th>
+            <th title="Last five races, oldest first">Last 5</th>
           </tr>
         </thead>
         <tbody>
@@ -88,83 +92,13 @@ function DriverTable({ division }: { division: DivisionId }) {
               <td>{r.dnfs}</td>
               <td className="text-apex-muted">{i === 0 ? '—' : `−${leader - r.points}`}</td>
               <td className="num text-right text-base font-bold">{r.points}</td>
+              <td>
+                <FormStrip form={recentForm(results, r.id, 'driver', scoring)} game={game} />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-const ZONE_STYLE: Record<LeagueZone, { label: string; cls: string }> = {
-  CL: { label: 'Champions League', cls: 'bg-blue-500/25 text-blue-200' },
-  CLq: { label: 'Champions League qualifying', cls: 'bg-blue-500/15 text-blue-200' },
-  EL: { label: 'Europa League', cls: 'bg-orange-500/25 text-orange-200' },
-  ELq: { label: 'Europa League qualifying', cls: 'bg-orange-500/15 text-orange-200' },
-  ECL: { label: 'Conference League', cls: 'bg-emerald-500/25 text-emerald-200' },
-  ECLq: { label: 'Conference League qualifying', cls: 'bg-emerald-500/15 text-emerald-200' },
-  up: { label: 'Promotion', cls: 'bg-emerald-500/25 text-emerald-200' },
-  down: { label: 'Relegation', cls: 'bg-red-500/25 text-red-200' },
-};
-
-function TeamTable({ division }: { division: DivisionId }) {
-  const game = useGame();
-  const st = divisionStandings(game, division);
-  const cfg = DIVISIONS[division];
-  const zones = leagueZones(game, division);
-  const legend = [...new Set(zones.values())];
-  return (
-    <div className="panel overflow-x-auto">
-      <table className="table-apex">
-        <thead>
-          <tr>
-            <th>Pos</th>
-            <th>Team</th>
-            <th>Drivers</th>
-            <th>Wins</th>
-            <th>Podiums</th>
-            <th>Poles</th>
-            <th>DNF</th>
-            <th>Prize money</th>
-            <th className="text-right">Points</th>
-          </tr>
-        </thead>
-        <tbody>
-          {st.constructors.map((r, i) => {
-            const t = game.teams[r.id];
-            const zone = zones.get(i + 1);
-            return (
-              <tr key={r.id} className={t.isPlayer ? 'bg-apex-red/[0.08]' : ''}>
-                <td className="num font-bold">
-                  <span className={cn('inline-block w-7 rounded text-center', zone && ZONE_STYLE[zone].cls)} title={zone ? ZONE_STYLE[zone].label : undefined}>
-                    {i + 1}
-                  </span>
-                </td>
-                <td>
-                  <TeamLink team={t} />
-                </td>
-                <td className="text-xs text-apex-muted">{t.raceDrivers.map((id) => (id ? game.drivers[id].lastName : '—')).join(' / ')}</td>
-                <td>{r.wins}</td>
-                <td>{r.podiums}</td>
-                <td>{r.poles}</td>
-                <td>{r.dnfs}</td>
-                <td className="text-apex-muted">${((cfg.prizeMoney[i] ?? 0) / 1_000_000).toFixed(2)}M</td>
-                <td className="num text-right text-base font-bold">{r.points}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {legend.length > 0 && (
-        <div className="flex flex-wrap gap-3 px-3 py-2 text-[11px] text-apex-muted">
-          {legend.map((z) => (
-            <span key={z} className="flex items-center gap-1">
-              <span className={cn('inline-block h-3 w-3 rounded-sm', ZONE_STYLE[z].cls)} /> {ZONE_STYLE[z].label}
-            </span>
-          ))}
-          {levelOfDivision(division) === 1 && <span>The domestic cup winner also earns a European place. Places taken twice pass down the table.</span>}
-        </div>
-      )}
     </div>
   );
 }

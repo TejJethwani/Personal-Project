@@ -106,6 +106,16 @@ function emptyComp(id: ContinentalCompetition, season: number): ContinentalState
 export function startContinental(state: GameState): void {
   const europe = state.europe!;
   const alloc = allocateEuropeanPlaces(state);
+  // Last season's table: which of the player's association's clubs it sent into Europe.
+  const last = europe.history[europe.history.length - 1];
+  if (last && !last.qualified) {
+    last.qualified = {};
+    for (const id of CONTINENTAL_ORDER) {
+      for (const [direct, list] of [[true, alloc[id].direct], [false, alloc[id].pool]] as const) {
+        for (const clubId of list) if (europe.clubs[clubId]?.assocId === europe.playerAssocId) last.qualified[clubId] = { comp: id, direct };
+      }
+    }
+  }
   for (const id of CONTINENTAL_ORDER) {
     const comp = emptyComp(id, state.season);
     comp.direct = alloc[id].direct;
