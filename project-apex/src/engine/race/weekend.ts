@@ -1,7 +1,10 @@
 import { AI_PERSONALITIES, PHILOSOPHIES } from '../config/difficulty';
-import { DIVISIONS, raceLapsFor } from '../config/divisions';
+import { DIVISIONS, eventLaps } from '../config/divisions';
 import { RACE_TUNING } from '../config/tuning';
 import { trackPerformance } from '../car/car';
+import { eventCarOffset } from '../europe/power';
+import { syncGuest } from '../europe/fixtures';
+import { onEuroRaceResult } from '../europe/season';
 import { assignPoints, divisionStandings, pointsRemaining } from '../championship/standings';
 import { driverName, driverShortName, overall, racePaceIndex } from '../drivers/ratings';
 import { postTransaction } from '../finance/ledger';
@@ -90,9 +93,15 @@ interface Participant {
   teamId: string;
 }
 
+/** Teams racing in an event: its own entry list, else the whole division. */
+export function eventTeams(state: GameState, event: CalendarEvent): Team[] {
+  if (event.teamIds) return event.teamIds.map((id) => state.teams[id]).filter(Boolean);
+  return teamsInDivision(state, event.division);
+}
+
 export function participantsFor(state: GameState, event: CalendarEvent): Participant[] {
   const out: Participant[] = [];
-  for (const team of teamsInDivision(state, event.division)) {
+  for (const team of eventTeams(state, event)) {
     for (const slot of eventLineup(state, team)) if (slot.driverId) out.push({ driverId: slot.driverId, teamId: team.id });
   }
   return out;
@@ -109,7 +118,7 @@ export function strategyAccuracy(state: GameState, team: Team, tireKnowledge = 5
 
 export function strategyInputs(state: GameState, event: CalendarEvent, driverId: string, teamId: string, accuracy: number): StrategyInputs {
   const circuit = state.circuits[event.circuitId];
-  const laps = raceLapsFor(event.division, circuit.laps);
+  const laps = eventLaps(event, circuit.laps);
   const weather = generateEventWeather(state.seed, event.id, circuit, laps, weatherMods(state, event.division));
   const driver = state.drivers[driverId];
   const team = state.teams[teamId];
@@ -146,11 +155,14 @@ export function startPlayerWeekend(state: GameState, eventId: string): WeekendSt
   const event = findEvent(state, eventId);
   assertRule(event, 'Unknown event.');
   const team = playerTeam(state);
-  assertRule(event.division === team.division, 'This event is not in your division.');
+  if (event.teamIds) assertRule(event.teamIds.includes(team.id), 'Your team is not entered in this event.');
+  else assertRule(event.division === team.division, 'This event is not in your division.');
   assertRule(!event.completed, 'This event has already been completed.');
+  // Guest teams are tuned to their club's current strength for this race.
+  for (const t of eventTeams(state, event)) if (t.guest) syncGuest(state, t, event.division);
   const circuit = state.circuits[event.circuitId];
   const cfg = DIVISIONS[event.division];
-  const weather = generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps), weatherMods(state, event.division));
+  const weather = generateEventWeather(state.seed, event.id, circuit, eventLaps(event, circuit.laps), weatherMods(state, event.division));
   const accuracy = strategyAccuracy(state, team, 30);
   const lineup = eventLineup(state, team).filter((s) => s.driverId);
   const weekend: WeekendState = {
@@ -180,7 +192,59 @@ export function startPlayerWeekend(state: GameState, eventId: string): WeekendSt
   }
   state.weekend = weekend;
   state.phase = 'weekend';
+  // A second race of the same weekend (or an extra race) keeps the setup work already done.
+  const carry = state.europe?.carry;
+  const carryKey = weekendCarryKey(state, event);
+  if (carry && carryKey && carry.weekendId === carryKey) {
+    for (const s of lineup) {
+      const q = carry.setupQuality[s.driverId!];
+      weekend.setupQuality[s.driverId!] = q ?? setupQuality(DEFAULT_SETUP, idealSetup(state.seed, event.id, circuit, state.drivers[s.driverId!]));
+      weekend.practice.runsRemaining[s.driverId!] = 0;
+      weekend.practice.bestSetupQuality[s.driverId!] = weekend.setupQuality[s.driverId!];
+    }
+    weekend.practice.tireKnowledge = carry.tireKnowledge;
+    weekend.phase = 'qualifying';
+    const grid = race2Grid(state, event);
+    if (grid) {
+      weekend.qualifying.result = { sessions: 0, entries: grid, wet: false };
+      enterRaceSetup(state, weekend, event);
+    }
+  }
   return weekend;
+}
+
+/** Key linking the races of one weekend (or a knockout tie's extra race) for carried-over setups. */
+function weekendCarryKey(state: GameState, event: CalendarEvent): string | null {
+  if (event.euro?.weekendId) return event.euro.weekendId;
+  const fx = event.euro?.fixtureId ? state.europe?.fixtures[event.euro.fixtureId] : null;
+  // Only an extra race run straight after the deciding leg, at the same track, carries over.
+  return fx?.tieId ? `${fx.tieId}:${event.week}:${event.circuitId}` : null;
+}
+
+/**
+ * Starting order of a weekend's second race when it does not run its own
+ * qualifying: the first race's grid again, or its result with the top ten
+ * reversed. Drivers new to the weekend start from the back.
+ */
+export function race2Grid(state: GameState, event: CalendarEvent): QualifyingEntry[] | null {
+  const rule = event.euro?.gridRule;
+  if (event.euro?.raceNo !== 2 || !rule || rule === 'qualifying') return null;
+  const first = event.euro.pairedEventId ? state.results[event.euro.pairedEventId] : null;
+  if (!first) return null;
+  const participants = participantsFor(state, event);
+  const present = new Set(participants.map((p) => p.driverId));
+  let order: string[];
+  if (rule === 'sameGrid') order = [...first.entries].sort((a, b) => a.grid - b.grid).map((e) => e.driverId);
+  else {
+    const finish = first.entries.map((e) => e.driverId);
+    order = [...finish.slice(0, 10).reverse(), ...finish.slice(10)];
+  }
+  order = order.filter((id) => present.has(id));
+  for (const p of participants) if (!order.includes(p.driverId)) order.push(p.driverId);
+  const best = new Map(first.qualifying.map((q) => [q.driverId, q.bestLap]));
+  const team = new Map(participants.map((p) => [p.driverId, p.teamId]));
+  const note = rule === 'sameGrid' ? 'Race 1 grid' : 'Race 1 result, top ten reversed';
+  return order.map((driverId, i) => ({ driverId, teamId: team.get(driverId)!, position: i + 1, bestLap: best.get(driverId) ?? null, sessionTimes: [], eliminatedIn: null, sectors: null, gridPenalty: 0, grid: i + 1, note }));
 }
 
 /**
@@ -238,10 +302,10 @@ export function runPractice(state: GameState, driverId: string, program: Practic
   const quality = setupQuality(setup, ideal);
   const accuracy = feedbackAccuracy(driver, staffRating(state, team, 'raceEngineer'), team.facilities.simulator.level) * (program === 'longRun' ? 0.85 : 1);
   const feedback = setupFeedback(rng, setup, ideal, accuracy);
-  const weather = generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps), weatherMods(state, event.division));
+  const weather = generateEventWeather(state.seed, event.id, circuit, eventLaps(event, circuit.laps), weatherMods(state, event.division));
   const baseLap = divisionBaseLap(circuit, event.division);
   const lapTime =
-    basePace(baseLap, trackPerformance(team.car, circuit), racePaceIndex(driver, circuit, weather.practiceWetness), quality) +
+    basePace(baseLap, trackPerformance(team.car, circuit) + eventCarOffset(state, team, event), racePaceIndex(driver, circuit, weather.practiceWetness), quality) +
     (program === 'qualiSim' ? -0.6 : 0.9) * (baseLap / RACE_TUNING.referenceLap) +
     weather.practiceWetness * 6 +
     rng.normal(0, 0.2);
@@ -408,8 +472,12 @@ function completePlayerRace(state: GameState): void {
 
 /** Close the weekend and return to the season calendar. */
 export function closeWeekend(state: GameState): void {
-  const { weekend } = requireWeekend(state, 'complete');
+  const { weekend, event } = requireWeekend(state, 'complete');
   assertRule(weekend.resultApplied, 'The race result has not been recorded yet.');
+  if (state.europe) {
+    const key = weekendCarryKey(state, event);
+    state.europe.carry = key ? { weekendId: key, setupQuality: { ...weekend.setupQuality }, tireKnowledge: weekend.practice.tireKnowledge } : null;
+  }
   state.weekend = null;
   state.phase = 'season';
 }
@@ -420,6 +488,9 @@ export function closeWeekend(state: GameState): void {
 
 export function simulateEventAutomatically(state: GameState, event: CalendarEvent): RaceResult {
   const { result, race } = simulateEventRace(state, event);
+  // Background races keep a lean qualifying record (positions and best laps); full
+  // European grids keep only the starting order already in the classification.
+  result.qualifying = state.europe ? [] : result.qualifying.map((q) => ({ ...q, sessionTimes: [], sectors: null }));
   applyRaceResult(state, result, race);
   return result;
 }
@@ -436,7 +507,8 @@ export function simulateEventRace(state: GameState, event: CalendarEvent): { res
     return { driverId: p.driverId, teamId: p.teamId, setupQuality: pseudoWeekend.setupQuality[p.driverId], risk };
   });
   const sizes = sessionSizes(event.division, entrants.length);
-  const quali = buildQualifying(state, event, entrants, sizes.length);
+  const grid = race2Grid(state, event);
+  const quali = grid ? { sessions: 0, entries: grid, wet: false } : buildQualifying(state, event, entrants, sizes.length);
   const race = createRaceState(state, event, buildEntrants(state, event, quali.entries, pseudoWeekend, true));
   runRaceToEnd(state, race);
   return { result: classify(state, event, race, quali.entries), race };
@@ -476,10 +548,10 @@ export function classify(state: GameState, event: CalendarEvent, race: RaceState
   const ids = new Set(entries.map((e) => e.driverId));
   assertRule(ids.size === entries.length, 'Invalid classification: duplicate driver.');
   const pole = quali.find((q) => q.position === 1)?.driverId ?? null;
-  const preset = state.settings.pointsPreset[event.division];
+  const preset = event.pointsPreset ?? state.settings.pointsPreset[event.division];
   assignPoints(entries, preset, pole, race.fastestLap?.driverId ?? null);
-  // Season twist: the finale pays double.
-  if (twistEffects(state, event.division).doublePointsRound === event.round) for (const e of entries) e.points *= 2;
+  // Season twist: the finale pays double (championship races only).
+  if (!event.pointsPreset && twistEffects(state, event.division).doublePointsRound === event.round) for (const e of entries) e.points *= 2;
   return {
     eventId: event.id,
     division: event.division,
@@ -492,6 +564,7 @@ export function classify(state: GameState, event: CalendarEvent, race: RaceState
     poleDriverId: pole,
     fastestLapDriverId: race.fastestLap?.driverId ?? null,
     qualifying: quali,
+    ...(event.euro && event.euro.competition !== 'league' ? { competition: event.euro.competition } : {}),
   };
 }
 
@@ -506,22 +579,26 @@ export function applyRaceResult(state: GameState, result: RaceResult, race: Race
   const cfg = DIVISIONS[result.division];
   const circuit = state.circuits[result.circuitId];
   const participants = new Set(result.entries.map((e) => e.driverId));
+  // Cup and continental head-to-heads count for their competition, not the championship or career records.
+  const championship = !result.competition;
 
   // Drivers: career statistics, form, morale, discipline.
   for (const e of result.entries) {
     const d = state.drivers[e.driverId];
     if (!d) continue;
     const c = d.career;
-    c.starts += 1;
-    c.points += e.points;
-    c.lapsLed += e.lapsLed;
-    if (e.status === 'finished') {
-      if (e.position === 1) c.wins += 1;
-      if (e.position <= 3) c.podiums += 1;
-      c.bestFinish = c.bestFinish === null ? e.position : Math.min(c.bestFinish, e.position);
-    } else c.dnfs += 1;
-    if (e.fastestLap) c.fastestLaps += 1;
-    if (e.driverId === result.poleDriverId) c.poles += 1;
+    if (championship) {
+      c.starts += 1;
+      c.points += e.points;
+      c.lapsLed += e.lapsLed;
+      if (e.status === 'finished') {
+        if (e.position === 1) c.wins += 1;
+        if (e.position <= 3) c.podiums += 1;
+        c.bestFinish = c.bestFinish === null ? e.position : Math.min(c.bestFinish, e.position);
+      } else c.dnfs += 1;
+      if (e.fastestLap) c.fastestLaps += 1;
+      if (e.driverId === result.poleDriverId) c.poles += 1;
+    }
     d.form.push(e.status === 'finished' ? e.position : 25);
     if (d.form.length > 6) d.form.shift();
     const gained = e.status === 'finished' ? e.grid - e.position : -3;
@@ -581,11 +658,20 @@ export function applyRaceResult(state: GameState, result: RaceResult, race: Race
     }
   }
   // Banned drivers who missed this race serve their ban.
-  for (const team of teamsInDivision(state, result.division)) {
-    for (const id of team.raceDrivers) {
-      const d = id ? state.drivers[id] : null;
-      if (d && d.raceBan > 0 && !participants.has(d.id)) d.raceBan -= 1;
+  if (championship) {
+    for (const team of teamsInDivision(state, result.division)) {
+      for (const id of team.raceDrivers) {
+        const d = id ? state.drivers[id] : null;
+        if (d && d.raceBan > 0 && !participants.has(d.id)) d.raceBan -= 1;
+      }
     }
+  }
+
+  if (!championship) {
+    for (const team of eventTeams(state, event)) if (!team.guest) applyCupRaceCosts(state, team, race);
+    checkAchievements(state);
+    onEuroRaceResult(state, event, result);
+    return;
   }
 
   // Teams: statistics and money.
@@ -610,6 +696,15 @@ export function applyRaceResult(state: GameState, result: RaceResult, race: Race
     const mine = result.entries.filter((e) => e.teamId === state.player.teamId && e.status === 'finished');
     state.daily.bestFinish = mine.length ? Math.min(...mine.map((e) => e.position)) : null;
   }
+}
+
+/** Running and repair costs of a cup or continental race (prize money is paid by the competition). */
+function applyCupRaceCosts(state: GameState, team: Team, race: RaceState): void {
+  const cfg = DIVISIONS[team.division];
+  const philosophy = team.isPlayer ? PHILOSOPHIES[state.player.philosophy] : null;
+  postTransaction(state, team, 'operations', -cfg.raceOperationsCost * 0.6 * (philosophy?.operatingCosts ?? 1), 'Race operations: cup/European race');
+  const damage = race.damageCosts[team.id] ?? 0;
+  if (damage > 0) postTransaction(state, team, 'repairs', -damage * (philosophy?.repairCosts ?? 1), 'Crash damage repairs');
 }
 
 function applyRaceFinances(state: GameState, team: Team, entries: RaceResultEntry[], race: RaceState, result: RaceResult): void {

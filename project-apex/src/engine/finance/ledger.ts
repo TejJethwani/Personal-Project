@@ -37,10 +37,17 @@ export function postTransaction(state: GameState, team: Team, category: TxCatego
   team.cash += rounded;
   // AI teams keep a compact ledger: only the player's needs full line items, but
   // every team keeps season category totals for the economy tests.
-  const last = team.ledger[team.ledger.length - 1];
-  if (!team.isPlayer && last && last.category === category && last.week === state.week && last.season === state.season) {
-    last.amount += rounded;
-    return;
+  if (!team.isPlayer) {
+    // One running total per category per season.
+    for (let i = team.ledger.length - 1; i >= 0; i--) {
+      const tx = team.ledger[i];
+      if (tx.season !== state.season) break;
+      if (tx.category === category) {
+        tx.amount += rounded;
+        tx.week = state.week;
+        return;
+      }
+    }
   }
   team.ledger.push({ season: state.season, week: state.week, category, amount: rounded, label });
 }

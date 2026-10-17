@@ -13,7 +13,7 @@ import { placeDriver } from '../market/transfers';
 import { addNews, fill, pickTemplate, TEMPLATES } from '../news/news';
 import { seasonPerformance } from '../race/weekend';
 import { Rng } from '../rng';
-import { playerTeam, teamsInDivision } from '../selectors';
+import { allDrivers, allTeams, playerTeam, teamsInDivision } from '../selectors';
 import { ageStaff } from '../staff/market';
 import { replenishStaffPool, staffExpectedSalary, staffRating } from '../staff/staff';
 import { academyCapacity } from '../team/facilities';
@@ -37,6 +37,8 @@ import { checkAchievements } from '../achievements';
 import { settleSeasonChallenges } from './challenges';
 import { twistEffects } from './twists';
 import { COMPONENT_INFO } from '../car/car';
+import { activeDivisions, applyRuleset, isEuropean } from '../config/ruleset';
+import { euroFinalize, euroOffseason } from '../europe/season';
 
 export const POOL_TARGET = 330;
 
@@ -91,8 +93,9 @@ function awards(state: GameState, standings: Record<DivisionId, ReturnType<typeo
     const st = standings[division];
     const champ = st.drivers[0];
     const team = st.constructors[0];
-    if (champ) out.push({ title: division === 'F1' ? 'World Champion' : `${DIVISIONS[division].name} Champion`, driverId: champ.id, teamId: champ.teamId, description: `${champ.points} points, ${champ.wins} wins` });
-    if (team) out.push({ title: division === 'F1' ? "Constructors' World Champion" : `${DIVISIONS[division].name} Teams' Champion`, teamId: team.id, description: `${team.points} points` });
+    const world = division === 'F1' && !isEuropean(state);
+    if (champ) out.push({ title: world ? 'World Champion' : `${DIVISIONS[division].name} Champion`, driverId: champ.id, teamId: champ.teamId, description: `${champ.points} points, ${champ.wins} wins` });
+    if (team) out.push({ title: world ? "Constructors' World Champion" : `${DIVISIONS[division].name} Teams' Champion`, teamId: team.id, description: `${team.points} points` });
   }
   // Driver of the year: weighted by division.
   let best: { id: string; score: number; text: string } | null = null;
@@ -106,7 +109,7 @@ function awards(state: GameState, standings: Record<DivisionId, ReturnType<typeo
   if (best) out.push({ title: 'Driver of the Year', driverId: (best as { id: string }).id, description: (best as { text: string }).text });
   // Most improved.
   let improved: { id: string; delta: number } | null = null;
-  for (const d of Object.values(state.drivers)) {
+  for (const d of allDrivers(state)) {
     if (d.retired) continue;
     const delta = computeOverall(d.attributes) - d.seasonStartOverall;
     if (!improved || delta > improved.delta) improved = { id: d.id, delta };
@@ -131,6 +134,7 @@ function awards(state: GameState, standings: Record<DivisionId, ReturnType<typeo
 
 /** Step 1: close the championship, pay prizes, review the season. */
 export function finalizeSeason(state: GameState): SeasonReviewSummary {
+  applyRuleset(state);
   const key = `final:${state.season}`;
   assertRule(!state.processed[key], 'This season has already been finalised.');
   for (const d of DIVISION_ORDER) assertRule(state.calendars[d].every((e) => e.completed), `${DIVISIONS[d].name} still has races to run.`);
@@ -178,7 +182,8 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
       constructorStandings: st.constructors.map((r) => ({ ...r, positions: [] })),
       championDriverId: champDriver,
       championTeamId: champTeam,
-      results: state.calendars[division].map((e) => state.results[e.id]).filter(Boolean).map(compactResult),
+      // European League careers keep race-by-race history for the player's own league only.
+      results: isEuropean(state) && division !== player.division ? [] : state.calendars[division].map((e) => state.results[e.id]).filter(Boolean).map(compactResult),
       teamNames,
     };
   }
@@ -275,7 +280,8 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
     }
   }
 
-  const expiring = Object.values(state.drivers).filter((d) => d.contract?.teamId === player.id && d.contract.endSeason <= state.season && !d.futureContract).map((d) => d.id);
+  const euroReview = state.europe ? euroFinalize(state) : null;
+  const expiring = allDrivers(state).filter((d) => d.contract?.teamId === player.id && d.contract.endSeason <= state.season && !d.futureContract).map((d) => d.id);
   const challengesDone = settleSeasonChallenges(state);
   const challengesSet = (state.player.challenges ?? []).filter((c) => c.season === state.season).length;
   const summary: SeasonReviewSummary = {
@@ -298,6 +304,7 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
     missedPromotion,
     developmentBoost: finishDevelopmentBoost(pStand),
     challenges: { completed: challengesDone, total: challengesSet },
+    ...(euroReview ? { europe: euroReview } : {}),
   };
   state.lastSeasonReview = summary;
   state.phase = 'seasonReview';
@@ -340,6 +347,7 @@ function applyMove(state: GameState, move: DivisionMove, promoted: boolean, oldM
 
 /** Step 2: apply promotions, regulations, contracts, ageing; open the off-season. */
 export function beginOffseason(state: GameState, acceptPromotion = true): void {
+  applyRuleset(state);
   assertRule(state.phase === 'seasonReview', 'The season has not been finalised yet.');
   const key = `offseason:${state.season}`;
   assertRule(!state.processed[key], 'The off-season has already started.');
@@ -371,10 +379,10 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
     newMeans[division] = fieldMean(staying);
   }
   // Season-end positions decide each team's development boost (applied after the moves).
-  const finish = new Map(Object.values(state.teams).map((t) => [t.id, t.history.at(-1)?.season === state.season ? t.history.at(-1)!.position : 0]));
+  const finish = new Map(allTeams(state).map((t) => [t.id, t.history.at(-1)?.season === state.season ? t.history.at(-1)!.position : 0]));
   for (const m of moves.promotions) applyMove(state, m, true, oldMeans, newMeans, devRules.promotionCarry);
   for (const m of moves.relegations) applyMove(state, m, false, oldMeans, newMeans, devRules.promotionCarry);
-  for (const t of Object.values(state.teams)) {
+  for (const t of allTeams(state)) {
     const pos = finish.get(t.id) ?? 0;
     if (pos > 0) applyDevelopmentBoost(t.car, finishDevelopmentBoost(pos));
   }
@@ -385,14 +393,14 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
 
   // AI owners take surplus profits out of very cash-rich teams (an economic sink,
   // so parachute money from a higher division does not distort a series forever).
-  for (const t of Object.values(state.teams)) {
+  for (const t of allTeams(state)) {
     if (t.isPlayer) continue;
     const B = DIVISIONS[t.division].typicalBudget;
     if (t.cash > B * 1.6) postTransaction(state, t, 'other', -(t.cash - B * 1.6) * 0.3, 'Owner dividend');
   }
 
   // Finance summaries and ledger reset.
-  for (const t of Object.values(state.teams)) {
+  for (const t of allTeams(state)) {
     const totals = seasonTotals(t, state.season);
     t.financeHistory.push({ season: state.season, division: t.history.at(-1)?.division ?? t.division, revenue: totals.revenue, expenses: totals.expenses, profit: totals.revenue - totals.expenses, endCash: t.cash, byCategory: totals.byCategory });
     if (t.financeHistory.length > 60) t.financeHistory.shift();
@@ -420,12 +428,13 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   replenishDriverPool(state);
   replenishStaffPool(state, Rng.from(state.seed, 'staffPool', state.season));
 
+  if (state.europe) euroOffseason(state);
   state.results = {};
   state.calendars = buildAllCalendars(state, state.season);
   state.player.promotionOffer = null;
   state.player.seasonsPlayed += 1;
   state.player.negotiations = {};
-  for (const t of Object.values(state.teams)) t.objectives = [];
+  for (const t of allTeams(state)) t.objectives = [];
   state.phase = 'offseason';
   state.week = -6;
   refreshSponsorOffers(state, true);
@@ -437,7 +446,7 @@ function processContractsAndRetirements(state: GameState): string[] {
   const season = state.season;
   const player = playerTeam(state);
   const activations: { driverId: string }[] = [];
-  for (const d of Object.values(state.drivers)) {
+  for (const d of allDrivers(state)) {
     if (d.retired) continue;
     if (d.contract && d.contract.endSeason < season) {
       const team = state.teams[d.contract.teamId];
@@ -472,7 +481,7 @@ function processContractsAndRetirements(state: GameState): string[] {
   }
   // Retirements.
   const retired: string[] = [];
-  for (const d of Object.values(state.drivers)) {
+  for (const d of allDrivers(state)) {
     if (d.retired) continue;
     const rng = Rng.from(state.seed, 'retire', d.id, season);
     const ovr = overall(d);
@@ -530,21 +539,19 @@ function renewStaffContracts(state: GameState): void {
 function replenishDriverPool(state: GameState): void {
   const rng = Rng.from(state.seed, 'rookies', state.season);
   const ctx = { rng, ids: state, season: state.season };
-  const active = () => Object.values(state.drivers).filter((d) => !d.retired).length;
-  let prospects = Math.max(12, Math.min(40, 360 - active()));
+  const active = () => allDrivers(state).filter((d) => !d.retired).length;
+  // The pool scales with the number of teams (fifty in a Classic career).
+  const target = Math.round(POOL_TARGET * ((allTeams(state).length * 3.3 + 165) / 330));
+  let prospects = Math.max(12, Math.min(40, target + 30 - active()));
   while (prospects-- > 0) {
     const p = generateProspect(ctx, rng.range(0, 1.6));
     state.drivers[p.id] = p;
   }
   let guard = 0;
-  while (active() < POOL_TARGET && guard++ < 200) {
-    const division = rng.weighted<DivisionId>([
-      { item: 'F5', weight: 5 },
-      { item: 'F4', weight: 4 },
-      { item: 'F3', weight: 3 },
-      { item: 'F2', weight: 2 },
-      { item: 'F1', weight: 1 },
-    ]);
+  const raced = activeDivisions(state);
+  const weights = (['F5', 'F4', 'F3', 'F2', 'F1'] as DivisionId[]).map((d, i) => ({ item: d, weight: raced.includes(d) ? 5 - i : 0 }));
+  while (active() < target && guard++ < 260) {
+    const division = rng.weighted<DivisionId>(weights);
     const cfg = DIVISIONS[division];
     const d = generateDriver(ctx, { targetOverall: cfg.driverRatingMean - 3 + rng.normal(0, cfg.driverRatingSd), age: raceAgeFor(rng, division), division });
     state.drivers[d.id] = d;

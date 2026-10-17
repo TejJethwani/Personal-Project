@@ -1,6 +1,7 @@
-import { DIVISIONS, raceLapsFor } from '../config/divisions';
+import { DIVISIONS, eventLaps } from '../config/divisions';
 import { RACE_TUNING } from '../config/tuning';
 import { trackPerformance } from '../car/car';
+import { eventCarOffset } from '../europe/power';
 import { qualiPaceIndex } from '../drivers/ratings';
 import { Rng } from '../rng';
 import type { CalendarEvent, GameState, QualifyingEntry, QualifyingResult, TireCompound } from '../types';
@@ -23,11 +24,13 @@ const RISK_MISTAKE: Record<QualiRisk, number> = { safe: 0.5, normal: 1, maximum:
 
 export function qualifyingWetness(state: GameState, event: CalendarEvent): number {
   const circuit = state.circuits[event.circuitId];
-  return generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps), weatherMods(state, event.division)).qualiWetness;
+  return generateEventWeather(state.seed, event.id, circuit, eventLaps(event, circuit.laps), weatherMods(state, event.division)).qualiWetness;
 }
 
 /** Number of cars progressing into each session. */
 export function sessionSizes(division: CalendarEvent['division'], fieldSize: number): number[] {
+  // Small fields (head-to-head races) run one shoot-out session.
+  if (fieldSize <= 12) return [fieldSize];
   const cfg = DIVISIONS[division];
   const sizes = [fieldSize];
   for (const elim of cfg.knockoutEliminations) sizes.push(Math.max(1, sizes[sizes.length - 1] - elim));
@@ -53,7 +56,7 @@ export function runQualifyingSession(state: GameState, event: CalendarEvent, ent
   return entrants.map((e) => {
     const driver = state.drivers[e.driverId];
     const team = state.teams[e.teamId];
-    const carPerf = trackPerformance(team.car, circuit);
+    const carPerf = trackPerformance(team.car, circuit) + eventCarOffset(state, team, event);
     const drvPerf = qualiPaceIndex(driver, circuit, wet);
     let best: number | null = null;
     let bestSectors: [number, number, number] | null = null;

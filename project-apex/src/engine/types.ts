@@ -176,6 +176,8 @@ export interface Driver {
   retiredSeason: number | null;
   /** Season this driver first appeared in the world. */
   debutSeason: number;
+  /** Drives for a guest team (European League mode); not part of the driver market. */
+  guest?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +457,10 @@ export interface Team {
   boardConfidence: number;
   objectives: BoardObjective[];
   foundedSeason: number;
+  /** European League mode: the club this team races as. */
+  clubId?: string;
+  /** A quick-model club given a car and drivers for one race against the player; never managed. */
+  guest?: boolean;
   /** Set when the team must stop operating (only possible for the player in strict modes). */
   bankruptWarnings: number;
 }
@@ -508,6 +514,201 @@ export interface CalendarEvent {
   circuitId: string;
   week: number;
   completed: boolean;
+  /** Entrant teams when the field is not simply the division (European League cup and continental races). */
+  teamIds?: string[];
+  /** Race distance when it differs from the division's standard length. */
+  laps?: number;
+  /** Points system for this event when it differs from the division's. */
+  pointsPreset?: string;
+  /** European League mode: which competition this race belongs to. */
+  euro?: EuroEventMeta;
+}
+
+// ---------------------------------------------------------------------------
+// European League mode
+// ---------------------------------------------------------------------------
+
+export type EuroCompetition = 'league' | 'cup' | 'leagueCup' | 'superCup' | 'CL' | 'EL' | 'ECL' | 'ESC';
+export type ContinentalCompetition = 'CL' | 'EL' | 'ECL';
+/** How the second race of a domestic weekend lines up. */
+export type Race2GridRule = 'qualifying' | 'reverseTop10' | 'sameGrid';
+
+export interface EuroEventMeta {
+  competition: EuroCompetition;
+  label: string;
+  /** League weekends: first or second race, and the pair they belong to. */
+  raceNo?: 1 | 2;
+  weekendId?: string;
+  pairedEventId?: string;
+  gridRule?: Race2GridRule;
+  /** Head-to-head races: the fixture this race decides. */
+  fixtureId?: string;
+}
+
+export type EuroHonour = 'league' | 'cup' | 'leagueCup' | 'superCup' | 'CL' | 'EL' | 'ECL' | 'ESC' | 'lowerLeague';
+
+export interface EuroClub {
+  id: string;
+  name: string;
+  short: string;
+  assocId: string;
+  /** League level inside the association (1 = top flight). */
+  level: number;
+  /** Strength on the continental scale (car-rating points). Clubs run as full teams compute it live. */
+  power: number;
+  /** Full team in the player's association, null for clubs run by the quick model. */
+  teamId: string | null;
+  colors: { primary: string; secondary: string };
+  livery: LiveryPattern;
+  homeCircuitId: string;
+  /** Club coefficient points of the last five seasons, oldest first. */
+  coef: number[];
+  honours: Partial<Record<EuroHonour, number>>;
+  /** Pace split between the club's two cars this season (quick model). */
+  drivers: [number, number];
+}
+
+export interface LiteStandingRow {
+  clubId: string;
+  points: number;
+  wins: number;
+  podiums: number;
+  races: number;
+  best: number | null;
+}
+
+export interface EuroLeague {
+  id: string;
+  assocId: string;
+  level: number;
+  name: string;
+  short: string;
+  clubIds: string[];
+  /** Weeks of the season's race weekends (two races each). */
+  weeks: number[];
+  /** Standings of leagues run by the quick model; full leagues use the race calendar. */
+  standings: Record<string, LiteStandingRow>;
+  /** Full league of the player's association, raced as this division. */
+  division: DivisionId | null;
+}
+
+export interface H2HCar {
+  side: 'home' | 'away';
+  /** Driver id when the race ran on the full engine. */
+  driverId?: string;
+  position: number;
+  points: number;
+  dnf: boolean;
+}
+
+export interface FixtureResult {
+  home: number;
+  away: number;
+  cars: H2HCar[];
+}
+
+export type FixtureKind = 'match' | 'leg1' | 'leg2' | 'single' | 'decider';
+
+export interface EuroFixture {
+  id: string;
+  competition: EuroCompetition;
+  /** 'league', 'qualifying', 'playoff', 'r16', 'qf', 'sf', 'final', or a cup round name. */
+  stage: string;
+  matchday: number;
+  week: number;
+  home: string;
+  away: string;
+  circuitId: string;
+  kind: FixtureKind;
+  tieId: string | null;
+  result: FixtureResult | null;
+  /** Calendar event when the player's team takes part. */
+  eventId: string | null;
+}
+
+export interface EuroTie {
+  id: string;
+  competition: EuroCompetition;
+  stage: string;
+  /** Hosts the first leg (or the only race). */
+  home: string;
+  away: string;
+  fixtures: string[];
+  decider: string | null;
+  shootout: { winner: string; laps: Record<string, number> } | null;
+  aggregate: [number, number];
+  winner: string | null;
+}
+
+export type ContinentalStage = 'qualifying' | 'league' | 'playoff' | 'r16' | 'qf' | 'sf' | 'final' | 'done';
+
+export interface ContinentalState {
+  id: ContinentalCompetition;
+  season: number;
+  direct: string[];
+  qualifyingPool: string[];
+  qualifiers: number;
+  qualifyingRounds: string[][];
+  teams: string[];
+  pots: string[][];
+  fixtures: string[];
+  stage: ContinentalStage;
+  knockout: Record<'playoff' | 'r16' | 'qf' | 'sf' | 'final', string[]>;
+  winner: string | null;
+  runnerUp: string | null;
+}
+
+export interface CupState {
+  id: string;
+  kind: 'cup' | 'leagueCup' | 'superCup' | 'ESC';
+  assocId: string | null;
+  name: string;
+  entrants: string[];
+  rounds: string[][];
+  /** Weeks the remaining rounds are raced in. */
+  weeks: number[];
+  alive: string[];
+  winner: string | null;
+  runnerUp: string | null;
+}
+
+export interface EuroAssociationState {
+  id: string;
+  /** Association coefficient of the last five seasons, oldest first. */
+  coef: number[];
+  rankHistory: number[];
+  /** Last season's outcome, which decides European places and the super cup. */
+  last: { order: string[]; cupWinner: string | null; leagueCupWinner: string | null };
+}
+
+export interface EuroSeasonHistory {
+  season: number;
+  year: number;
+  winners: Partial<Record<'CL' | 'EL' | 'ECL' | 'ESC', { winner: string; runnerUp: string | null }>>;
+  domestic: Record<string, { champion: string | null; cup: string | null; leagueCup?: string | null; superCup?: string | null }>;
+  /** How far the player's team went in each competition. */
+  player: { competition: EuroCompetition; reached: string }[];
+  ranking: string[];
+}
+
+export interface EuropeState {
+  playerAssocId: string;
+  race2Grid: Race2GridRule;
+  clubs: Record<string, EuroClub>;
+  leagues: Record<string, EuroLeague>;
+  associations: Record<string, EuroAssociationState>;
+  fixtures: Record<string, EuroFixture>;
+  ties: Record<string, EuroTie>;
+  continental: Partial<Record<ContinentalCompetition, ContinentalState>>;
+  cups: Record<string, CupState>;
+  /** Cup and continental race events the player's team takes part in. */
+  events: CalendarEvent[];
+  /** Quick-model clubs materialised as teams for a race against the player (club id -> team id). */
+  guests: Record<string, string>;
+  titleHolders: Record<'CL' | 'EL' | 'ECL', string | null>;
+  history: EuroSeasonHistory[];
+  /** Cars of the second race keep the first race's setup work. */
+  carry: { weekendId: string; setupQuality: Record<string, number>; tireKnowledge: number } | null;
 }
 
 export type WeatherCondition = 'dry' | 'cloudy' | 'lightRain' | 'heavyRain';
@@ -690,6 +891,8 @@ export interface RaceState {
   failures: Record<string, string>;
   /** On-track passes (team orders and pit stops excluded); absent in older saves. */
   passes?: { firstLap: number; total: number };
+  /** European League mode: competition of this race. */
+  competition?: EuroCompetition;
 }
 
 export interface QualifyingEntry {
@@ -743,6 +946,8 @@ export interface RaceResult {
   poleDriverId: string | null;
   fastestLapDriverId: string | null;
   qualifying: QualifyingEntry[];
+  /** European League mode: competition of this race (absent = league race or Classic). */
+  competition?: EuroCompetition;
 }
 
 // ---------------------------------------------------------------------------
@@ -1042,9 +1247,11 @@ export interface GameState {
   processed: Record<string, true>;
   idCounter: number;
   lastSeasonReview: SeasonReviewSummary | null;
-  /** 'daily' marks a throwaway daily-challenge world (absent = career). */
-  mode?: 'career' | 'daily';
+  /** 'daily' marks a throwaway daily-challenge world, 'european' a European League career (absent = Classic career). */
+  mode?: 'career' | 'daily' | 'european';
   daily?: DailyChallengeInfo | null;
+  /** European League mode world (absent in Classic careers). */
+  europe?: EuropeState;
 }
 
 export interface SeasonReviewSummary {
@@ -1070,6 +1277,11 @@ export interface SeasonReviewSummary {
   challenges?: { completed: number; total: number };
   /** Finished in a promotion place but held no licence for the series above (absent in older saves). */
   missedPromotion?: { to: DivisionId; failed: string[] } | null;
+  /** European League mode: cup and continental runs, and next season's European place. */
+  europe?: {
+    reached: { competition: EuroCompetition; name: string; reached: string }[];
+    nextSeason: { competition: ContinentalCompetition; name: string; direct: boolean }[];
+  };
 }
 
 export interface NewCareerConfig {
@@ -1084,4 +1296,6 @@ export interface NewCareerConfig {
   difficulty: Difficulty;
   financialStart: FinancialStart;
   seed?: number;
+  /** European League mode: the association the team enters and the race 2 grid rule. */
+  european?: { assocId: string; race2Grid: Race2GridRule };
 }

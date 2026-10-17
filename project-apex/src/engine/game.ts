@@ -12,14 +12,27 @@ import { DIVISIONS } from './config/divisions';
 import { advanceRace, autoPractice, finishPractice, runNextQualifyingSession, startRace } from './race/weekend';
 import type { GameState, NewCareerConfig } from './types';
 import { createWorld } from './world/generate';
+import { createEuroWorld } from './europe/world';
+import { ASSOCIATION_BY_ID } from './europe/data';
 import { ensureSeasonChallenges } from './season/challenges';
 
 export function createNewGame(config: NewCareerConfig): GameState {
-  const state = createWorld(config);
+  const state = config.european ? createEuroWorld(config) : createWorld(config);
   const team = playerTeam(state);
   setSeasonObjectives(state);
   ensureSeasonChallenges(state);
   refreshSponsorOffers(state, true);
+  if (state.europe) {
+    const assoc = ASSOCIATION_BY_ID[state.europe.playerAssocId];
+    addNews(state, {
+      category: 'board',
+      headline: `${team.name.toUpperCase()} JOIN THE ${DIVISIONS[team.division].name.toUpperCase()}`,
+      body: `A new club enters ${assoc.name}'s league pyramid. Team Principal ${team.principal} starts in the ${DIVISIONS[team.division].name} with a modest budget, two drivers and a basic car. The road leads up through the divisions, into the ${assoc.cupName}, and one day to the Apex Champions League.`,
+      teamIds: [team.id],
+      importance: 3,
+    });
+    return state;
+  }
   addNews(state, {
     category: 'board',
     headline: `${team.name.toUpperCase()} ENTERS ${DIVISIONS.F5.name.toUpperCase()}`,

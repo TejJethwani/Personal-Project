@@ -4,6 +4,7 @@ import { CIRCUIT_ORDER } from '../data/circuits';
 import { Rng } from '../rng';
 import type { CalendarEvent, Circuit, DivisionId, GameState } from '../types';
 import { DIVISION_ORDER } from '../types';
+import { buildEuroCalendars } from '../europe/schedule';
 
 /** Build a season calendar for one division. Deterministic for (seed, season, division). */
 export function buildDivisionCalendar(seed: number, season: number, division: DivisionId, circuits: Circuit[]): CalendarEvent[] {
@@ -33,7 +34,8 @@ export function buildDivisionCalendar(seed: number, season: number, division: Di
   }));
 }
 
-export function buildAllCalendars(state: Pick<GameState, 'seed' | 'circuits'>, season: number): Record<DivisionId, CalendarEvent[]> {
+export function buildAllCalendars(state: Pick<GameState, 'seed' | 'circuits'> & Partial<GameState>, season: number): Record<DivisionId, CalendarEvent[]> {
+  if (state.mode === 'european' && state.europe) return buildEuroCalendars(state as GameState, season);
   const circuits = Object.values(state.circuits);
   const out = {} as Record<DivisionId, CalendarEvent[]>;
   for (const d of DIVISION_ORDER) out[d] = buildDivisionCalendar(state.seed, season, d, circuits);
@@ -45,7 +47,7 @@ export function findEvent(state: GameState, eventId: string): CalendarEvent | un
     const e = state.calendars[d].find((ev) => ev.id === eventId);
     if (e) return e;
   }
-  return undefined;
+  return state.europe?.events.find((ev) => ev.id === eventId);
 }
 
 export function nextEventFor(state: GameState, division: DivisionId): CalendarEvent | undefined {
@@ -55,6 +57,7 @@ export function nextEventFor(state: GameState, division: DivisionId): CalendarEv
 export function eventsInWeek(state: GameState, week: number): CalendarEvent[] {
   const out: CalendarEvent[] = [];
   for (const d of DIVISION_ORDER) for (const e of state.calendars[d]) if (e.week === week) out.push(e);
+  for (const e of state.europe?.events ?? []) if (e.week === week) out.push(e);
   return out;
 }
 

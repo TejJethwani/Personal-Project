@@ -5,6 +5,7 @@ import { staffRating } from '../staff/staff';
 import type { AttributeKey, Driver, GameState, Team, TrainingFocus } from '../types';
 import { clamp } from '../util';
 import { ATTRIBUTE_KEYS, computeOverall, driverName } from './ratings';
+import { allDrivers } from '../selectors';
 
 /** Attribute weights for each training focus. */
 export const FOCUS_WEIGHTS: Record<TrainingFocus, Partial<Record<AttributeKey, number>>> = {
@@ -54,7 +55,7 @@ function teamOf(state: GameState, d: Driver): Team | null {
  * variation; veterans slowly decline. Racing builds experience.
  */
 export function developDrivers(state: GameState, racesThisMonth: Record<string, number>): void {
-  for (const d of Object.values(state.drivers)) {
+  for (const d of allDrivers(state)) {
     if (d.retired) continue;
     const rng = Rng.from(state.seed, 'develop', d.id, state.season, state.week);
     const team = teamOf(state, d);
@@ -126,7 +127,7 @@ export function developDrivers(state: GameState, racesThisMonth: Record<string, 
 
 /** End-of-season ageing and morale reset. */
 export function ageDrivers(state: GameState): void {
-  for (const d of Object.values(state.drivers)) {
+  for (const d of allDrivers(state)) {
     if (d.retired) continue;
     d.age += 1;
     d.seasonStartOverall = computeOverall(d.attributes);

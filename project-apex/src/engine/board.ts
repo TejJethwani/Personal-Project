@@ -13,14 +13,18 @@ export function setSeasonObjectives(state: GameState): BoardObjective[] {
   const p = projectedPosition(state, team);
   const objectives: BoardObjective[] = [];
   const id = (s: string) => `${state.season}-${s}`;
+  // Thresholds scale with the size of the field (ten teams in Classic, up to twenty in a European league).
+  const danger = Math.round(cfg.teams * 0.7);
   if (team.division === 'F1') {
-    if (p <= 2) objectives.push({ id: id('title'), description: 'Win the Constructors\' World Championship', type: 'championship', target: 1, importance: 'critical' });
+    const title = state.mode === 'european' ? `Win the ${cfg.name}` : 'Win the Constructors\' World Championship';
+    if (p <= 2) objectives.push({ id: id('title'), description: title, type: 'championship', target: 1, importance: 'critical' });
     else objectives.push({ id: id('pos'), description: `Finish P${Math.max(1, p - 1)} or better in the constructors' championship`, type: 'constructorPosition', target: Math.max(1, p - 1), importance: 'major' });
-    if (p >= 7) objectives.push({ id: id('stay'), description: 'Avoid relegation (finish above the bottom two)', type: 'avoidRelegation', target: cfg.teams - cfg.relegationSlots, importance: 'critical' });
+    if (p >= danger && cfg.relegationSlots > 0) objectives.push({ id: id('stay'), description: `Avoid relegation (finish above the bottom ${cfg.relegationSlots})`, type: 'avoidRelegation', target: cfg.teams - cfg.relegationSlots, importance: 'critical' });
   } else {
-    if (p <= 3) objectives.push({ id: id('promo'), description: `Win promotion to ${DIVISIONS[nextDivision(team)].name}`, type: 'promotion', target: 2, importance: 'critical' });
+    const slots = Math.max(1, cfg.promotionSlots);
+    if (p <= slots + 1) objectives.push({ id: id('promo'), description: `Win promotion to ${DIVISIONS[nextDivision(team)].name}`, type: 'promotion', target: slots, importance: 'critical' });
     else objectives.push({ id: id('pos'), description: `Finish P${Math.max(2, p - 1)} or better in the teams' championship`, type: 'constructorPosition', target: Math.max(2, p - 1), importance: 'major' });
-    if (cfg.relegationSlots > 0 && p >= 7) objectives.push({ id: id('stay'), description: 'Avoid relegation', type: 'avoidRelegation', target: cfg.teams - cfg.relegationSlots, importance: 'critical' });
+    if (cfg.relegationSlots > 0 && p >= danger) objectives.push({ id: id('stay'), description: 'Avoid relegation', type: 'avoidRelegation', target: cfg.teams - cfg.relegationSlots, importance: 'critical' });
   }
   if (p <= 4) objectives.push({ id: id('wins'), description: `Win at least ${p <= 2 ? 3 : 1} race${p <= 2 ? 's' : ''}`, type: 'wins', target: p <= 2 ? 3 : 1, importance: 'minor' });
   else objectives.push({ id: id('pod'), description: 'Score at least one podium', type: 'podiums', target: 1, importance: 'minor' });

@@ -71,6 +71,8 @@ export function staffOf(state: GameState, team: Team, role: StaffRole): StaffMem
 
 /** Effective rating of a role (experience gives a small bonus). */
 export function staffRating(state: GameState, team: Team, role: StaffRole): number {
+  // Guest teams arrive with a competent, anonymous crew.
+  if (team.guest) return 62;
   const s = staffOf(state, team, role);
   if (!s) return VACANT_RATING;
   return clamp(s.rating + (s.experience - 50) * 0.04, 1, 100);

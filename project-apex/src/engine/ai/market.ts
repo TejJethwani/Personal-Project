@@ -7,7 +7,7 @@ import { evaluateDriverOffer } from '../market/negotiation';
 import { buyoutQuote, executeSigning, nextSeasonRaceContracts, releaseDriver } from '../market/transfers';
 import { addNews, fill, pickTemplate, TEMPLATES } from '../news/news';
 import { Rng } from '../rng';
-import { activeDrivers, raceDrivers } from '../selectors';
+import { activeDrivers, allTeams, raceDrivers } from '../selectors';
 import { academyCapacity } from '../team/facilities';
 import type { Driver, DriverOffer, GameState, Team } from '../types';
 import { roundMoney } from '../util';
@@ -185,7 +185,7 @@ export function aiEnsureSubstitute(state: GameState, team: Team): void {
 /** Off-season transfer round for every AI team (best teams choose first). */
 export function aiOffseasonRound(state: GameState, round: number): void {
   const rng = Rng.from(state.seed, 'offseasonRound', state.season, round);
-  const teams = Object.values(state.teams)
+  const teams = allTeams(state)
     .filter((t) => !t.isPlayer)
     .sort((a, b) => b.reputation + rng.normal(0, 5) - (a.reputation + rng.normal(0, 5)));
   for (const team of teams) {
@@ -217,7 +217,7 @@ export function aiInSeasonMarket(state: GameState, team: Team): void {
   // Expiring drivers: extend the good ones.
   for (const d of raceDrivers(state, team)) {
     if (!d.contract || d.contract.endSeason > state.season || d.futureContract) continue;
-    const field = Object.values(state.teams).filter((t) => t.division === team.division).flatMap((t) => raceDrivers(state, t));
+    const field = allTeams(state).filter((t) => t.division === team.division).flatMap((t) => raceDrivers(state, t));
     const rank = field.filter((x) => overall(x) > overall(d)).length;
     const keep = rank < field.length * 0.6 || (d.age <= 22 && d.potential >= overall(d) + 8);
     if (keep && nextSeasonRaceContracts(state, team).length < 2) {
@@ -265,7 +265,7 @@ export function aiBidForPlayerDrivers(state: GameState): void {
   const mine = raceDrivers(state, player).filter((d) => d.contract && d.contract.endSeason > state.season);
   const star = mine.sort((a, b) => overall(b) - overall(a))[0];
   if (!star) return;
-  const bidders = Object.values(state.teams).filter(
+  const bidders = allTeams(state).filter(
     (t) => !t.isPlayer && DIVISIONS[t.division].tier > DIVISIONS[player.division].tier && overall(star) >= DIVISIONS[t.division].driverRatingMean - 3 && (t.aiPersonality === 'recruiter' || t.aiPersonality === 'obsessive' || t.aiPersonality === 'youth'),
   );
   if (!bidders.length) return;

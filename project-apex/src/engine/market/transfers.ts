@@ -8,6 +8,7 @@ import type { Contract, Driver, DriverOffer, GameState, Team } from '../types';
 import { assertRule, roundMoney } from '../util';
 import { makeContract } from '../world/generate';
 import { evaluateDriverOffer, type OfferEvaluation } from './negotiation';
+import { allDrivers } from '../selectors';
 
 export const MAX_CONTRACT_YEARS = 5;
 
@@ -29,7 +30,7 @@ export function severanceCost(state: GameState, d: Driver): number {
 /** Contracts for next season held by a team (race seats). */
 export function nextSeasonRaceContracts(state: GameState, team: Team): Driver[] {
   const next = state.season + 1;
-  return Object.values(state.drivers).filter((d) => {
+  return allDrivers(state).filter((d) => {
     if (d.retired) return false;
     if (d.futureContract?.teamId === team.id && d.futureContract.role === 'race') return true;
     return !d.futureContract && d.contract?.teamId === team.id && d.contract.role === 'race' && d.contract.endSeason >= next;

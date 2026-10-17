@@ -2,12 +2,18 @@ import type { Circuit, Driver, DivisionId, GameState, Team } from './types';
 
 export const playerTeam = (state: GameState): Team => state.teams[state.player.teamId];
 
+/** Every managed team. Guest teams (a European club given a car for one race) are not part of the world. */
+export const allTeams = (state: GameState): Team[] => Object.values(state.teams).filter((t) => !t.guest);
+
+/** Every driver in the world, retired included; guest drivers are left out. */
+export const allDrivers = (state: GameState): Driver[] => Object.values(state.drivers).filter((d) => !d.guest);
+
 export const teamsInDivision = (state: GameState, division: DivisionId): Team[] =>
-  Object.values(state.teams)
+  allTeams(state)
     .filter((t) => t.division === division)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-export const activeDrivers = (state: GameState): Driver[] => Object.values(state.drivers).filter((d) => !d.retired);
+export const activeDrivers = (state: GameState): Driver[] => allDrivers(state).filter((d) => !d.retired);
 
 export function raceDrivers(state: GameState, team: Team): Driver[] {
   return team.raceDrivers.filter((id): id is string => !!id).map((id) => state.drivers[id]).filter(Boolean);

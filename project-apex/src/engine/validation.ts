@@ -1,3 +1,5 @@
+import { DIVISIONS } from './config/divisions';
+import { activeDivisions, applyRuleset } from './config/ruleset';
 import type { GameState } from './types';
 import { DIVISION_ORDER } from './types';
 
@@ -7,6 +9,7 @@ import { DIVISION_ORDER } from './types';
  */
 export function validateState(state: GameState): string[] {
   const problems: string[] = [];
+  applyRuleset(state);
   const seenRace = new Map<string, string>();
   for (const team of Object.values(state.teams)) {
     if (!Number.isFinite(team.cash)) problems.push(`${team.name}: invalid cash ${team.cash}`);
@@ -73,9 +76,11 @@ export function validateState(state: GameState): string[] {
       if (!t || t.staff[s.role] !== s.id) problems.push(`Staff ${s.lastName}: contract/team mismatch`);
     }
   }
+  const raced = activeDivisions(state);
   for (const division of DIVISION_ORDER) {
-    const teams = Object.values(state.teams).filter((t) => t.division === division);
-    if (teams.length !== 10) problems.push(`${division} has ${teams.length} teams`);
+    const teams = Object.values(state.teams).filter((t) => t.division === division && !t.guest);
+    const expected = raced.includes(division) ? DIVISIONS[division].teams : 0;
+    if (teams.length !== expected) problems.push(`${division} has ${teams.length} teams (expected ${expected})`);
     for (const ev of state.calendars[division]) {
       const r = state.results[ev.id];
       if (ev.completed && !r) problems.push(`${ev.id}: completed without a result`);

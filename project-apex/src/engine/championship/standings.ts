@@ -1,5 +1,6 @@
 import { pointsSystemFor } from '../config/divisions';
 import type { DivisionId, GameState, RaceResult, RaceResultEntry, StandingRow } from '../types';
+import { allTeams } from '../selectors';
 
 /** Points for a classified finishing position. */
 export function pointsForPosition(preset: string, position: number): number {
@@ -78,7 +79,7 @@ export function seasonResults(state: GameState, division: DivisionId, season = s
 /** Current standings for a division, including teams that have not scored. */
 export function divisionStandings(state: GameState, division: DivisionId): { drivers: StandingRow[]; constructors: StandingRow[] } {
   const { drivers, constructors } = computeStandingsFromResults(seasonResults(state, division));
-  const teamIds = Object.values(state.teams).filter((t) => t.division === division).map((t) => t.id);
+  const teamIds = allTeams(state).filter((t) => t.division === division).map((t) => t.id);
   for (const id of teamIds) if (!constructors.some((r) => r.id === id)) constructors.push(emptyRow(id));
   // Ensure every current race driver appears.
   for (const id of teamIds) {

@@ -1,5 +1,6 @@
 import { AI_PERSONALITIES, DIFFICULTIES, FINANCIAL_STARTS } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
+import { applyRuleset } from '../config/ruleset';
 import { CIRCUITS } from '../data/circuits';
 import { TEAM_SEEDS } from '../data/teams';
 import { generateCar } from '../car/car';
@@ -79,12 +80,12 @@ export function makeContract(
   };
 }
 
-interface WorldBuild {
+export interface WorldBuild {
   state: GameState;
   ctx: GenContext;
 }
 
-function baseTeam(id: string, division: DivisionId, season: number): Team {
+export function baseTeam(id: string, division: DivisionId, season: number): Team {
   return {
     id,
     name: '',
@@ -119,7 +120,7 @@ function baseTeam(id: string, division: DivisionId, season: number): Team {
   };
 }
 
-function hireStaff(build: WorldBuild, team: Team, role: StaffRole, rating: number): void {
+export function hireStaff(build: WorldBuild, team: Team, role: StaffRole, rating: number): void {
   const s = generateStaff(build.ctx, role, rating);
   s.contract = {
     teamId: team.id,
@@ -133,7 +134,7 @@ function hireStaff(build: WorldBuild, team: Team, role: StaffRole, rating: numbe
   team.staff[role] = s.id;
 }
 
-function signDriverToTeam(build: WorldBuild, team: Team, driver: Driver, role: DriverRole, status: DriverStatus): void {
+export function signDriverToTeam(build: WorldBuild, team: Team, driver: Driver, role: DriverRole, status: DriverStatus): void {
   const { rng } = build.ctx;
   const salary = role === 'academy' ? 0 : expectedSalary(driver, team.division) * rng.range(0.8, 1.12) * (role === 'reserve' ? 0.45 : 1);
   driver.contract = makeContract(build.state, build.state.season, team.id, role, salary, rng.int(1, 3), status);
@@ -141,13 +142,36 @@ function signDriverToTeam(build: WorldBuild, team: Team, driver: Driver, role: D
   build.state.drivers[driver.id] = driver;
 }
 
+export interface TeamIdentity {
+  name: string;
+  shortName: string;
+  nationality: string;
+  primary: string;
+  secondary: string;
+  livery: Team['livery'];
+}
+
+export interface TeamGenOptions {
+  /** Nationality for the team's drivers (else drawn at random). */
+  driverNationality?: (rng: GenContext['rng']) => string | undefined;
+}
+
 function generateAiTeam(build: WorldBuild, division: DivisionId, index: number, rank: number, personality: AIPersonality): Team {
-  const { rng } = build.ctx;
-  const { state } = build;
-  const cfg = DIVISIONS[division];
   const seed = TEAM_SEEDS[division][index];
-  const team = baseTeam(nextId(state, 't'), division, state.season);
-  const strength = (4.5 - rank) / 4.5; // +1 strongest .. -1 weakest
+  const team = baseTeam(nextId(build.state, 't'), division, build.state.season);
+  return populateTeam(build, team, seed, (4.5 - rank) / 4.5, personality); // +1 strongest .. -1 weakest
+}
+
+/** A fully staffed AI team of the given strength (+1 strongest .. -1 weakest in its division). */
+export function generateTeamFromIdentity(build: WorldBuild, division: DivisionId, seed: TeamIdentity, strength: number, personality: AIPersonality, opts: TeamGenOptions = {}): Team {
+  const team = baseTeam(nextId(build.state, 't'), division, build.state.season);
+  return populateTeam(build, team, seed, strength, personality, opts);
+}
+
+function populateTeam(build: WorldBuild, team: Team, seed: TeamIdentity, strength: number, personality: AIPersonality, opts: TeamGenOptions = {}): Team {
+  const { rng } = build.ctx;
+  const division = team.division;
+  const cfg = DIVISIONS[division];
   team.name = seed.name;
   team.shortName = seed.shortName;
   team.nationality = seed.nationality;
@@ -181,7 +205,7 @@ function generateAiTeam(build: WorldBuild, division: DivisionId, index: number, 
   // Drivers: two race drivers, usually a reserve, academy for youth-minded teams.
   const raceTargets = [0, 1].map(() => cfg.driverRatingMean + strength * 4.5 + rng.normal(0, cfg.driverRatingSd * 0.65));
   raceTargets.sort((a, b) => b - a);
-  const drivers = raceTargets.map((t) => generateDriver(build.ctx, { targetOverall: t, age: raceAgeFor(rng, division), division }));
+  const drivers = raceTargets.map((t) => generateDriver(build.ctx, { targetOverall: t, age: raceAgeFor(rng, division), division, nationality: opts.driverNationality?.(rng) }));
   const gap = overall(drivers[0]) - overall(drivers[1]);
   drivers.forEach((d, i) => {
     const status: DriverStatus = gap >= 4 ? (i === 0 ? 'number1' : 'number2') : 'equal';
@@ -202,11 +226,15 @@ function generateAiTeam(build: WorldBuild, division: DivisionId, index: number, 
   return team;
 }
 
-function createPlayerTeam(build: WorldBuild, config: NewCareerConfig): Team {
+export function createPlayerTeam(build: WorldBuild, config: NewCareerConfig, division: DivisionId = 'F5'): Team {
   const { rng } = build.ctx;
   const { state } = build;
-  const cfg = DIVISIONS.F5;
-  const team = baseTeam(nextId(state, 't'), 'F5', state.season);
+  const cfg = DIVISIONS[division];
+  const team = baseTeam(nextId(state, 't'), division, state.season);
+  // Classic careers start in Formula 5; a European League career enters the bottom league of its association.
+  const classic = division === 'F5';
+  const staffBase = classic ? 0 : cfg.staffRatingMean - 47;
+  const driverBase = classic ? 0 : cfg.driverRatingMean - 49;
   team.isPlayer = true;
   team.name = config.teamName.trim() || 'Project Apex Racing';
   team.shortName = (config.shortName.trim() || team.name.slice(0, 3)).toUpperCase().slice(0, 3);
@@ -216,37 +244,40 @@ function createPlayerTeam(build: WorldBuild, config: NewCareerConfig): Team {
   team.principal = config.principalName.trim() || 'Team Principal';
   const fs = FINANCIAL_STARTS[config.financialStart];
   const diff = DIFFICULTIES[config.difficulty];
-  team.reputation = Math.round(clamp(6 + fs.reputationBonus, 1, 20));
+  team.reputation = classic ? Math.round(clamp(6 + fs.reputationBonus, 1, 20)) : Math.round(clamp(cfg.reputationRange[0] + fs.reputationBonus, 1, 60));
   team.cash = roundMoney(cfg.typicalBudget * 0.42 * fs.cashFactor * diff.startingCash);
   // A basic car: lower midfield, not overpowered.
   team.car = generateCar(rng, 48.5, 2.5);
-  team.facilities = facilitiesAt({ engineering: 2, manufacturing: 1, simulator: 1, aeroCenter: 1, trainingAcademy: 1, fitness: 1, scouting: 1, strategy: 1 }, 1);
+  if (classic) team.facilities = facilitiesAt({ engineering: 2, manufacturing: 1, simulator: 1, aeroCenter: 1, trainingAcademy: 1, fitness: 1, scouting: 1, strategy: 1 }, 1);
+  else {
+    const floor = Math.max(1, cfg.facilityRange[0] - 1);
+    team.facilities = facilitiesAt({ engineering: floor + 1 }, floor);
+  }
   // Small staff: four key roles, three vacancies to fill.
-  hireStaff(build, team, 'technicalDirector', 35 + rng.normal(0, 2));
-  hireStaff(build, team, 'raceEngineer', 36 + rng.normal(0, 2));
-  hireStaff(build, team, 'chiefMechanic', 34 + rng.normal(0, 2));
-  hireStaff(build, team, 'headStrategist', 33 + rng.normal(0, 2));
+  hireStaff(build, team, 'technicalDirector', staffBase + 35 + rng.normal(0, 2));
+  hireStaff(build, team, 'raceEngineer', staffBase + 36 + rng.normal(0, 2));
+  hireStaff(build, team, 'chiefMechanic', staffBase + 34 + rng.normal(0, 2));
+  hireStaff(build, team, 'headStrategist', staffBase + 33 + rng.normal(0, 2));
   for (const role of STAFF_ROLES) {
     const id = team.staff[role];
     if (id) state.staff[id].contract!.endSeason = state.season + 1;
   }
   // Two contracted drivers: an experienced journeyman and a raw youngster.
-  const lead = generateDriver(build.ctx, { targetOverall: 47 + rng.normal(0, 1), age: rng.int(20, 24), division: 'F5', archetype: rng.pick(['allRounder', 'journeyman', 'tireWhisperer'] as const) });
-  const rookie = generateDriver(build.ctx, { targetOverall: 43 + rng.normal(0, 1), age: rng.int(16, 18), division: 'F5', potentialBoost: config.philosophy === 'youth' ? 6 : 3 });
+  const lead = generateDriver(build.ctx, { targetOverall: driverBase + 47 + rng.normal(0, 1), age: rng.int(20, 24), division, archetype: rng.pick(['allRounder', 'journeyman', 'tireWhisperer'] as const) });
+  const rookie = generateDriver(build.ctx, { targetOverall: driverBase + 43 + rng.normal(0, 1), age: rng.int(16, 18), division, potentialBoost: config.philosophy === 'youth' ? 6 : 3 });
   [lead, rookie].forEach((d, i) => {
     signDriverToTeam(build, team, d, 'race', 'equal');
     d.contract!.endSeason = state.season + (i === 0 ? 1 : 2);
-    d.contract!.salary = roundMoney(expectedSalary(d, 'F5'));
+    d.contract!.salary = roundMoney(expectedSalary(d, division));
     d.morale = 70;
     team.raceDrivers[i] = d.id;
   });
   return team;
 }
 
-export function createWorld(config: NewCareerConfig): GameState {
-  const seed = (config.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
-  const rng = Rng.from(seed, 'world');
-  const state: GameState = {
+/** Empty world for a new career: settings, player profile and circuits, no teams yet. */
+export function createBaseState(config: NewCareerConfig, seed: number): GameState {
+  return {
     version: SAVE_VERSION,
     id: `career-${seed.toString(36)}-${Date.now().toString(36)}`,
     seed,
@@ -295,6 +326,13 @@ export function createWorld(config: NewCareerConfig): GameState {
     idCounter: 0,
     lastSeasonReview: null,
   };
+}
+
+export function createWorld(config: NewCareerConfig): GameState {
+  const seed = (config.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
+  applyRuleset(null);
+  const rng = Rng.from(seed, 'world');
+  const state = createBaseState(config, seed);
   const build: WorldBuild = { state, ctx: { rng, ids: state, season: 1 } };
 
   const personalities = Object.keys(AI_PERSONALITIES) as AIPersonality[];

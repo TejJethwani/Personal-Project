@@ -17,6 +17,7 @@ export const POINTS_PRESETS: Record<string, PointsSystem> = {
   feeder: { id: 'feeder', label: 'Feeder (25-18-15… +2 pole, +1 FL)', positions: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], pole: 2, fastestLap: 1, fastestLapTopN: 10 },
   modern: { id: 'modern', label: 'Modern (25-18-15-12-10-8-6-4-2-1)', positions: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 10 },
   modernFL: { id: 'modernFL', label: 'Modern + fastest lap (+1)', positions: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], pole: 0, fastestLap: 1, fastestLapTopN: 10 },
+  h2h: { id: 'h2h', label: 'Head-to-head (4-3-2-1)', positions: [4, 3, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 4 },
   classic: { id: 'classic', label: 'Classic (10-6-4-3-2-1)', positions: [10, 6, 4, 3, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 6 },
   extended: { id: 'extended', label: 'Extended top 15 (30-25-21…)', positions: [30, 25, 21, 18, 16, 14, 12, 10, 8, 6, 5, 4, 3, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 15 },
 };
@@ -32,6 +33,8 @@ export interface DivisionConfig {
   id: DivisionId;
   tier: number;
   name: string;
+  /** Short label (European League initials); absent = the series code. */
+  short?: string;
   tagline: string;
   status: string;
   races: number;
@@ -346,6 +349,11 @@ export const divisionByTier = (tier: number): DivisionId => DIVISION_ORDER[Math.
 export function raceLapsFor(division: DivisionId, circuitLaps: number): number {
   const cfg = DIVISIONS[division];
   return Math.max(cfg.minLaps, Math.min(cfg.maxLaps, Math.round(circuitLaps * cfg.lapsFactor)));
+}
+
+/** Race distance of an event: its own override, else the division's standard length. */
+export function eventLaps(event: { division: DivisionId; laps?: number }, circuitLaps: number): number {
+  return event.laps ?? raceLapsFor(event.division, circuitLaps);
 }
 
 export function pointsSystemFor(preset: string): PointsSystem {

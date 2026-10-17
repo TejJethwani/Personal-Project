@@ -1,5 +1,6 @@
 import { DIVISIONS } from '../config/divisions';
 import type { DivisionId, Driver, GameState } from '../types';
+import { allTeams, allDrivers } from '../selectors';
 
 export interface RecordEntry {
   id: string;
@@ -123,7 +124,7 @@ export function computeRecords(state: GameState, division: DivisionId | 'all' = 
 
   // Greatest comeback season: biggest year-on-year rise in the constructors' table within the same division.
   const comebacks: RecordEntry[] = [];
-  for (const team of Object.values(state.teams)) {
+  for (const team of allTeams(state)) {
     const hist = team.history;
     for (let i = 1; i < hist.length; i++) {
       const a = hist[i - 1];
@@ -154,7 +155,7 @@ export interface HallOfFamer {
 export function hallOfFame(state: GameState): HallOfFamer[] {
   const f1 = driverDivisionTotals(state, 'F1');
   const out: HallOfFamer[] = [];
-  for (const d of Object.values(state.drivers)) {
+  for (const d of allDrivers(state)) {
     const titles = d.career.championships;
     const f1Titles = titles.F1 ?? 0;
     const f1Wins = f1.get(d.id)?.wins ?? 0;

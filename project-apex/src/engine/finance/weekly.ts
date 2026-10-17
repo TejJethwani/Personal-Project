@@ -6,11 +6,12 @@ import { seasonFacilityUpkeep } from '../team/facilities';
 import type { Driver, GameState, Team } from '../types';
 import { postTransaction } from './ledger';
 import { aiSponsorIncomePerRace, projectedPosition } from './sponsors';
+import { allDrivers } from '../selectors';
 
 const W = ECONOMY_TUNING.weeksPerSeason;
 
 export function contractedDrivers(state: GameState, team: Team): Driver[] {
-  return Object.values(state.drivers).filter((d) => !d.retired && d.contract?.teamId === team.id);
+  return allDrivers(state).filter((d) => !d.retired && d.contract?.teamId === team.id);
 }
 
 export function seasonDriverSalaries(state: GameState, team: Team): number {
@@ -82,7 +83,7 @@ export function financialForecast(state: GameState, team: Team): FinanceForecast
       const c = d.contract!;
       if (c.role !== 'academy' && c.startSeason <= s && c.endSeason >= s) dSum += c.salary;
     }
-    for (const d of Object.values(state.drivers)) {
+    for (const d of allDrivers(state)) {
       const c = d.futureContract;
       if (c && c.teamId === team.id && c.startSeason <= s && c.endSeason >= s) dSum += c.salary;
     }

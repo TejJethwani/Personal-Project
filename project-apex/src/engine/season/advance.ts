@@ -16,12 +16,14 @@ import { progressScouting } from '../market/scouting';
 import { addNews, fill, pickTemplate, TEMPLATES } from '../news/news';
 import { closeWeekend, eventLineup, lineupIssues, simulateEventAutomatically, startPlayerWeekend } from '../race/weekend';
 import { Rng } from '../rng';
-import { playerTeam, raceDrivers } from '../selectors';
+import { allDrivers, allTeams, playerTeam, raceDrivers } from '../selectors';
 import { FACILITY_INFO, progressFacilities } from '../team/facilities';
 import type { GameState } from '../types';
 import { DIVISION_ORDER } from '../types';
 import { assertRule, clamp, roundMoney } from '../util';
 import { nextEventFor } from './calendar';
+import { applyRuleset } from '../config/ruleset';
+import { euroCompetitionsDone, euroSeasonStart, euroWeekRacing, euroWeekStart, nextPlayerEvent } from '../europe/season';
 import { announceRegulations, finalizeSeason } from './seasonEnd';
 import { checkAchievements } from '../achievements';
 import { ensureSeasonChallenges } from './challenges';
@@ -43,7 +45,7 @@ export function advanceBlocker(state: GameState): string | null {
     if (missing) return `${missing.reason ?? 'A seat is empty'}: you need two available race drivers. Sign a race or reserve driver in the Driver Market.`;
   }
   if (state.phase === 'season') {
-    const ev = nextEventFor(state, playerTeam(state).division);
+    const ev = nextPlayerEvent(state);
     if (ev && ev.week <= state.week) return 'Your race weekend is waiting in the Race Center.';
   }
   return null;
@@ -51,6 +53,7 @@ export function advanceBlocker(state: GameState): string | null {
 
 /** Advance the world by one week (or one off-season round). */
 export function advanceWeek(state: GameState): AdvanceResult {
+  applyRuleset(state);
   const blocker = advanceBlocker(state);
   assertRule(!blocker, blocker ?? '');
   if (state.phase === 'offseason') return offseasonWeek(state);
@@ -59,11 +62,10 @@ export function advanceWeek(state: GameState): AdvanceResult {
   state.week += 1;
   processWeek(state);
   if (state.phase === 'gameOver') return { stoppedFor: 'gameOver', message: state.player.gameOverReason ?? 'Game over' };
-  const team = playerTeam(state);
-  const ev = nextEventFor(state, team.division);
-  if (ev && ev.week === state.week) {
+  const ev = nextPlayerEvent(state);
+  if (ev && ev.week <= state.week) {
     startPlayerWeekend(state, ev.id);
-    return { stoppedFor: 'race', message: `Race weekend: ${state.circuits[ev.circuitId].name}` };
+    return { stoppedFor: 'race', message: `${ev.euro && ev.euro.competition !== 'league' ? ev.euro.label : 'Race weekend'}: ${state.circuits[ev.circuitId].name}` };
   }
   if (allEventsDone(state) && state.week >= ECONOMY_TUNING.lastRaceWeek) {
     finalizeSeason(state);
@@ -73,7 +75,7 @@ export function advanceWeek(state: GameState): AdvanceResult {
 }
 
 function allEventsDone(state: GameState): boolean {
-  return DIVISION_ORDER.every((d) => state.calendars[d].every((e) => e.completed));
+  return DIVISION_ORDER.every((d) => state.calendars[d].every((e) => e.completed)) && euroCompetitionsDone(state);
 }
 
 /** Keep advancing until something needs the player's attention. */
@@ -93,7 +95,7 @@ export function advanceToNextEvent(state: GameState): AdvanceResult {
 function startSeason(state: GameState): AdvanceResult {
   const team = playerTeam(state);
   assertRule(eventLineup(state, team).every((s) => !!s.driverId), 'You need two race drivers before the season can start.');
-  for (const t of Object.values(state.teams)) {
+  for (const t of allTeams(state)) {
     if (!t.isPlayer) aiTry(() => aiFillSeats(state, t, 5, true));
     chargeEntryFee(state, t);
   }
@@ -101,6 +103,7 @@ function startSeason(state: GameState): AdvanceResult {
   ensureSeasonChallenges(state);
   state.phase = 'season';
   state.week = 0;
+  if (state.europe) euroSeasonStart(state);
   const twists = seasonTwists(state, team.division);
   addNews(state, {
     category: 'regulation',
@@ -118,13 +121,13 @@ function startSeason(state: GameState): AdvanceResult {
 function offseasonWeek(state: GameState): AdvanceResult {
   const round = state.week + 7;
   aiTry(() => aiOffseasonRound(state, round));
-  if (round % 2 === 0) for (const t of Object.values(state.teams)) if (!t.isPlayer && t.cash > 0) aiTry(() => aiStaff(state, t, Rng.from(state.seed, 'offStaff', t.id, state.season, round)));
+  if (round % 2 === 0) for (const t of allTeams(state)) if (!t.isPlayer && t.cash > 0) aiTry(() => aiStaff(state, t, Rng.from(state.seed, 'offStaff', t.id, state.season, round)));
   state.week += 1;
   if (state.week % 2 === 0) refreshSponsorOffers(state);
   if (state.week >= 0) {
     // Pre-season: every AI seat is filled, objectives are set.
     for (let pass = 0; pass < 3; pass++) {
-      const short = Object.values(state.teams).filter((t) => !t.isPlayer && t.raceDrivers.includes(null));
+      const short = allTeams(state).filter((t) => !t.isPlayer && t.raceDrivers.includes(null));
       if (!short.length) break;
       for (const t of short) aiTry(() => aiFillSeats(state, t, 6, true));
     }
@@ -143,7 +146,8 @@ function offseasonWeek(state: GameState): AdvanceResult {
 export function processWeek(state: GameState): void {
   const player = playerTeam(state);
   checkAchievements(state);
-  for (const team of Object.values(state.teams)) {
+  if (state.europe) euroWeekStart(state);
+  for (const team of allTeams(state)) {
     applyWeeklyFinances(state, team);
     const done = progressFacilities(team);
     if (team.isPlayer) for (const k of done) addNews(state, { category: 'engineering', headline: `${FACILITY_INFO[k].label.toUpperCase()} UPGRADE COMPLETE`, body: `The ${FACILITY_INFO[k].label} is now level ${team.facilities[k].level}.`, teamIds: [team.id], importance: 2 });
@@ -155,7 +159,7 @@ export function processWeek(state: GameState): void {
     }
   }
   progressScouting(state);
-  for (const d of Object.values(state.drivers)) {
+  for (const d of allDrivers(state)) {
     if (d.injury) {
       d.injury.weeksRemaining -= 1;
       if (d.injury.weeksRemaining <= 0) {
@@ -164,13 +168,14 @@ export function processWeek(state: GameState): void {
       }
     }
   }
-  for (const team of Object.values(state.teams)) aiWeekly(state, team);
+  for (const team of allTeams(state)) aiWeekly(state, team);
 
   // Races in other divisions this week.
   for (const division of DIVISION_ORDER) {
     if (division === player.division) continue;
     for (const ev of state.calendars[division]) if (ev.week === state.week && !ev.completed) simulateEventAutomatically(state, ev);
   }
+  if (state.europe) euroWeekRacing(state);
 
   if (state.week % 4 === 0) monthly(state);
   if (state.week === 30) announceRegulations(state);
@@ -272,7 +277,7 @@ function previewNextRace(state: GameState): void {
 function seasonPredictions(state: GameState): void {
   for (const division of DIVISION_ORDER) {
     if (division !== 'F1' && division !== playerTeam(state).division) continue;
-    const teams = Object.values(state.teams).filter((t) => t.division === division);
+    const teams = allTeams(state).filter((t) => t.division === division);
     const ranked = teams.flatMap((t) => raceDrivers(state, t).map((d) => ({ d, score: overall(d) + t.car.components.aerodynamics * 0.4 + t.car.components.powerUnit * 0.4 + t.car.components.chassis * 0.4 })));
     ranked.sort((a, b) => b.score - a.score);
     if (!ranked[0]) continue;
@@ -319,8 +324,17 @@ function checkPlayerFinances(state: GameState): void {
 
 /** Complete the player's weekend and update the board's view. */
 export function finishWeekendAndContinue(state: GameState): void {
+  applyRuleset(state);
   closeWeekend(state);
   boardRaceUpdate(state);
+  // European League weeks can hold several races: the next one starts straight away.
+  if (state.europe) {
+    const next = nextPlayerEvent(state);
+    if (next && next.week <= state.week) {
+      startPlayerWeekend(state, next.id);
+      return;
+    }
+  }
   if (allEventsDone(state)) {
     // Fast-forward any idle weeks to the end of the season.
     finalizeSeason(state);

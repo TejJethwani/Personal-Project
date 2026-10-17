@@ -10,6 +10,7 @@ import { hasSpecialization, staffRating } from '../staff/staff';
 import type { ComponentKey, GameState, RnDApproach, RnDCompletion, RnDOptions, RnDOutcome, RnDPhase, RnDProject, RnDScale, RnDTimeline, Team } from '../types';
 import { assertRule, clamp, roundMoney } from '../util';
 import { COMPONENT_INFO, COMPONENT_KEYS } from './car';
+import { allTeams } from '../selectors';
 
 export const RND_SCALES: RnDScale[] = ['quick', 'minor', 'major', 'radical'];
 export const RND_SCALE_LABELS: Record<RnDScale, string> = { quick: 'Quick fix', minor: 'Minor update', major: 'Major package', radical: 'Radical concept' };
@@ -60,7 +61,7 @@ export interface ProjectQuote {
 
 /** Average rating of a component across the team's series. */
 export function fieldComponentMean(state: GameState, team: Team, component: ComponentKey): number {
-  const field = Object.values(state.teams).filter((t) => t.division === team.division);
+  const field = allTeams(state).filter((t) => t.division === team.division);
   return field.reduce((s, t) => s + t.car.components[component], 0) / Math.max(1, field.length);
 }
 

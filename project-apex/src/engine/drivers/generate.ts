@@ -41,7 +41,7 @@ const PERSONALITY_WEIGHTS: { item: Personality; weight: number }[] = [
 ];
 
 export function pickNationality(rng: Rng): string {
-  return rng.weighted(NATIONALITIES.map((n) => ({ item: n.code, weight: n.weight })));
+  return rng.weighted(NATIONALITIES.filter((n) => n.weight > 0).map((n) => ({ item: n.code, weight: n.weight })));
 }
 
 export function randomName(rng: Rng, nationality: string): { firstName: string; lastName: string } {

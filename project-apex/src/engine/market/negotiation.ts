@@ -7,6 +7,7 @@ import { currentAbsWeek } from '../season/calendar';
 import { staffRating } from '../staff/staff';
 import type { Driver, DriverOffer, GameState, NegotiationMemory, Team } from '../types';
 import { clamp, roundMoney } from '../util';
+import { allTeams } from '../selectors';
 
 export interface UtilityFactor {
   label: string;
@@ -161,7 +162,7 @@ export function bestAlternativeUtility(state: GameState, excluding: Team, d: Dri
   const ovr = overall(d);
   let best = -Infinity;
   const nextSeason = state.phase === 'season' ? state.season + 1 : state.season;
-  for (const team of Object.values(state.teams)) {
+  for (const team of allTeams(state)) {
     if (team.id === excluding.id || team.isPlayer) continue;
     const seats = team.raceDrivers.map((id) => (id ? state.drivers[id] : null));
     const openSeat = seats.some((s) => !s || (s.contract && s.contract.endSeason < nextSeason && !s.futureContract));

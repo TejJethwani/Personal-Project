@@ -50,7 +50,7 @@ export function promotionPicture(state: GameState, division: DivisionId, exclude
   });
   if (up) {
     let slots = DIVISIONS[division].promotionSlots;
-    for (const row of rows.slice(0, 4)) {
+    for (const row of rows.slice(0, DIVISIONS[division].promotionSlots + 2)) {
       if (slots <= 0) break;
       if (row.eligible && row.teamId !== excludeTeamId) {
         row.status = 'promotion';
@@ -70,7 +70,7 @@ function projectedPromotionsFrom(state: GameState, division: DivisionId): number
   const { constructors } = divisionStandings(state, division);
   const up = divisionAbove(division)!;
   let count = 0;
-  for (const r of constructors.slice(0, 4)) {
+  for (const r of constructors.slice(0, DIVISIONS[division].promotionSlots + 2)) {
     if (count >= DIVISIONS[division].promotionSlots) break;
     if (isEligible(state, state.teams[r.id], up)) count++;
   }
@@ -98,7 +98,7 @@ export function computeDivisionMoves(state: GameState, declined: string[] = [], 
     if (!up) continue;
     const { constructors } = divisionStandings(state, division);
     const promoted: string[] = [];
-    for (const r of constructors.slice(0, 4)) {
+    for (const r of constructors.slice(0, DIVISIONS[division].promotionSlots + 2)) {
       if (promoted.length >= DIVISIONS[division].promotionSlots) break;
       if (declined.includes(r.id)) continue;
       if (licensed.includes(r.id) || isEligible(state, state.teams[r.id], up)) promoted.push(r.id);

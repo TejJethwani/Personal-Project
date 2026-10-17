@@ -19,9 +19,10 @@
  */
 import { DIFFICULTIES, PHILOSOPHIES } from '../config/difficulty';
 import { AI_PERSONALITIES } from '../config/difficulty';
-import { DIVISIONS, raceLapsFor } from '../config/divisions';
+import { DIVISIONS, eventLaps } from '../config/divisions';
 import { RACE_TUNING, TIRE_TUNING } from '../config/tuning';
 import { reliabilityIndex, trackPerformance } from '../car/car';
+import { eventCarOffset } from '../europe/power';
 import { attackIndex, defenceIndex, driverShortName, racePaceIndex } from '../drivers/ratings';
 import { Rng } from '../rng';
 import { staffRating } from '../staff/staff';
@@ -71,7 +72,7 @@ export const DEFAULT_INSTRUCTIONS: RaceInstructions = { pace: 'balanced', tires:
 export function createRaceState(state: GameState, event: CalendarEvent, entrants: RaceEntrantInput[]): RaceState {
   const circuit = state.circuits[event.circuitId];
   const cfg = DIVISIONS[event.division];
-  const totalLaps = raceLapsFor(event.division, circuit.laps);
+  const totalLaps = eventLaps(event, circuit.laps);
   const baseLapTime = divisionBaseLap(circuit, event.division);
   const weather = generateEventWeather(state.seed, event.id, circuit, totalLaps, weatherMods(state, event.division));
   const sorted = [...entrants].sort((a, b) => a.grid - b.grid);
@@ -113,7 +114,7 @@ export function createRaceState(state: GameState, event: CalendarEvent, entrants
       latentFailure: null,
       lapsLed: 0,
       usedCompounds: [e.plan.startCompound],
-      carPerf: trackPerformance(team.car, circuit),
+      carPerf: trackPerformance(team.car, circuit) + eventCarOffset(state, team, event),
       driverPerf: 0,
       setupQuality: e.setupQuality,
       weatherCallTimer: 0,
