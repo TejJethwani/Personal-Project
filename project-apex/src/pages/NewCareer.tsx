@@ -77,10 +77,6 @@ export function NewCareer() {
     const seed = seedText.trim() ? Number.parseInt(seedText.trim(), 10) : undefined;
     newGame({ ...cfg, seed: Number.isFinite(seed) ? seed : undefined, ...(mode === 'european' ? { european: { assocId, race2Grid } } : {}) });
   };
-  const chooseAssoc = (id: string) => {
-    setAssocId(id);
-    set('nationality', ASSOCIATION_BY_ID[id].nationality);
-  };
 
   return (
     <div className="min-h-full bg-apex-bg bg-carbon">
@@ -126,7 +122,7 @@ export function NewCareer() {
                     <div className="label mb-2">Association · coefficient ranking</div>
                     <div className="grid max-h-[420px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
                       {ASSOCIATIONS.map((a, i) => (
-                        <button key={a.id} onClick={() => chooseAssoc(a.id)} className={cn('rounded-lg border p-3 text-left text-xs', assocId === a.id ? 'border-sky-400 bg-sky-400/[0.08]' : 'border-apex-line hover:border-apex-line2')}>
+                        <button key={a.id} onClick={() => setAssocId(a.id)} className={cn('rounded-lg border p-3 text-left text-xs', assocId === a.id ? 'border-sky-400 bg-sky-400/[0.08]' : 'border-apex-line hover:border-apex-line2')}>
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-display text-base font-bold uppercase">
                               <span className="text-apex-muted">#{i + 1}</span> {a.name}
@@ -171,15 +167,17 @@ export function NewCareer() {
                     <input className="input w-full uppercase" value={cfg.shortName} maxLength={3} onChange={(e) => set('shortName', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} />
                   </Field>
                 </div>
-                <Field label="Team nationality">
-                  <select className="input w-full" value={cfg.nationality} onChange={(e) => set('nationality', e.target.value)}>
-                    {[...NATIONALITIES].sort((a, b) => a.name.localeCompare(b.name)).map((n) => (
-                      <option key={n.code} value={n.code}>
-                        {n.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                {mode === 'classic' && (
+                  <Field label="Team nationality">
+                    <select className="input w-full" value={cfg.nationality} onChange={(e) => set('nationality', e.target.value)}>
+                      {[...NATIONALITIES].sort((a, b) => a.name.localeCompare(b.name)).map((n) => (
+                        <option key={n.code} value={n.code}>
+                          {n.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
                 {(['primaryColor', 'secondaryColor'] as const).map((k) => (
                   <Field key={k} label={k === 'primaryColor' ? 'Primary colour' : 'Secondary colour'}>
                     <div className="flex flex-wrap items-center gap-2">
@@ -204,7 +202,7 @@ export function NewCareer() {
               <div className="flex flex-col items-center justify-center rounded-xl border border-apex-line bg-apex-bg p-6">
                 <CarLivery primary={cfg.primaryColor} secondary={cfg.secondaryColor} pattern={cfg.livery} number={cfg.shortName} width={300} />
                 <div className="mt-4 font-display text-2xl font-black uppercase">{cfg.teamName || 'Your team'}</div>
-                <div className="text-sm text-apex-muted">{NATIONALITIES.find((n) => n.code === cfg.nationality)?.name}</div>
+                <div className="text-sm text-apex-muted">{mode === 'european' ? assoc.name : NATIONALITIES.find((n) => n.code === cfg.nationality)?.name}</div>
               </div>
             </div>
           )}

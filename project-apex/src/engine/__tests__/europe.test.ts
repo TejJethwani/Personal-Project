@@ -36,6 +36,8 @@ describe('European League: world', () => {
       }
       // The player starts at the bottom of the pyramid.
       expect(levelOfDivision(playerTeam(s).division)).toBe(assoc.levels.length);
+      // The team takes the league's nationality, whatever the config says.
+      expect(playerTeam(s).nationality).toBe(assoc.nationality);
       // Every association has its leagues; every club a real home circuit.
       for (const a of ASSOCIATIONS) for (let l = 1; l <= a.levels.length; l++) expect(s.europe!.leagues[`${a.id}-${l}`].clubIds).toHaveLength(a.levels[l - 1].teams);
       for (const c of Object.values(s.europe!.clubs)) expect(s.circuits[c.homeCircuitId]).toBeTruthy();

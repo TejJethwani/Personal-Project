@@ -154,7 +154,7 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
         if (!own) league.standings[club.id] = { clubId: club.id, points: 0, wins: 0, podiums: 0, races: 0, best: null };
       }
       if (isPlayerLeague) {
-        const player = createPlayerTeam(build, config, division);
+        const player = createPlayerTeam(build, { ...config, nationality: assoc.nationality }, division);
         const club: EuroClub = {
           id: `c${++clubCounter}`,
           name: player.name,
