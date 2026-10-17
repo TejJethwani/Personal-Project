@@ -1,5 +1,6 @@
 import { divisionForLevel } from '../config/ruleset';
-import { POINTS_PRESETS } from '../config/divisions';
+import { pointsTable } from '../config/divisions';
+import { playerTeam } from '../selectors';
 import { Rng } from '../rng';
 import type { EuroLeague, GameState, LiteStandingRow } from '../types';
 import { CONTINENTAL, promotionPlaces } from './data';
@@ -7,11 +8,9 @@ import { LEVEL_PACE, levelMeanPower, quickRace, rollDriverSplit } from './power'
 
 /**
  * Leagues outside the player's association: full grids of two-car clubs, one
- * race per gameweek with modern points, raced on the quick model. Constructor
+ * race per gameweek scored with the career's points system, raced on the quick model. Constructor
  * standings decide titles, promotion and relegation like everywhere else.
  */
-
-const POINTS = POINTS_PRESETS.modern.positions;
 
 export function liteTable(league: EuroLeague): LiteStandingRow[] {
   return league.clubIds
@@ -28,13 +27,14 @@ export function playLiteLeagueWeek(state: GameState, week: number): void {
     if (state.processed[key]) continue;
     state.processed[key] = true;
     const field = league.clubIds.map((id) => ({ clubId: id, power: europe.clubs[id].power, drivers: europe.clubs[id].drivers }));
+    const points = pointsTable(state.settings.pointsPreset[playerTeam(state).division] ?? 'expanded', field.length * 2, state.settings.customPoints).positions;
     const rng = Rng.from(state.seed, 'liteRace', league.id, state.season, week);
     const order = quickRace(rng, field);
     order.forEach((car, i) => {
       const row = (league.standings[car.clubId] ??= { clubId: car.clubId, points: 0, wins: 0, podiums: 0, races: 0, best: null });
       if (car.index === 0) row.races += 1;
       if (car.dnf) return;
-      row.points += POINTS[i] ?? 0;
+      row.points += points[i] ?? 0;
       if (i === 0) row.wins += 1;
       if (i < 3) row.podiums += 1;
       row.best = row.best === null ? i + 1 : Math.min(row.best, i + 1);

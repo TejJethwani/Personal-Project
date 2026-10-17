@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS } from '../achievements';
 import { COMPONENT_KEYS } from '../car/car';
-import { assignPoints } from '../championship/standings';
+import { assignPoints, championshipPoints } from '../championship/standings';
 import { createDailyChallenge, dailyKey, dailyStars } from '../daily';
 import { ATTRIBUTE_KEYS } from '../drivers/ratings';
 import { autoplayPlayerWeekend } from '../game';
@@ -40,7 +40,7 @@ describe('season twists', () => {
     const finale = state.calendars[division].find((e) => e.round === twistEffects(state, division).doublePointsRound)!;
     const { result } = simulateEventRace(state, finale);
     const plain: RaceResultEntry[] = result.entries.map((e) => ({ ...e, points: 0 }));
-    assignPoints(plain, state.settings.pointsPreset[division], result.poleDriverId, result.fastestLapDriverId);
+    assignPoints(plain, championshipPoints(state, division), result.poleDriverId, result.fastestLapDriverId);
     result.entries.forEach((e, i) => expect(e.points).toBe(plain[i].points * 2));
   });
 

@@ -1,11 +1,11 @@
 import { AI_PERSONALITIES, PHILOSOPHIES } from '../config/difficulty';
-import { DIVISIONS, eventLaps } from '../config/divisions';
+import { DIVISIONS, eventLaps, pointsTable } from '../config/divisions';
 import { RACE_TUNING } from '../config/tuning';
 import { trackPerformance } from '../car/car';
 import { eventCarOffset } from '../europe/power';
 import { syncGuest } from '../europe/fixtures';
 import { onEuroRaceResult } from '../europe/season';
-import { assignPoints, divisionStandings, pointsRemaining } from '../championship/standings';
+import { assignPoints, championshipPoints, divisionStandings, pointsRemaining } from '../championship/standings';
 import { driverName, driverShortName, overall, racePaceIndex } from '../drivers/ratings';
 import { postTransaction } from '../finance/ledger';
 import { aiSponsorIncomePerRace, expectationProgress, projectedPosition } from '../finance/sponsors';
@@ -515,8 +515,8 @@ export function classify(state: GameState, event: CalendarEvent, race: RaceState
   const ids = new Set(entries.map((e) => e.driverId));
   assertRule(ids.size === entries.length, 'Invalid classification: duplicate driver.');
   const pole = quali.find((q) => q.position === 1)?.driverId ?? null;
-  const preset = event.pointsPreset ?? state.settings.pointsPreset[event.division];
-  assignPoints(entries, preset, pole, race.fastestLap?.driverId ?? null);
+  const sys = event.pointsPreset ? pointsTable(event.pointsPreset, entries.length) : championshipPoints(state, event.division);
+  assignPoints(entries, sys, pole, race.fastestLap?.driverId ?? null);
   // Season twist: the finale pays double (championship races only).
   if (!event.pointsPreset && twistEffects(state, event.division).doublePointsRound === event.round) for (const e of entries) e.points *= 2;
   return {

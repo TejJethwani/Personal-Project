@@ -1,5 +1,6 @@
 import { DIVISIONS } from '../config/divisions';
-import { applyRuleset } from '../config/ruleset';
+import { activeDivisions, applyRuleset } from '../config/ruleset';
+import { addNews } from '../news/news';
 import { leagueRaceLaps } from '../europe/schedule';
 import type { CalendarEvent, GameState } from '../types';
 import { DIVISION_ORDER } from '../types';
@@ -12,7 +13,10 @@ import { SAVE_VERSION } from '../world/generate';
  */
 export function migrateState(state: GameState, fromVersion: number): GameState {
   applyRuleset(state);
-  if (fromVersion < 2) oneRacePerGameweek(state);
+  if (fromVersion < 2) {
+    oneRacePerGameweek(state);
+    expandedPointsNextSeason(state);
+  }
   state.version = SAVE_VERSION;
   return state;
 }
@@ -57,4 +61,24 @@ function oneRacePerGameweek(state: GameState): void {
     }
     state.calendars[d] = kept;
   }
+}
+
+/**
+ * European League careers scored only the top ten of a 40-car grid. They move
+ * to the Expanded system from next season (this season's races keep the
+ * points they were run under); a scoring change already queued is left alone.
+ */
+function expandedPointsNextSeason(state: GameState): void {
+  if (state.mode !== 'european' || state.settings.pendingPointsPreset) return;
+  const next = { ...state.settings.pointsPreset };
+  const moved = activeDivisions(state).filter((d) => next[d] === 'modern');
+  if (!moved.length) return;
+  for (const d of moved) next[d] = 'expanded';
+  state.settings.pendingPointsPreset = next;
+  addNews(state, {
+    category: 'regulation',
+    headline: 'EXPANDED POINTS FROM NEXT SEASON',
+    body: 'From next season the top three-quarters of every grid score: 50-45-41-38-35-32-29-27-25-22, then down to 1 point (30 scoring places on a 40-car grid). This season finishes under the current system. You can choose another system in Settings.',
+    importance: 2,
+  });
 }

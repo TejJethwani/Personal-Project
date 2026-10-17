@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assignPoints, compareRows, computeStandingsFromResults, divisionStandings } from '../championship/standings';
+import { POINTS_PRESETS } from '../config/divisions';
 import { simulateEventAutomatically } from '../race/weekend';
 import type { RaceResult, RaceResultEntry } from '../types';
 import { makeGame } from './helpers';
@@ -11,26 +12,26 @@ function entry(driverId: string, teamId: string, position: number, status: RaceR
 describe('points allocation', () => {
   it('awards modern points to finishers only', () => {
     const entries = [entry('a', 'T1', 1), entry('b', 'T2', 2), entry('c', 'T1', 3), entry('d', 'T2', 4, 'dnf')];
-    assignPoints(entries, 'modern', null, null);
+    assignPoints(entries, POINTS_PRESETS.modern, null, null);
     expect(entries.map((e) => e.points)).toEqual([25, 18, 15, 0]);
   });
 
   it('gives the fastest-lap point only inside the top N and pole points when configured', () => {
     const entries = Array.from({ length: 12 }, (_, i) => entry(`d${i}`, `t${i % 6}`, i + 1));
-    assignPoints(entries, 'feeder', 'd3', 'd11');
+    assignPoints(entries, POINTS_PRESETS.feeder, 'd3', 'd11');
     expect(entries[11].points).toBe(0); // P12 fastest lap: no point
     expect(entries[3].points).toBe(12 + 2); // P4 + pole
     const again = Array.from({ length: 12 }, (_, i) => entry(`d${i}`, `t${i % 6}`, i + 1));
-    assignPoints(again, 'feeder', null, 'd1');
+    assignPoints(again, POINTS_PRESETS.feeder, null, 'd1');
     expect(again[1].points).toBe(18 + 1);
   });
 
   it('uses division-specific presets', () => {
     const club = [entry('a', 'T', 1)];
-    assignPoints(club, 'club', null, null);
+    assignPoints(club, POINTS_PRESETS.club, null, null);
     expect(club[0].points).toBe(10);
     const junior = [entry('a', 'T', 1)];
-    assignPoints(junior, 'junior', null, null);
+    assignPoints(junior, POINTS_PRESETS.junior, null, null);
     expect(junior[0].points).toBe(15);
   });
 });
@@ -39,7 +40,7 @@ describe('standings', () => {
   it('sums race points and breaks ties by count-back', () => {
     const r1: RaceResult = { eventId: 'e1', division: 'F5', season: 1, round: 1, circuitId: 'x', wet: false, safetyCars: 0, entries: [entry('a', 'T1', 1), entry('b', 'T2', 2)], poleDriverId: 'a', fastestLapDriverId: null, qualifying: [] };
     const r2: RaceResult = { ...r1, eventId: 'e2', round: 2, entries: [entry('b', 'T2', 1), entry('a', 'T1', 2)], poleDriverId: 'b' };
-    for (const r of [r1, r2]) assignPoints(r.entries, 'modern', null, null);
+    for (const r of [r1, r2]) assignPoints(r.entries, POINTS_PRESETS.modern, null, null);
     const st = computeStandingsFromResults([r1, r2]);
     expect(st.drivers[0].points).toBe(43);
     expect(st.drivers[1].points).toBe(43);

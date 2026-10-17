@@ -1,8 +1,8 @@
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { divisionAbove, DIVISIONS, pointsSystemFor } from '@/engine/config/divisions';
-import { computeStandingsFromResults, divisionStandings, seasonResults } from '@/engine/championship/standings';
+import { divisionAbove, DIVISIONS, pointsSummary } from '@/engine/config/divisions';
+import { championshipPoints, computeStandingsFromResults, divisionStandings, seasonResults } from '@/engine/championship/standings';
 import { driverName } from '@/engine/drivers/ratings';
 import { licensingChecks, promotionPicture } from '@/engine/season/promotion';
 import { playerTeam } from '@/engine/selectors';
@@ -23,7 +23,7 @@ export function ChampionshipPage() {
   return (
     <div className="space-y-5">
       <SectionTitle
-        sub={`${cfg.name}: ${cfg.races} rounds · points: ${pointsSystemFor(game.settings.pointsPreset[division]).label}`}
+        sub={`${cfg.name}: ${cfg.races} rounds · points: ${pointsSummary(championshipPoints(game, division))}`}
         right={<Segmented value={division} onChange={setDivision} options={activeDivisions(game).map((d) => ({ value: d, label: divisionShort(d) }))} />}
       >
         Championship

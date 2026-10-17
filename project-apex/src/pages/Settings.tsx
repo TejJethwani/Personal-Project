@@ -1,10 +1,12 @@
 import { Download, Palmtree, Save, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { renameTeam, setDifficulty, setPointsPreset, updateSettings } from '@/engine/actions';
+import { renameTeam, setCustomPoints, setDifficulty, setPointsPreset, updateSettings } from '@/engine/actions';
 import { activeDivisions } from '@/engine/config/ruleset';
 import { assistantManage } from '@/engine/ai/assistant';
 import { DIFFICULTIES } from '@/engine/config/difficulty';
-import { DIVISIONS, POINTS_PRESETS } from '@/engine/config/divisions';
+import { customPointsProblem, DIVISIONS, POINTS_PRESETS, pointsSummary } from '@/engine/config/divisions';
+import { championshipPoints } from '@/engine/championship/standings';
+import { PointsEditor } from '@/components/PointsEditor';
 import { autoplayPlayerWeekend } from '@/engine/game';
 import { advanceBlocker, advanceWeek, finishWeekendAndContinue } from '@/engine/season/advance';
 import { playerTeam } from '@/engine/selectors';
@@ -47,6 +49,9 @@ export function SettingsPage() {
     void refresh();
   }, []);
   const pending = game.settings.pendingPointsPreset;
+  const savedCustom = game.settings.pendingCustomPoints ?? game.settings.customPoints ?? null;
+  const [custom, setCustom] = useState<number[]>(() => savedCustom ?? [...POINTS_PRESETS.modern.positions]);
+  const customChanged = JSON.stringify(custom) !== JSON.stringify(savedCustom);
 
   return (
     <div className="space-y-6">
@@ -68,14 +73,27 @@ export function SettingsPage() {
               />
             </Field>
             <div>
-              <div className="label mb-2">Championship points systems {pending && <Badge tone="amber">changes apply next season</Badge>}</div>
+              <div className="label mb-2">Championship points systems {(pending || game.settings.pendingCustomPoints) && <Badge tone="amber">changes apply next season</Badge>}</div>
               <div className="space-y-2">
                 {[...activeDivisions(game)].reverse().map((d) => (
-                  <div key={d} className="flex items-center gap-3 text-sm">
-                    <span className="w-36 truncate">{DIVISIONS[d].name}</span>
-                    <Select value={(pending ?? game.settings.pointsPreset)[d]} onChange={(v) => act((g) => setPointsPreset(g, d, v))} options={Object.values(POINTS_PRESETS).filter((p) => p.id !== 'h2h').map((p) => ({ value: p.id, label: p.label }))} className="flex-1" />
+                  <div key={d} className="text-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="w-36 truncate">{DIVISIONS[d].name}</span>
+                      <Select value={(pending ?? game.settings.pointsPreset)[d]} onChange={(v) => act((g) => setPointsPreset(g, d, v))} options={Object.values(POINTS_PRESETS).filter((p) => p.id !== 'h2h' && (p.id !== 'custom' || !!savedCustom)).map((p) => ({ value: p.id, label: p.label }))} className="flex-1" />
+                    </div>
+                    <div className="ml-[9.75rem] text-[11px] text-apex-muted">This season: {pointsSummary(championshipPoints(game, d))}</div>
                   </div>
                 ))}
+              </div>
+            </div>
+            <div className="rounded-lg border border-apex-line p-3">
+              <div className="label mb-2">Custom points table</div>
+              <PointsEditor value={custom} onChange={setCustom} />
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="text-xs text-apex-muted">{savedCustom ? 'Pick "Custom" for a series above to race with this table.' : 'Save a table to make "Custom" available above.'}</span>
+                <Button size="sm" disabled={!customChanged || !!customPointsProblem(custom)} onClick={() => act((g) => setCustomPoints(g, custom), { success: 'Custom points table saved: it applies from next season.' })}>
+                  Save table
+                </Button>
               </div>
             </div>
           </div>

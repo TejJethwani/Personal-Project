@@ -1,10 +1,20 @@
-import { pointsSystemFor } from '../config/divisions';
+import { DIVISIONS, pointsTable, type PointsSystem } from '../config/divisions';
 import type { DivisionId, GameState, RaceResult, RaceResultEntry, StandingRow } from '../types';
 import { allTeams } from '../selectors';
+import { twistEffects } from '../season/twists';
+
+/** Cars on a full grid of this division. */
+export function gridSize(division: DivisionId): number {
+  return DIVISIONS[division].teams * 2;
+}
+
+/** The points table a division's championship races use (the career's selected system). */
+export function championshipPoints(state: Pick<GameState, 'settings'>, division: DivisionId, preset = state.settings.pointsPreset[division]): PointsSystem {
+  return pointsTable(preset, gridSize(division), state.settings.customPoints);
+}
 
 /** Points for a classified finishing position. */
-export function pointsForPosition(preset: string, position: number): number {
-  const sys = pointsSystemFor(preset);
+export function pointsForPosition(sys: PointsSystem, position: number): number {
   return sys.positions[position - 1] ?? 0;
 }
 
@@ -12,8 +22,7 @@ export function pointsForPosition(preset: string, position: number): number {
  * Assign championship points to a classified race. Only finishers score;
  * fastest-lap and pole bonuses follow the division's points system.
  */
-export function assignPoints(entries: RaceResultEntry[], preset: string, poleDriverId: string | null, fastestLapDriverId: string | null): void {
-  const sys = pointsSystemFor(preset);
+export function assignPoints(entries: RaceResultEntry[], sys: PointsSystem, poleDriverId: string | null, fastestLapDriverId: string | null): void {
   for (const e of entries) {
     e.points = e.status === 'finished' ? sys.positions[e.position - 1] ?? 0 : 0;
     e.fastestLap = e.driverId === fastestLapDriverId;
@@ -98,10 +107,23 @@ export function teamPosition(state: GameState, teamId: string): number {
   return constructors.findIndex((r) => r.id === teamId) + 1;
 }
 
+/** Races still to run, counting a double-points finale still to come twice. */
+function racesToScore(state: GameState, division: DivisionId): number {
+  const cal = state.calendars[division];
+  const remaining = cal.filter((e) => !e.completed).length;
+  const last = cal[cal.length - 1];
+  const finale = last && !last.completed && twistEffects(state, division).doublePointsRound === last.round ? 1 : 0;
+  return remaining + finale;
+}
+
 /** Maximum points still available to a single driver this season. */
 export function pointsRemaining(state: GameState, division: DivisionId): number {
-  const remaining = state.calendars[division].filter((e) => !e.completed).length;
-  const preset = state.settings.pointsPreset[division];
-  const sys = pointsSystemFor(preset);
-  return remaining * (sys.positions[0] + sys.fastestLap + sys.pole);
+  const sys = championshipPoints(state, division);
+  return racesToScore(state, division) * (sys.positions[0] + sys.fastestLap + sys.pole);
+}
+
+/** Maximum points still available to one team (its cars first and second in every race). */
+export function teamPointsRemaining(state: GameState, division: DivisionId): number {
+  const sys = championshipPoints(state, division);
+  return racesToScore(state, division) * ((sys.positions[0] ?? 0) + (sys.positions[1] ?? 0) + sys.fastestLap + sys.pole);
 }

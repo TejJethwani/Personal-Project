@@ -11,11 +11,41 @@ export interface PointsSystem {
   fastestLapTopN: number;
 }
 
+/** Expanded scoring: the top ten as below, then 20 down to 1 for the rest of the scoring places. */
+const EXPANDED_HEAD = [50, 45, 41, 38, 35, 32, 29, 27, 25, 22];
+
+/**
+ * The Expanded table for a field of this size: the top three-quarters of the
+ * grid score (P1-P30 of 40 cars: 50-45-41-38-35-32-29-27-25-22, then 20 to 1).
+ * Smaller grids keep the same top ten and a shorter tail down to 1 point.
+ */
+export function expandedTable(fieldSize: number): number[] {
+  const places = Math.max(1, Math.floor(fieldSize * 0.75));
+  if (places <= EXPANDED_HEAD.length) return EXPANDED_HEAD.slice(0, places);
+  const tail = places - EXPANDED_HEAD.length;
+  return [...EXPANDED_HEAD, ...Array.from({ length: tail }, (_, i) => (tail === 1 ? 20 : Math.round(20 - (i * 19) / (tail - 1))))];
+}
+
+/** Longest custom table: one value per place on a 40-car grid. */
+export const MAX_CUSTOM_PLACES = 40;
+
+/** Why a custom points table is not usable, or null when it is. */
+export function customPointsProblem(table: number[]): string | null {
+  if (!table.length) return 'Give at least one scoring position.';
+  if (table.length > MAX_CUSTOM_PLACES) return `At most ${MAX_CUSTOM_PLACES} scoring positions.`;
+  if (table.some((p) => !Number.isInteger(p) || p < 0 || p > 1000)) return 'Points must be whole numbers from 0 to 1000.';
+  if (table.some((p, i) => i > 0 && p > table[i - 1])) return 'A lower place cannot score more than the place above it.';
+  if (table[0] <= 0) return 'The winner must score.';
+  return null;
+}
+
 export const POINTS_PRESETS: Record<string, PointsSystem> = {
   club: { id: 'club', label: 'Club (10-8-6-5-4-3-2-1)', positions: [10, 8, 6, 5, 4, 3, 2, 1], pole: 1, fastestLap: 1, fastestLapTopN: 8 },
   junior: { id: 'junior', label: 'Junior (15-12-10-8-6-5-4-3-2-1)', positions: [15, 12, 10, 8, 6, 5, 4, 3, 2, 1], pole: 1, fastestLap: 1, fastestLapTopN: 10 },
   feeder: { id: 'feeder', label: 'Feeder (25-18-15… +2 pole, +1 FL)', positions: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], pole: 2, fastestLap: 1, fastestLapTopN: 10 },
-  modern: { id: 'modern', label: 'Modern (25-18-15-12-10-8-6-4-2-1)', positions: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 10 },
+  modern: { id: 'modern', label: 'Classic F1 (25-18-15-12-10-8-6-4-2-1)', positions: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 10 },
+  expanded: { id: 'expanded', label: 'Expanded (top three-quarters score, 50 for a win)', positions: expandedTable(40), pole: 0, fastestLap: 0, fastestLapTopN: 0 },
+  custom: { id: 'custom', label: 'Custom (your own table)', positions: [], pole: 0, fastestLap: 0, fastestLapTopN: 0 },
   modernFL: { id: 'modernFL', label: 'Modern + fastest lap (+1)', positions: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], pole: 0, fastestLap: 1, fastestLapTopN: 10 },
   h2h: { id: 'h2h', label: 'Head-to-head (4-3-2-1)', positions: [4, 3, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 4 },
   classic: { id: 'classic', label: 'Classic (10-6-4-3-2-1)', positions: [10, 6, 4, 3, 2, 1], pole: 0, fastestLap: 0, fastestLapTopN: 6 },
@@ -362,4 +392,23 @@ export function eventLaps(event: { division: DivisionId; laps?: number }, circui
 
 export function pointsSystemFor(preset: string): PointsSystem {
   return POINTS_PRESETS[preset] ?? POINTS_PRESETS.modern;
+}
+
+/** Short description of a resolved table: "Expanded: 50-45-41-38-35… top 30 score". */
+export function pointsSummary(sys: PointsSystem): string {
+  const head = sys.positions.slice(0, 5).join('-');
+  const extras = [sys.pole ? `+${sys.pole} pole` : '', sys.fastestLap ? `+${sys.fastestLap} fastest lap` : ''].filter(Boolean).join(', ');
+  return `${sys.label.split(' (')[0]}: ${head}${sys.positions.length > 5 ? '…' : ''} · top ${sys.positions.length} score${extras ? ` · ${extras}` : ''}`;
+}
+
+/**
+ * The table a race actually uses: Expanded sized to the grid, Custom from the
+ * career's own values, and never more scoring places than there are cars.
+ */
+export function pointsTable(preset: string, fieldSize: number, custom?: number[] | null): PointsSystem {
+  const base = pointsSystemFor(preset);
+  let positions = base.positions;
+  if (base.id === 'expanded') positions = expandedTable(fieldSize);
+  else if (base.id === 'custom') positions = custom && !customPointsProblem(custom) ? custom : POINTS_PRESETS.modern.positions;
+  return { ...base, positions: positions.slice(0, Math.max(1, fieldSize)) };
 }

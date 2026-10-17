@@ -7,7 +7,7 @@ import { DIVISIONS, type DivisionConfig } from './divisions';
  * Game-mode rules. Classic careers race the five Formula series as defined in
  * DIVISIONS. A European League career races the player's national association
  * instead: its leagues take over the division slots from the top (level 1 is
- * F1, level 2 is F2...) with full grids, one full race per gameweek and modern
+ * F1, level 2 is F2...) with full grids, one full race per gameweek and Expanded
  * points. The active rules are swapped in place so every system and page reads
  * the right values from DIVISIONS; switch with applyRuleset whenever a
  * different career becomes active.
@@ -75,7 +75,7 @@ export function europeanDivisionConfigs(assocId: string): Record<DivisionId, Div
       racePrize: [0.012, 0.0085, 0.0065, 0.005, 0.004, 0.003, 0.0024, 0.0018, 0.0012, 0.0008].map((f) => Math.round((f * budget * 8 * (league.teams / 10)) / races)),
       qualifyingSessions: quali.sessions,
       knockoutEliminations: quali.eliminations,
-      defaultPoints: 'modern',
+      defaultPoints: 'expanded',
       promotionSlots: upper ? promotionPlaces(upper.teams) : 0,
       relegationSlots: level < levels ? promotionPlaces(league.teams) : 0,
     };

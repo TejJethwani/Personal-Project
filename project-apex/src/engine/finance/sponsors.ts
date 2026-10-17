@@ -12,6 +12,7 @@ import type { DivisionId, GameState, SponsorDeal, SponsorExpectation, SponsorOff
 import { assertRule, clamp, roundMoney } from '../util';
 import { addNews } from '../news/news';
 import { postTransaction } from './ledger';
+import { championshipPoints, gridSize } from '../championship/standings';
 
 export const TIER_LABELS: Record<SponsorTier, string> = { title: 'Title Partner', major: 'Major Partner', minor: 'Official Supplier' };
 
@@ -62,20 +63,27 @@ function sponsorName(rng: Rng): { name: string; industry: string } {
   return { name: `${rng.pick(SPONSOR_PREFIXES)} ${rng.pick(ind.suffixes)}`, industry: ind.industry };
 }
 
-function expectationFor(rng: Rng, projected: number, risk: SponsorRisk, races: number): SponsorExpectation {
+/**
+ * A sponsor's target. `projected` is the expected constructors' position among
+ * `teams`; targets are pitched as for a ten-team field and scaled to the grid,
+ * and deeper points systems (more than half the cars scoring) ask for more
+ * points finishes.
+ */
+function expectationFor(rng: Rng, projected: number, teams: number, risk: SponsorRisk, races: number, scoringShare: number): SponsorExpectation {
   const roll = rng.next();
   const stretch = risk === 'safe' ? 1 : risk === 'standard' ? 0 : -1;
-  if (roll < 0.45 || projected > 7) {
-    return { type: 'constructorPosition', target: clamp(projected + stretch + (risk === 'safe' ? 1 : 0), 1, 10) };
+  const p10 = 1 + ((projected - 1) * 9) / Math.max(1, teams - 1);
+  if (roll < 0.45 || p10 > 7) {
+    return { type: 'constructorPosition', target: clamp(projected + stretch + (risk === 'safe' ? 1 : 0), 1, teams) };
   }
   if (roll < 0.7) {
-    const podiums = Math.max(1, Math.round(((8 - projected) / 7) * races * 0.5) - stretch);
+    const podiums = Math.max(1, Math.round(((8 - p10) / 7) * races * 0.5) - stretch);
     return { type: 'podiums', target: podiums };
   }
-  if (roll < 0.85 && projected <= 3) {
-    return { type: 'wins', target: Math.max(1, Math.round(((4 - projected) / 3) * races * 0.3) - Math.min(0, stretch)) };
+  if (roll < 0.85 && p10 <= 3) {
+    return { type: 'wins', target: Math.max(1, Math.round(((4 - p10) / 3) * races * 0.3) - Math.min(0, stretch)) };
   }
-  const pts = Math.max(2, Math.round(((11 - projected) / 10) * races * 1.2) - stretch * 2);
+  const pts = Math.max(2, Math.round(((11 - p10) / 10) * races * 1.2 * Math.max(1, scoringShare / 0.5)) - stretch * 2);
   return { type: 'pointsFinishes', target: Math.min(races * 2, pts) };
 }
 
@@ -109,8 +117,9 @@ export function generateSponsorOffer(state: GameState, team: Team, rng: Rng, tie
   const perRace = roundMoney(base * baseShare);
   const { name, industry } = sponsorName(rng);
   const projected = projectedPosition(state, team);
-  const expectation = expectationFor(rng, projected, risk, cfg.races);
-  const champPos = clamp(projected - (risk === 'highRisk' ? 1 : 0), 1, 10);
+  const scoringShare = championshipPoints(state, team.division).positions.length / gridSize(team.division);
+  const expectation = expectationFor(rng, projected, cfg.teams, risk, cfg.races, scoringShare);
+  const champPos = clamp(projected - (risk === 'highRisk' ? 1 : 0), 1, cfg.teams);
   const patience = Math.round(3 * DIFFICULTIES[state.settings.difficulty].sponsorPatience);
   return {
     id: nextId(state, 'sp'),

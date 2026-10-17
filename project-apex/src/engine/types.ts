@@ -538,6 +538,9 @@ export interface CalendarEvent {
 // European League mode
 // ---------------------------------------------------------------------------
 
+/** Points systems offered when a career is created ('default' keeps each series' own). */
+export type PointsChoice = 'default' | 'modern' | 'expanded' | 'custom';
+
 export type EuroCompetition = 'league' | 'cup' | 'leagueCup' | 'superCup' | 'CL' | 'EL' | 'ECL' | 'ESC';
 export type ContinentalCompetition = 'CL' | 'EL' | 'ECL';
 
@@ -1138,6 +1141,10 @@ export interface GameSettings {
   /** Points system preset per division (takes effect at next season start). */
   pointsPreset: Record<DivisionId, string>;
   pendingPointsPreset: Record<DivisionId, string> | null;
+  /** The career's own table for the 'custom' system (absent in older saves). */
+  customPoints?: number[];
+  /** Edited custom table, used from the next season. */
+  pendingCustomPoints?: number[] | null;
   autosave: boolean;
   defaultRaceSpeed: 1 | 5 | 20 | 60;
   autoSkipAiWeekends: boolean;
@@ -1302,4 +1309,6 @@ export interface NewCareerConfig {
   seed?: number;
   /** European League mode: the association the team enters. */
   european?: { assocId: string };
+  /** Championship scoring: the series' own default, Classic F1, Expanded or a custom table. */
+  points?: { system: PointsChoice; custom?: number[] };
 }

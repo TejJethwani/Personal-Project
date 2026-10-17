@@ -1,10 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, CloudRain, FastForward, Pause, Play, SkipForward, Thermometer } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { pointsSystemFor } from '@/engine/config/divisions';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { TIRE_TUNING } from '@/engine/config/tuning';
-import { divisionStandings } from '@/engine/championship/standings';
+import { championshipPoints, divisionStandings } from '@/engine/championship/standings';
 import { driverCode, driverName, driverShortName } from '@/engine/drivers/ratings';
 import { applyRaceCommand, fuelPerLap, type RaceCommand } from '@/engine/race/engine';
 import { allowedCompounds } from '@/engine/race/tires';
@@ -513,8 +512,7 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
 
 function LiveChampionship({ race, division }: { race: RaceState; division: RaceState['division'] }) {
   const game = useGame();
-  const preset = game.settings.pointsPreset[division];
-  const sys = pointsSystemFor(preset);
+  const sys = championshipPoints(game, division);
   const projected = useMemo(() => {
     const st = divisionStandings(game, division).drivers.map((r) => ({ id: r.id, teamId: r.teamId, points: r.points }));
     const map = new Map(st.map((r) => [r.id, r]));

@@ -418,6 +418,10 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
     state.settings.pointsPreset = state.settings.pendingPointsPreset;
     state.settings.pendingPointsPreset = null;
   }
+  if (state.settings.pendingCustomPoints) {
+    state.settings.customPoints = state.settings.pendingCustomPoints;
+    state.settings.pendingCustomPoints = null;
+  }
 
   const retirements = processContractsAndRetirements(state);
   hist.retirements = retirements;

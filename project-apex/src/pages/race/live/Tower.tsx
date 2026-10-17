@@ -2,6 +2,8 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, Swords } from 'lucide-react';
 import { driverCode } from '@/engine/drivers/ratings';
 import { liveBattles, livePoints, rejoinEstimate } from '@/engine/race/analysis';
+import { championshipPoints } from '@/engine/championship/standings';
+import { pointsTable } from '@/engine/config/divisions';
 import type { CalendarEvent, CarRaceState, Circuit, RaceState } from '@/engine/types';
 import { TireIcon } from '@/components/common';
 import { Badge, cn, Segmented } from '@/components/ui';
@@ -43,8 +45,8 @@ export function Tower({ race, event, circuit, mode, setMode, selected, onSelect,
   const leader = order[0];
   const leaderLap = race.lap > 0 && leader ? leader.lastLap : race.baseLapTime;
   const battling = new Set(liveBattles(race).flatMap((b) => [b.ahead.driverId, b.behind.driverId]));
-  const preset = event.pointsPreset ?? game.settings.pointsPreset[event.division];
-  const points = livePoints(race, preset);
+  const sys = event.pointsPreset ? pointsTable(event.pointsPreset, race.cars.length) : championshipPoints(game, event.division);
+  const points = livePoints(race, sys);
   const h2h = event.pointsPreset === 'h2h';
   const rejoinCar = rejoinFor ? race.cars.find((c) => c.driverId === rejoinFor && c.status === 'running') : null;
   const rejoin = rejoinCar && race.lap > 0 && !race.finished ? rejoinEstimate(race, rejoinCar, circuit) : null;
@@ -110,7 +112,7 @@ export function Tower({ race, event, circuit, mode, setMode, selected, onSelect,
                   <TireIcon compound={c.tire.compound} size={15} wear={c.tire.wear} />
                   <span className="num">{c.tire.age}</span>
                 </span>
-                <span className={cn('num text-right text-[10px]', pts > 0 ? 'text-emerald-300' : 'text-apex-dim')} title={h2h ? 'Race points (4-3-2-1)' : 'Points if the race ended now'}>
+                <span className={cn('num text-right text-[10px]', pts > 0 ? 'text-emerald-300' : 'text-apex-dim')} title={h2h ? 'Race points (4-3-2-1)' : `Points if the race ended now (${sys.label})`}>
                   {c.status === 'running' && pts > 0 ? `+${pts}` : ''}
                 </span>
               </motion.button>

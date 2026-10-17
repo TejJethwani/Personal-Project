@@ -1,4 +1,4 @@
-import { DIVISIONS, pointsSystemFor } from '../config/divisions';
+import { DIVISIONS, type PointsSystem } from '../config/divisions';
 import { TIRE_TUNING } from '../config/tuning';
 import type { CarRaceState, Circuit, GameState, RaceState, TireCompound } from '../types';
 import { fuelPerLap, type RaceCommand } from './engine';
@@ -125,8 +125,7 @@ export function weatherRadar(race: RaceState, laps = 8): RadarLap[] {
 }
 
 /** Championship points each running position would score if the race ended now. */
-export function livePoints(race: RaceState, preset: string): Map<string, number> {
-  const sys = pointsSystemFor(preset);
+export function livePoints(race: RaceState, sys: PointsSystem): Map<string, number> {
   const out = new Map<string, number>();
   running(race).forEach((c, i) => out.set(c.driverId, sys.positions[i] ?? 0));
   return out;

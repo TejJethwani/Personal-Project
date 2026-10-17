@@ -15,9 +15,11 @@ import { createWorld } from './world/generate';
 import { createEuroWorld } from './europe/world';
 import { ASSOCIATION_BY_ID } from './europe/data';
 import { ensureSeasonChallenges } from './season/challenges';
+import { applyPointsChoice } from './actions';
 
 export function createNewGame(config: NewCareerConfig): GameState {
   const state = config.european ? createEuroWorld(config) : createWorld(config);
+  if (config.points) applyPointsChoice(state, config.points);
   const team = playerTeam(state);
   setSeasonObjectives(state);
   ensureSeasonChallenges(state);

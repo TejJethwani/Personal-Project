@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeStandingsFromResults, divisionStandings, seasonResults } from '../championship/standings';
-import { DIVISIONS, POINTS_PRESETS } from '../config/divisions';
+import { championshipPoints, computeStandingsFromResults, divisionStandings, seasonResults } from '../championship/standings';
+import { DIVISIONS } from '../config/divisions';
 import { activeDivisions, applyRuleset, levelOfDivision } from '../config/ruleset';
 import { ASSOCIATIONS, ASSOCIATION_BY_ID, leagueWeekends } from '../europe/data';
 import { allocateEuropeanPlaces, CONTINENTAL_ORDER, leaguePhaseTable } from '../europe/continental';
@@ -32,7 +32,7 @@ describe('European League: world', () => {
         expect(teams.every((t) => !!t.clubId)).toBe(true);
         // One race per gameweek.
         expect(s.calendars[d]).toHaveLength(leagueWeekends(assoc.levels[level - 1].teams));
-        expect(s.settings.pointsPreset[d]).toBe('modern');
+        expect(s.settings.pointsPreset[d]).toBe('expanded');
       }
       // The player starts at the bottom of the pyramid.
       expect(levelOfDivision(playerTeam(s).division)).toBe(assoc.levels.length);
@@ -115,9 +115,10 @@ describe('European League: a full season', () => {
     expect(e.cups[`ENG-cup`].entrants).toHaveLength(60);
   });
 
-  it('scores each league race once, one race per gameweek', () => {
-    const sys = POINTS_PRESETS.modern;
+  it('scores each league race once, one race per gameweek, with Expanded points', () => {
     for (const d of activeDivisions(s)) {
+      const sys = championshipPoints(s, d);
+      expect(sys.id).toBe('expanded');
       const events = s.calendars[d];
       expect(new Set(events.map((e) => e.week)).size).toBe(events.length);
       const results = seasonResults(s, d);

@@ -1,7 +1,7 @@
 /** Small validated player actions used by the UI. */
-import { POINTS_PRESETS } from './config/divisions';
+import { customPointsProblem, POINTS_PRESETS } from './config/divisions';
 import { playerTeam } from './selectors';
-import type { Difficulty, DivisionId, GameSettings, TrainingFocus, TrainingIntensity } from './types';
+import type { Difficulty, DivisionId, GameSettings, NewCareerConfig, TrainingFocus, TrainingIntensity } from './types';
 import type { GameState } from './types';
 import { assertRule } from './util';
 
@@ -25,10 +25,31 @@ export function setDifficulty(state: GameState, difficulty: Difficulty): void {
 }
 
 export function setPointsPreset(state: GameState, division: DivisionId, preset: string): void {
-  assertRule(!!POINTS_PRESETS[preset], 'Unknown points system.');
+  assertRule(!!POINTS_PRESETS[preset] && preset !== 'h2h', 'Unknown points system.');
+  assertRule(preset !== 'custom' || !!(state.settings.pendingCustomPoints ?? state.settings.customPoints), 'Set up your custom points table first.');
   const pending = { ...(state.settings.pendingPointsPreset ?? state.settings.pointsPreset) };
   pending[division] = preset;
   state.settings.pendingPointsPreset = pending;
+}
+
+/** Edit the career's custom points table; like any scoring change it applies from next season. */
+export function setCustomPoints(state: GameState, table: number[]): void {
+  const clean = table.map((p) => Math.round(Number(p)));
+  const problem = customPointsProblem(clean);
+  assertRule(!problem, problem ?? '');
+  state.settings.pendingCustomPoints = clean;
+}
+
+/** Scoring chosen when the career is created: applies to every championship straight away. */
+export function applyPointsChoice(state: GameState, choice: NonNullable<NewCareerConfig['points']>): void {
+  if (choice.system === 'custom') {
+    const clean = (choice.custom ?? []).map((p) => Math.round(Number(p)));
+    const problem = customPointsProblem(clean);
+    assertRule(!problem, problem ?? '');
+    state.settings.customPoints = clean;
+  }
+  if (choice.system === 'default') return;
+  for (const d of Object.keys(state.settings.pointsPreset) as DivisionId[]) state.settings.pointsPreset[d] = choice.system;
 }
 
 export function updateSettings(state: GameState, patch: Partial<Pick<GameSettings, 'autosave' | 'defaultRaceSpeed' | 'autoSkipAiWeekends'>>): void {
