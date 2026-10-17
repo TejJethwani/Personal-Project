@@ -27,7 +27,7 @@ import type {
 import { DIVISION_ORDER } from '../types';
 import { clamp, roundMoney } from '../util';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const START_YEAR = 2027;
 
 export function emptyStats(): Team['stats'] {

@@ -33,12 +33,11 @@ export function RaceComplete() {
   const raceTx = team.ledger.filter((t) => t.season === game.season && t.week === game.week && (t.category === 'sponsor' || t.category === 'raceBonus' || t.category === 'repairs' || t.category === 'operations' || t.category === 'driverFunding'));
   const net = raceTx.reduce((s, t) => s + t.amount, 0);
   const h2h = !!event.euro && event.euro.competition !== 'league';
-  // The next race this week (race 2, an extra race, a cup tie...) starts straight after this one.
+  // The next race this week (the league race after a midweek tie, an extra race...) starts straight after this one.
   const nextUp = (() => {
     if (!game.europe) return null;
     const after = nextPlayerEvent(game);
     if (!after || after.id === event.id || after.week > game.week) return null;
-    if (after.euro?.raceNo === 2 && after.euro.pairedEventId === event.id) return 'Race 2';
     return after.euro?.label ?? 'next race';
   })();
   const cont = () => {

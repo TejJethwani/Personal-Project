@@ -7,7 +7,7 @@ import { DIVISIONS, type DivisionConfig } from './divisions';
  * Game-mode rules. Classic careers race the five Formula series as defined in
  * DIVISIONS. A European League career races the player's national association
  * instead: its leagues take over the division slots from the top (level 1 is
- * F1, level 2 is F2...) with full grids, two races per weekend and modern
+ * F1, level 2 is F2...) with full grids, one full race per gameweek and modern
  * points. The active rules are swapped in place so every system and page reads
  * the right values from DIVISIONS; switch with applyRuleset whenever a
  * different career becomes active.
@@ -58,7 +58,7 @@ export function europeanDivisionConfigs(assocId: string): Record<DivisionId, Div
     const level = i + 1;
     const d = divisionForLevel(level);
     const base = out[d];
-    const races = leagueWeekends(league.teams) * 2;
+    const races = leagueWeekends(league.teams);
     const budget = base.typicalBudget;
     const quali = qualifyingFormat(league.teams * 2);
     const upper = i > 0 ? assoc.levels[i - 1] : null;

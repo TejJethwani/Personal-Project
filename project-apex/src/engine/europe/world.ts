@@ -66,10 +66,9 @@ function syntheticAssocCoef(rng: Rng, rank: number): number[] {
   return Array.from({ length: 5 }, () => Math.round(base * (1 + rng.normal(0, 0.12)) * 100) / 100);
 }
 
-export function emptyEurope(assocId: string, race2Grid: EuropeState['race2Grid']): EuropeState {
+export function emptyEurope(assocId: string): EuropeState {
   return {
     playerAssocId: assocId,
-    race2Grid,
     clubs: {},
     leagues: {},
     associations: {},
@@ -89,7 +88,7 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
   const choice = config.european;
   if (!choice || !ASSOCIATION_BY_ID[choice.assocId]) throw new Error('Choose an association for a European League career.');
   const seed = (config.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
-  const europe = emptyEurope(choice.assocId, choice.race2Grid);
+  const europe = emptyEurope(choice.assocId);
   applyRuleset({ mode: 'european', europe });
   const rng = Rng.from(seed, 'euroWorld');
   const state = createBaseState(config, seed);

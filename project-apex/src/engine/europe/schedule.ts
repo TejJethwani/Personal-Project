@@ -6,8 +6,8 @@ import type { CalendarEvent, Circuit, DivisionId, GameState } from '../types';
 import { DIVISION_ORDER } from '../types';
 
 /**
- * The European League season. Domestic league weekends (two races each) are
- * spread through the year; continental matchdays, cup rounds and super cups
+ * The European League season. Domestic league gameweeks (one full race each)
+ * are spread through the year; continental matchdays, cup rounds and super cups
  * fill the weeks in between, the way midweek fixtures do in football.
  */
 export const EURO_WEEKS = {
@@ -68,13 +68,12 @@ export function leagueVenues(seed: number, season: number, assocId: string, leve
   return chosen.sort((a, b) => (CIRCUIT_ORDER[a.id] ?? 0.5) - (CIRCUIT_ORDER[b.id] ?? 0.5));
 }
 
-/** Race distance of a league weekend's first and second race. */
-export function leagueRaceLaps(division: DivisionId, circuitLaps: number, raceNo: 1 | 2): number {
-  const full = raceLapsFor(division, circuitLaps);
-  return Math.max(8, Math.round(full * (raceNo === 1 ? 0.75 : 0.55)));
+/** Race distance of a league gameweek: the division's full race distance. */
+export function leagueRaceLaps(division: DivisionId, circuitLaps: number): number {
+  return raceLapsFor(division, circuitLaps);
 }
 
-/** The player's association: every league weekend as two calendar events. */
+/** The player's association: one calendar event per league gameweek. */
 export function buildEuroCalendars(state: GameState, season: number): Record<DivisionId, CalendarEvent[]> {
   const out = Object.fromEntries(DIVISION_ORDER.map((d) => [d, [] as CalendarEvent[]])) as Record<DivisionId, CalendarEvent[]>;
   const europe = state.europe!;
@@ -85,26 +84,16 @@ export function buildEuroCalendars(state: GameState, season: number): Record<Div
     const venues = leagueVenues(state.seed, season, europe.playerAssocId, level, league.weeks.length, circuits);
     league.weeks.forEach((week, i) => {
       const circuit = venues[i];
-      const weekendId = `s${season}-${division}-w${i + 1}`;
-      for (const raceNo of [1, 2] as const) {
-        out[division].push({
-          id: `${weekendId}-r${raceNo}`,
-          division,
-          round: i * 2 + raceNo,
-          circuitId: circuit.id,
-          week,
-          completed: false,
-          laps: leagueRaceLaps(division, circuit.laps, raceNo),
-          euro: {
-            competition: 'league',
-            label: `${DIVISIONS[division].name} · Round ${i + 1}, Race ${raceNo}`,
-            raceNo,
-            weekendId,
-            pairedEventId: raceNo === 2 ? `${weekendId}-r1` : `${weekendId}-r2`,
-            gridRule: raceNo === 2 ? europe.race2Grid : undefined,
-          },
-        });
-      }
+      out[division].push({
+        id: `s${season}-${division}-gw${i + 1}`,
+        division,
+        round: i + 1,
+        circuitId: circuit.id,
+        week,
+        completed: false,
+        laps: leagueRaceLaps(division, circuit.laps),
+        euro: { competition: 'league', label: `${DIVISIONS[division].name} · Gameweek ${i + 1}` },
+      });
     });
   }
   return out;

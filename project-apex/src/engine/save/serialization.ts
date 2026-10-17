@@ -3,6 +3,7 @@ import type { GameState } from '../types';
 import { validateState } from '../validation';
 import { SAVE_VERSION } from '../world/generate';
 import { hashString } from '../rng';
+import { migrateState } from './migrate';
 
 export const SAVE_FORMAT = 'project-apex-save';
 
@@ -69,15 +70,11 @@ export function deserializeGame(text: string): GameState {
   }
   if (!parsed || parsed.format !== SAVE_FORMAT) throw new SaveFormatError('This is not a PROJECT APEX save file.');
   if (typeof parsed.version !== 'number' || parsed.version > SAVE_VERSION) throw new SaveFormatError(`Unsupported save version ${parsed.version}.`);
-  const state = migrate(parsed.state, parsed.version);
+  // Verify the save exactly as written, then bring it up to date.
   const sum = checksumOf(JSON.stringify(parsed.state));
   if (sum !== parsed.checksum) throw new SaveFormatError('The save file is corrupted or has been modified (checksum mismatch).');
+  const state = migrateState(parsed.state, parsed.version);
   const problems = validateState(state);
   if (problems.length) throw new SaveFormatError(`The save failed validation: ${problems.slice(0, 3).join('; ')}`);
-  return state;
-}
-
-function migrate(state: GameState, _fromVersion: number): GameState {
-  // Version 1 is the first public format; future migrations go here.
   return state;
 }

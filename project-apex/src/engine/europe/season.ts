@@ -8,6 +8,8 @@ import { DIVISIONS } from '../config/divisions';
 import { progressCups, startCups } from './cups';
 import { clearGuests, competitionName, onPlayerFixtureRace, playBackgroundFixtures, playerClubId, stageLabel } from './fixtures';
 import { liteSeasonEnd, liteTable, playLiteLeagueWeek } from './leagues';
+import { ASSOCIATION_BY_ID, leagueWeekends } from './data';
+import { leagueWeeks } from './schedule';
 
 /**
  * European League season orchestration: what happens at the start of the
@@ -20,7 +22,8 @@ export function nextPlayerEvent(state: GameState): CalendarEvent | undefined {
   const league = state.calendars[team.division].filter((e) => !e.completed);
   if (!isEuropean(state) || !state.europe) return league[0];
   const euro = state.europe.events.filter((e) => !e.completed && e.teamIds?.includes(team.id));
-  const order = (e: CalendarEvent) => (e.euro?.competition === 'league' || !e.euro ? 1 + (e.euro?.raceNo ?? 1) : state.europe!.events.indexOf(e) / 100000);
+  // Midweek cup and European fixtures run before the week's league race.
+  const order = (e: CalendarEvent) => (e.euro?.competition === 'league' || !e.euro ? 1 : state.europe!.events.indexOf(e) / 100000);
   return [...league, ...euro].sort((a, b) => a.week - b.week || order(a) - order(b))[0];
 }
 
@@ -177,6 +180,10 @@ export function euroOffseason(state: GameState): void {
       club.short = team.shortName;
       club.colors = { ...team.colors };
     }
+  }
+  // Gameweeks are re-planned every season (older careers move to one race per gameweek here).
+  for (const league of Object.values(europe.leagues)) {
+    league.weeks = leagueWeeks(leagueWeekends(ASSOCIATION_BY_ID[league.assocId]?.levels[league.level - 1]?.teams ?? league.clubIds.length));
   }
   clearGuests(state);
   europe.fixtures = {};

@@ -5,9 +5,9 @@ import { DIFFICULTIES, FINANCIAL_STARTS, PHILOSOPHIES } from '@/engine/config/di
 import { DIVISIONS } from '@/engine/config/divisions';
 import { NATIONALITIES } from '@/engine/data/names';
 import { divisionForLevel, europeanDivisionConfigs } from '@/engine/config/ruleset';
-import { ASSOCIATIONS, ASSOCIATION_BY_ID, leagueWeekends } from '@/engine/europe/data';
+import { ASSOCIATIONS, ASSOCIATION_BY_ID } from '@/engine/europe/data';
 import { berthsForRank } from '@/engine/europe/continental';
-import type { Difficulty, FinancialStart, LiveryPattern, NewCareerConfig, Philosophy, Race2GridRule } from '@/engine/types';
+import type { Difficulty, FinancialStart, LiveryPattern, NewCareerConfig, Philosophy } from '@/engine/types';
 import { CarLivery } from '@/components/common';
 import { Button, cn, Field } from '@/components/ui';
 import { money } from '@/lib/format';
@@ -25,11 +25,6 @@ const LIVERIES: { id: LiveryPattern; label: string }[] = [
 
 const STEPS = ['Mode', 'Identity', 'Philosophy', 'Challenge', 'Confirm'];
 
-const GRID_RULES: { id: Race2GridRule; label: string; text: string }[] = [
-  { id: 'qualifying', label: 'Separate qualifying', text: 'Race 2 has its own qualifying session.' },
-  { id: 'reverseTop10', label: 'Reverse top ten', text: 'Race 1 result with the top ten reversed.' },
-  { id: 'sameGrid', label: 'Same grid', text: 'Race 2 starts from the race 1 grid.' },
-];
 
 function placesText(rank: number): string {
   const b = berthsForRank(rank);
@@ -64,18 +59,17 @@ export function NewCareer() {
   const [seedText, setSeedText] = useState('');
   const [mode, setMode] = useState<'classic' | 'european'>('classic');
   const [assocId, setAssocId] = useState('ENG');
-  const [race2Grid, setRace2Grid] = useState<Race2GridRule>('qualifying');
   const set = <K extends keyof NewCareerConfig>(k: K, v: NewCareerConfig[K]) => setCfg((c) => ({ ...c, [k]: v }));
   const valid = cfg.teamName.trim().length >= 3 && cfg.shortName.trim().length >= 2 && cfg.principalName.trim().length >= 2;
   const assoc = ASSOCIATION_BY_ID[assocId];
   const startLevel = assoc.levels.length;
   const startConfig = mode === 'european' ? europeanDivisionConfigs(assocId)[divisionForLevel(startLevel)] : DIVISIONS.F5;
   const startingCash = startConfig.typicalBudget * 0.42 * FINANCIAL_STARTS[cfg.financialStart].cashFactor * DIFFICULTIES[cfg.difficulty].startingCash;
-  const startText = mode === 'european' ? `${startConfig.name} (${leagueWeekends(assoc.levels[startLevel - 1].teams)} weekends, ${startConfig.races} races)` : 'Formula 5 (8 races)';
+  const startText = mode === 'european' ? `${startConfig.name} (${startConfig.races} gameweeks, one race each)` : 'Formula 5 (8 races)';
 
   const start = () => {
     const seed = seedText.trim() ? Number.parseInt(seedText.trim(), 10) : undefined;
-    newGame({ ...cfg, seed: Number.isFinite(seed) ? seed : undefined, ...(mode === 'european' ? { european: { assocId, race2Grid } } : {}) });
+    newGame({ ...cfg, seed: Number.isFinite(seed) ? seed : undefined, ...(mode === 'european' ? { european: { assocId } } : {}) });
   };
 
   return (
@@ -138,19 +132,8 @@ export function NewCareer() {
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <div className="label mb-2">Race 2 starting grid</div>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      {GRID_RULES.map((r) => (
-                        <button key={r.id} onClick={() => setRace2Grid(r.id)} className={cn('rounded-lg border p-3 text-left text-xs', race2Grid === r.id ? 'border-sky-400 bg-sky-400/[0.08]' : 'border-apex-line hover:border-apex-line2')}>
-                          <div className="font-semibold text-white">{r.label}</div>
-                          <div className="text-apex-muted">{r.text}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                   <p className="rounded-lg border border-apex-line bg-apex-bg p-3 text-xs text-apex-muted">
-                    {assoc.name}: you enter the {assoc.levels[startLevel - 1].name}, the bottom of {startLevel} divisions. Both races of every weekend score full points (25-18-15-12-10-8-6-4-2-1), and the teams' championship decides titles, promotion, relegation and European places. Clubs from other countries race on a quick statistical model. Every race your team takes part in runs on the full race engine. European League saves are kept apart from Classic saves.
+                    {assoc.name}: you enter the {assoc.levels[startLevel - 1].name}, the bottom of {startLevel} divisions. Every gameweek is one full-distance race, and the teams' championship decides titles, promotion, relegation and European places. Clubs from other countries race on a quick statistical model. Every race your team takes part in runs on the full race engine. European League saves are kept apart from Classic saves.
                   </p>
                 </>
               )}

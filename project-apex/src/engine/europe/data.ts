@@ -94,13 +94,13 @@ const RAW: Omit<AssociationSeed, 'pace'>[] = [
 export const ASSOCIATIONS: AssociationSeed[] = RAW.map((a, i) => ({ ...a, pace: paceFor(i + 1) }));
 export const ASSOCIATION_BY_ID: Record<string, AssociationSeed> = Object.fromEntries(ASSOCIATIONS.map((a) => [a.id, a]));
 
-/** Weekends of two races a domestic league runs, by number of clubs. */
+/** Gameweeks (one race each) a domestic league runs, by number of clubs. */
 export function leagueWeekends(teams: number): number {
-  if (teams >= 20) return 14;
-  if (teams >= 18) return 13;
-  if (teams >= 16) return 12;
-  if (teams >= 14) return 11;
-  return 10;
+  if (teams >= 20) return 20;
+  if (teams >= 18) return 18;
+  if (teams >= 16) return 16;
+  if (teams >= 14) return 14;
+  return 12;
 }
 
 /** Clubs promoted (and relegated) between two levels each season. */

@@ -1,6 +1,6 @@
 import { Download, Palmtree, Save, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { renameTeam, setDifficulty, setPointsPreset, setRace2Grid, updateSettings } from '@/engine/actions';
+import { renameTeam, setDifficulty, setPointsPreset, updateSettings } from '@/engine/actions';
 import { activeDivisions } from '@/engine/config/ruleset';
 import { assistantManage } from '@/engine/ai/assistant';
 import { DIFFICULTIES } from '@/engine/config/difficulty';
@@ -8,7 +8,7 @@ import { DIVISIONS, POINTS_PRESETS } from '@/engine/config/divisions';
 import { autoplayPlayerWeekend } from '@/engine/game';
 import { advanceBlocker, advanceWeek, finishWeekendAndContinue } from '@/engine/season/advance';
 import { playerTeam } from '@/engine/selectors';
-import type { Difficulty, GameState, Race2GridRule } from '@/engine/types';
+import type { Difficulty, GameState } from '@/engine/types';
 import { Badge, Button, Field, Panel, SectionTitle, Segmented, Select, Toggle } from '@/components/ui';
 import { deleteSlot, exportSave, importSave, listSaves, loadFromSlot, manualSlotsFor, saveToSlot, type SaveSummary } from '@/store/persistence';
 import { useGame, useStore } from '@/store/gameStore';
@@ -78,19 +78,6 @@ export function SettingsPage() {
                 ))}
               </div>
             </div>
-            {game.europe && (
-              <Field label="Race 2 starting grid" hint="Both races of a weekend score full points. Changes apply to every second race still to run.">
-                <Select<Race2GridRule>
-                  value={game.europe.race2Grid}
-                  onChange={(v) => act((g) => setRace2Grid(g, v), { success: 'Race 2 grid rule updated.' })}
-                  options={[
-                    { value: 'qualifying', label: 'Its own qualifying session' },
-                    { value: 'reverseTop10', label: 'Race 1 result, top ten reversed' },
-                    { value: 'sameGrid', label: 'Same grid as race 1' },
-                  ]}
-                />
-              </Field>
-            )}
           </div>
         </Panel>
         <Panel title="Simulation">

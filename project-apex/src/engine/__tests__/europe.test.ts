@@ -15,7 +15,7 @@ import { validateState } from '../validation';
 import { makeGame, playOffseason, playSeason } from './helpers';
 import { autoplayPlayerWeekend } from '../game';
 
-const euro = (assocId: string, seed = 77, race2Grid: 'qualifying' | 'reverseTop10' | 'sameGrid' = 'qualifying') => makeGame(seed, { european: { assocId, race2Grid } });
+const euro = (assocId: string, seed = 77) => makeGame(seed, { european: { assocId } });
 
 describe('European League: world', () => {
   for (const assocId of ['ENG', 'TUR', 'MLT']) {
@@ -30,8 +30,8 @@ describe('European League: world', () => {
         const teams = Object.values(s.teams).filter((t) => t.division === d && !t.guest);
         expect(teams).toHaveLength(assoc.levels[level - 1].teams);
         expect(teams.every((t) => !!t.clubId)).toBe(true);
-        // Two races per weekend, F1-style points.
-        expect(s.calendars[d]).toHaveLength(leagueWeekends(assoc.levels[level - 1].teams) * 2);
+        // One race per gameweek.
+        expect(s.calendars[d]).toHaveLength(leagueWeekends(assoc.levels[level - 1].teams));
         expect(s.settings.pointsPreset[d]).toBe('modern');
       }
       // The player starts at the bottom of the pyramid.
@@ -78,7 +78,7 @@ describe('European League: places in Europe', () => {
 describe('European League: a full season', () => {
   let s: GameState;
   it('plays every competition to a finish', () => {
-    s = euro('ENG', 2031, 'reverseTop10');
+    s = euro('ENG', 2031);
     playSeason(s, { validate: false });
     expect(s.phase).toBe('seasonReview');
     expect(validateState(s)).toEqual([]);
@@ -115,14 +115,11 @@ describe('European League: a full season', () => {
     expect(e.cups[`ENG-cup`].entrants).toHaveLength(60);
   });
 
-  it('scores each league race once with F1 points and two races per weekend', () => {
+  it('scores each league race once, one race per gameweek', () => {
     const sys = POINTS_PRESETS.modern;
     for (const d of activeDivisions(s)) {
       const events = s.calendars[d];
-      for (let i = 0; i < events.length; i += 2) {
-        expect(events[i].week).toBe(events[i + 1].week);
-        expect(events[i].euro?.weekendId).toBe(events[i + 1].euro?.weekendId);
-      }
+      expect(new Set(events.map((e) => e.week)).size).toBe(events.length);
       const results = seasonResults(s, d);
       expect(results).toHaveLength(events.length);
       for (const r of results) {
@@ -138,16 +135,6 @@ describe('European League: a full season', () => {
     }
   });
 
-  it('lines race 2 up on the race 1 result with the top ten reversed', () => {
-    const d = activeDivisions(s).find((x) => x !== playerTeam(s).division)!;
-    const events = s.calendars[d];
-    const r1 = s.results[events[0].id];
-    const r2 = s.results[events[1].id];
-    const order = r1.entries.map((x) => x.driverId);
-    const expected = [...order.slice(0, 10).reverse(), ...order.slice(10)];
-    const grid = [...r2.entries].sort((a, b) => a.grid - b.grid).map((x) => x.driverId);
-    expect(grid.slice(0, 10)).toEqual(expected.filter((id) => grid.includes(id)).slice(0, 10));
-  });
 
   it('rolls over: coefficients, holders, promotion and relegation, no guests left', () => {
     const before = Object.fromEntries(Object.values(s.europe!.clubs).map((c) => [c.id, c.level]));
@@ -243,7 +230,7 @@ describe('European League: saves and determinism', () => {
 
 describe('European League: multi-season stress', () => {
   it('stays valid over three seasons', () => {
-    const s = euro('BEL', 8080, 'sameGrid');
+    const s = euro('BEL', 8080);
     for (let season = 0; season < 3; season++) {
       playSeason(s, { validate: false });
       expect(s.phase).toBe('seasonReview');

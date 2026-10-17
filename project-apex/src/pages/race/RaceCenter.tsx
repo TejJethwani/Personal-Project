@@ -94,6 +94,7 @@ export function RaceCenter() {
           <div className="flex items-center gap-2">
             <DivisionBadge division={event.division} />
             <span className="label">{event.euro ? `${event.euro.label} · Week ${event.week}` : `Round ${event.round} · Week ${event.week}`}</span>
+            {event.euro && event.euro.competition !== 'league' && <Badge tone="blue">Midweek fixture</Badge>}
             {weekend.phase === 'race' && <Badge tone="solid">Live</Badge>}
           </div>
           <h1 className="font-display text-3xl font-black uppercase">{circuit.name}</h1>

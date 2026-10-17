@@ -27,7 +27,7 @@ describe('European League saves', () => {
   it('live in their own slots and never overwrite a Classic career', async () => {
     _resetDbForTests();
     const classic = makeGame(901);
-    const euro = makeGame(902, { european: { assocId: 'ITA', race2Grid: 'qualifying' } });
+    const euro = makeGame(902, { european: { assocId: 'ITA' } });
     expect(autosaveSlotFor(classic)).toBe(AUTOSAVE_SLOT);
     expect(autosaveSlotFor(euro)).toBe(EURO_AUTOSAVE_SLOT);
     expect(manualSlotsFor(classic)).toEqual(MANUAL_SLOTS);

@@ -540,17 +540,10 @@ export interface CalendarEvent {
 
 export type EuroCompetition = 'league' | 'cup' | 'leagueCup' | 'superCup' | 'CL' | 'EL' | 'ECL' | 'ESC';
 export type ContinentalCompetition = 'CL' | 'EL' | 'ECL';
-/** How the second race of a domestic weekend lines up. */
-export type Race2GridRule = 'qualifying' | 'reverseTop10' | 'sameGrid';
 
 export interface EuroEventMeta {
   competition: EuroCompetition;
   label: string;
-  /** League weekends: first or second race, and the pair they belong to. */
-  raceNo?: 1 | 2;
-  weekendId?: string;
-  pairedEventId?: string;
-  gridRule?: Race2GridRule;
   /** Head-to-head races: the fixture this race decides. */
   fixtureId?: string;
 }
@@ -594,7 +587,7 @@ export interface EuroLeague {
   name: string;
   short: string;
   clubIds: string[];
-  /** Weeks of the season's race weekends (two races each). */
+  /** Weeks of the season's gameweeks (one league race each). */
   weeks: number[];
   /** Standings of leagues run by the quick model; full leagues use the race calendar. */
   standings: Record<string, LiteStandingRow>;
@@ -703,7 +696,6 @@ export interface EuroSeasonHistory {
 
 export interface EuropeState {
   playerAssocId: string;
-  race2Grid: Race2GridRule;
   clubs: Record<string, EuroClub>;
   leagues: Record<string, EuroLeague>;
   associations: Record<string, EuroAssociationState>;
@@ -717,7 +709,7 @@ export interface EuropeState {
   guests: Record<string, string>;
   titleHolders: Record<'CL' | 'EL' | 'ECL', string | null>;
   history: EuroSeasonHistory[];
-  /** Cars of the second race keep the first race's setup work. */
+  /** A tie's extra race keeps the setup work of the deciding leg run just before it. */
   carry: { weekendId: string; setupQuality: Record<string, number>; tireKnowledge: number } | null;
 }
 
@@ -1308,6 +1300,6 @@ export interface NewCareerConfig {
   difficulty: Difficulty;
   financialStart: FinancialStart;
   seed?: number;
-  /** European League mode: the association the team enters and the race 2 grid rule. */
-  european?: { assocId: string; race2Grid: Race2GridRule };
+  /** European League mode: the association the team enters. */
+  european?: { assocId: string };
 }

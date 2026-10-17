@@ -29,7 +29,7 @@ function emptyRow(id: string, teamId?: string): StandingRow {
 /** Count-back comparison: points, then wins, then seconds, thirds... */
 export function compareRows(a: StandingRow, b: StandingRow): number {
   if (b.points !== a.points) return b.points - a.points;
-  for (let p = 1; p <= 25; p++) {
+  for (let p = 1; p <= 60; p++) {
     const ca = a.positions.filter((x) => x === p).length;
     const cb = b.positions.filter((x) => x === p).length;
     if (cb !== ca) return cb - ca;

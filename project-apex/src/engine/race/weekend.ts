@@ -192,7 +192,7 @@ export function startPlayerWeekend(state: GameState, eventId: string): WeekendSt
   }
   state.weekend = weekend;
   state.phase = 'weekend';
-  // A second race of the same weekend (or an extra race) keeps the setup work already done.
+  // A knockout tie's extra race, run straight after the deciding leg, keeps the setup work already done.
   const carry = state.europe?.carry;
   const carryKey = weekendCarryKey(state, event);
   if (carry && carryKey && carry.weekendId === carryKey) {
@@ -204,47 +204,14 @@ export function startPlayerWeekend(state: GameState, eventId: string): WeekendSt
     }
     weekend.practice.tireKnowledge = carry.tireKnowledge;
     weekend.phase = 'qualifying';
-    const grid = race2Grid(state, event);
-    if (grid) {
-      weekend.qualifying.result = { sessions: 0, entries: grid, wet: false };
-      enterRaceSetup(state, weekend, event);
-    }
   }
   return weekend;
 }
 
-/** Key linking the races of one weekend (or a knockout tie's extra race) for carried-over setups. */
+/** Key linking a knockout tie's deciding leg and its extra race at the same track. */
 function weekendCarryKey(state: GameState, event: CalendarEvent): string | null {
-  if (event.euro?.weekendId) return event.euro.weekendId;
   const fx = event.euro?.fixtureId ? state.europe?.fixtures[event.euro.fixtureId] : null;
-  // Only an extra race run straight after the deciding leg, at the same track, carries over.
   return fx?.tieId ? `${fx.tieId}:${event.week}:${event.circuitId}` : null;
-}
-
-/**
- * Starting order of a weekend's second race when it does not run its own
- * qualifying: the first race's grid again, or its result with the top ten
- * reversed. Drivers new to the weekend start from the back.
- */
-export function race2Grid(state: GameState, event: CalendarEvent): QualifyingEntry[] | null {
-  const rule = event.euro?.gridRule;
-  if (event.euro?.raceNo !== 2 || !rule || rule === 'qualifying') return null;
-  const first = event.euro.pairedEventId ? state.results[event.euro.pairedEventId] : null;
-  if (!first) return null;
-  const participants = participantsFor(state, event);
-  const present = new Set(participants.map((p) => p.driverId));
-  let order: string[];
-  if (rule === 'sameGrid') order = [...first.entries].sort((a, b) => a.grid - b.grid).map((e) => e.driverId);
-  else {
-    const finish = first.entries.map((e) => e.driverId);
-    order = [...finish.slice(0, 10).reverse(), ...finish.slice(10)];
-  }
-  order = order.filter((id) => present.has(id));
-  for (const p of participants) if (!order.includes(p.driverId)) order.push(p.driverId);
-  const best = new Map(first.qualifying.map((q) => [q.driverId, q.bestLap]));
-  const team = new Map(participants.map((p) => [p.driverId, p.teamId]));
-  const note = rule === 'sameGrid' ? 'Race 1 grid' : 'Race 1 result, top ten reversed';
-  return order.map((driverId, i) => ({ driverId, teamId: team.get(driverId)!, position: i + 1, bestLap: best.get(driverId) ?? null, sessionTimes: [], eliminatedIn: null, sectors: null, gridPenalty: 0, grid: i + 1, note }));
 }
 
 /**
@@ -508,8 +475,7 @@ export function simulateEventRace(state: GameState, event: CalendarEvent): { res
     return { driverId: p.driverId, teamId: p.teamId, setupQuality: pseudoWeekend.setupQuality[p.driverId], risk };
   });
   const sizes = sessionSizes(event.division, entrants.length);
-  const grid = race2Grid(state, event);
-  const quali = grid ? { sessions: 0, entries: grid, wet: false } : buildQualifying(state, event, entrants, sizes.length);
+  const quali = buildQualifying(state, event, entrants, sizes.length);
   const race = createRaceState(state, event, buildEntrants(state, event, quali.entries, pseudoWeekend, true));
   runRaceToEnd(state, race);
   return { result: classify(state, event, race, quali.entries), race };
