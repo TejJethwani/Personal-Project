@@ -348,7 +348,11 @@ export const divisionByTier = (tier: number): DivisionId => DIVISION_ORDER[Math.
 
 export function raceLapsFor(division: DivisionId, circuitLaps: number): number {
   const cfg = DIVISIONS[division];
-  return Math.max(cfg.minLaps, Math.min(cfg.maxLaps, Math.round(circuitLaps * cfg.lapsFactor)));
+  // Very long laps (few laps per Grand Prix) relax the minimum, very short ones the maximum,
+  // so race distance stays sensible on extreme circuits.
+  const min = circuitLaps < 40 ? Math.round((cfg.minLaps * circuitLaps) / 50) : cfg.minLaps;
+  const max = circuitLaps > 95 ? Math.round(cfg.maxLaps * Math.min(1.4, circuitLaps / 80)) : cfg.maxLaps;
+  return Math.max(min, Math.min(max, Math.round(circuitLaps * cfg.lapsFactor)));
 }
 
 /** Race distance of an event: its own override, else the division's standard length. */

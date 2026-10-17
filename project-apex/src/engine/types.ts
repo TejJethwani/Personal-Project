@@ -505,7 +505,17 @@ export interface Circuit {
   /** Divisions this circuit can appear in. */
   tiers: DivisionId[];
   character: string;
+  /** Track-map style (absent = classic generated outline). */
+  layout?: CircuitLayout;
+  /** Fuel burned per lap relative to the series norm (absent = 1). */
+  fuelFactor?: number;
+  /** Altitude in metres: thin air works engines and cooling harder (absent = sea level). */
+  altitude?: number;
+  /** How changeable the weather is, 0..1: more and shorter showers (absent = 0). */
+  weatherVolatility?: number;
 }
+
+export type CircuitLayout = 'street' | 'speedway' | 'mountain' | 'kart' | 'endurance' | 'stopgo' | 'technical' | 'flowing';
 
 export interface CalendarEvent {
   id: string;

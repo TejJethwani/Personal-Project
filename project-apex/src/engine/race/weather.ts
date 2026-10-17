@@ -20,12 +20,23 @@ export function generateEventWeather(seed: number, eventId: string, circuit: Cir
   const rainChance = clamp(circuit.rainChance * seasonal * mods.rain, 0, mods.rain > 1 ? 0.85 : 0.75);
   const baseTemp = circuit.baseTrackTemp + rng.normal(0, 4) + mods.temp;
   const cells: { start: number; end: number; intensity: number }[] = [];
+  const volatility = circuit.weatherVolatility ?? 0;
   if (rng.chance(rainChance)) {
-    const count = rng.chance(0.3) ? 2 : 1;
-    for (let i = 0; i < count; i++) {
-      const start = rng.range(-0.15, 0.85);
-      const length = rng.range(0.08, 0.5);
-      cells.push({ start, end: start + length, intensity: rng.range(0.25, 1) });
+    if (volatility > 0) {
+      // Changeable climates: more showers, each shorter, so the track dries and wets again.
+      const count = 1 + (rng.chance(0.35 + volatility * 0.45) ? 1 : 0) + (rng.chance(volatility * 0.4) ? 1 : 0);
+      for (let i = 0; i < count; i++) {
+        const start = rng.range(-0.1, 0.9);
+        const length = rng.range(0.05, 0.5 - volatility * 0.25);
+        cells.push({ start, end: start + length, intensity: rng.range(0.25, 1) });
+      }
+    } else {
+      const count = rng.chance(0.3) ? 2 : 1;
+      for (let i = 0; i < count; i++) {
+        const start = rng.range(-0.15, 0.85);
+        const length = rng.range(0.08, 0.5);
+        cells.push({ start, end: start + length, intensity: rng.range(0.25, 1) });
+      }
     }
   }
   let wetness = rng.chance(rainChance * 0.3) ? rng.range(0.35, 0.85) : 0;

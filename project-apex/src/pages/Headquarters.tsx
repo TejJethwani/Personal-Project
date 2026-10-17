@@ -14,6 +14,7 @@ import { eventLaps } from '@/engine/config/divisions';
 import { lineupIssues } from '@/engine/race/weekend';
 import { nextPlayerEvent } from '@/engine/europe/season';
 import { findEvent } from '@/engine/season/calendar';
+import { circuitTags } from '@/engine/data/circuits';
 import { H2HBanner } from '@/components/EuroCommon';
 import { playerTeam, raceDrivers, teamsInDivision } from '@/engine/selectors';
 import { STAFF_ROLE_INFO, STAFF_ROLES } from '@/engine/staff/staff';
@@ -331,9 +332,12 @@ function NextEvent({ eventId }: { eventId: string }) {
         </div>
         <p className="mt-3 max-w-xl text-sm text-white/80">{c.character}</p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {circuitTags(c).map((t) => (
+            <Badge key={t.label} tone={t.tone} title={t.title}>
+              {t.label}
+            </Badge>
+          ))}
           <Badge>Overtaking {c.overtakingDifficulty > 0.7 ? 'very hard' : c.overtakingDifficulty > 0.45 ? 'moderate' : 'easy'}</Badge>
-          <Badge>Tyre stress {c.tireStress > 1.15 ? 'high' : c.tireStress < 0.9 ? 'low' : 'medium'}</Badge>
-          <Badge>{c.weights.straightLine + c.weights.powerUnit > 0.36 ? 'Power circuit' : c.weights.aerodynamics + c.weights.cornering > 0.38 ? 'Downforce circuit' : 'Balanced circuit'}</Badge>
           <Badge tone="blue">Rain risk {Math.round(c.rainChance * 100)}%</Badge>
         </div>
       </div>

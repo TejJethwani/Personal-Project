@@ -67,6 +67,16 @@ export interface RaceEntrantInput {
 /** Sentinel for 'no lap time yet' (Infinity does not survive JSON). */
 export const NO_TIME = 99999;
 
+/** Fuel burned per lap: the series norm scaled by the circuit's length and throttle share. */
+export function fuelPerLap(cfg: { fuelBurnPerLap: number }, circuit: Circuit): number {
+  return cfg.fuelBurnPerLap * (circuit.fuelFactor ?? 1);
+}
+
+/** Thin air at altitude works engines and cooling harder (1 at sea level). */
+export function altitudeStress(circuit: Circuit, per: number): number {
+  return 1 + (circuit.altitude ?? 0) / per;
+}
+
 export const DEFAULT_INSTRUCTIONS: RaceInstructions = { pace: 'balanced', tires: 'normal', fuel: 'standard', ers: 'balanced', defend: false, teamOrder: 'free' };
 
 export function createRaceState(state: GameState, event: CalendarEvent, entrants: RaceEntrantInput[]): RaceState {
@@ -78,7 +88,7 @@ export function createRaceState(state: GameState, event: CalendarEvent, entrants
   const sorted = [...entrants].sort((a, b) => a.grid - b.grid);
   const cars: CarRaceState[] = sorted.map((e, idx) => {
     const team = state.teams[e.teamId];
-    const fuel = cfg.fuelBurnPerLap * totalLaps * (1 + (cfg.fuelManagement ? e.fuelMargin : 0.03));
+    const fuel = fuelPerLap(cfg, circuit) * totalLaps * (1 + (cfg.fuelManagement ? e.fuelMargin : 0.03));
     return {
       driverId: e.driverId,
       teamId: e.teamId,
@@ -445,7 +455,7 @@ function strategistInstructions(ctx: LapContext, car: CarRaceState, order: CarRa
     else ins.ers = car.ers > 80 ? 'deploy' : 'balanced';
   }
   if (cfg.fuelManagement) {
-    const need = (remaining + 1) * cfg.fuelBurnPerLap * 1.03;
+    const need = (remaining + 1) * fuelPerLap(cfg, ctx.circuit) * 1.03;
     ins.fuel = car.fuel < need ? 'lean' : car.fuel > need * 1.05 && gapAhead < 1.5 ? 'rich' : 'standard';
   }
   // Team orders for AI teams: number-two drivers yield to a faster number one.
@@ -603,7 +613,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
     // Mechanical reliability.
     const relIdx = reliabilityIndex(team.car, ctx.trackTemp);
     const crew = staffRating(state, team, 'chiefMechanic');
-    const pFail = cfg.failureRate * ctx.fx.failure * diff.reliabilityMultiplier * Math.exp((fieldReliability - relIdx) / 28) * failureFactor(ins.pace) * (1.25 - crew / 200);
+    const pFail = cfg.failureRate * ctx.fx.failure * diff.reliabilityMultiplier * Math.exp((fieldReliability - relIdx) / 28) * failureFactor(ins.pace) * (1.25 - crew / 200) * altitudeStress(circuit, 6000);
     if (car.latentFailure) {
       car.latentFailure.health -= healthDrain(ins.pace);
       if (car.latentFailure.health <= 0) {
@@ -616,12 +626,12 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
       }
     } else if (rng.chance(pFail)) {
       const type = rng.weighted<FailureType>([
-        { item: 'engine', weight: 0.25 },
+        { item: 'engine', weight: 0.25 * altitudeStress(circuit, 4000) },
         { item: 'gearbox', weight: 0.18 },
         { item: 'hydraulics', weight: 0.12 },
         { item: 'electrics', weight: 0.12 },
         { item: 'brakes', weight: 0.13 * circuit.brakeStress },
-        { item: 'cooling', weight: 0.1 * (ctx.trackTemp > 32 ? 2 : 0.6) },
+        { item: 'cooling', weight: 0.1 * (ctx.trackTemp > 32 ? 2 : 0.6) * altitudeStress(circuit, 1500) },
         { item: 'suspension', weight: 0.1 },
       ]);
       if (rng.chance(t.failureWarningShare) && lap < race.totalLaps - 1) {
@@ -860,10 +870,10 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
       pushLog(race, lap, 'failure', `${driverShortName(driver)} suffers a puncture after running the tyres to destruction!`, [car.driverId], true);
       if (car.isPlayer) radio(race, car, state, 'Puncture! The tyre is gone!');
     }
-    const burn = cfg.fuelBurnPerLap * (cfg.fuelManagement ? t.fuelModeBurn[car.instructions.fuel] : 1) * (car.instructions.pace === 'attack' ? 1.05 : car.instructions.pace === 'push' ? 1.025 : car.instructions.pace === 'conserve' ? 0.97 : 1) * (ctx.sc !== 'none' ? 0.6 : 1);
+    const burn = fuelPerLap(cfg, ctx.circuit) * (cfg.fuelManagement ? t.fuelModeBurn[car.instructions.fuel] : 1) * (car.instructions.pace === 'attack' ? 1.05 : car.instructions.pace === 'push' ? 1.025 : car.instructions.pace === 'conserve' ? 0.97 : 1) * (ctx.sc !== 'none' ? 0.6 : 1);
     car.fuel = Math.max(0, car.fuel - burn);
     const remaining = race.totalLaps - lap;
-    if (cfg.fuelManagement && remaining > 0 && car.fuel < remaining * cfg.fuelBurnPerLap * 0.985 && car.instructions.fuel !== 'lean') {
+    if (cfg.fuelManagement && remaining > 0 && car.fuel < remaining * fuelPerLap(cfg, ctx.circuit) * 0.985 && car.instructions.fuel !== 'lean') {
       car.instructions.fuel = 'lean';
       radio(race, car, state, 'Fuel is critical, I have to lift and coast.');
     }

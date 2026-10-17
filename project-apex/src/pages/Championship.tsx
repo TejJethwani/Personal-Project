@@ -12,12 +12,13 @@ import { leagueZones, type LeagueZone } from '@/engine/europe/season';
 import { DivisionBadge, DriverLink, TeamLink } from '@/components/common';
 import { Badge, Button, cn, Panel, SectionTitle, Segmented, Tabs } from '@/components/ui';
 import { useGame, useStore } from '@/store/gameStore';
+import { CircuitGuide } from '@/components/CircuitGuide';
 
 export function ChampionshipPage() {
   const game = useGame();
   const team = playerTeam(game);
   const [division, setDivision] = useState<DivisionId>(team.division);
-  const [tab, setTab] = useState<'drivers' | 'teams' | 'calendar' | 'promotion' | 'progress'>('drivers');
+  const [tab, setTab] = useState<'drivers' | 'teams' | 'calendar' | 'promotion' | 'progress' | 'circuits'>('drivers');
   const cfg = DIVISIONS[division];
   return (
     <div className="space-y-5">
@@ -36,8 +37,10 @@ export function ChampionshipPage() {
           { id: 'progress', label: 'Points progression' },
           { id: 'calendar', label: 'Calendar & results' },
           { id: 'promotion', label: division === 'F1' ? 'Relegation' : 'Promotion' },
+          { id: 'circuits', label: 'Circuits' },
         ]}
       />
+      {tab === 'circuits' && <CircuitGuide game={game} division={division} />}
       {tab === 'drivers' && <DriverTable division={division} />}
       {tab === 'teams' && <TeamTable division={division} />}
       {tab === 'progress' && <Progression division={division} />}
