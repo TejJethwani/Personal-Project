@@ -66,7 +66,9 @@ preseason (week 0) ──Start Season──► season weeks 1..44 ──last rac
 
 `GameState.mode` is absent for a Classic career, `'european'` for a European League career and `'daily'` for a daily challenge. Mode-specific division rules live in `config/ruleset.ts`: `applyRuleset(state)` swaps the values in `DIVISIONS` in place (Classic values are kept in a snapshot), so every system and page reads the right league names, field sizes, race counts and prize tables without passing the mode around. The store applies it on load, new game and quit; engine entry points (week advance, weekend close, season end) apply it defensively. `activeDivisions(state)` lists the divisions a career actually races.
 
-A European career adds `state.europe`: clubs (with `teamId` for full teams), leagues, associations and their coefficients, the season's fixtures, ties, continental competitions and cups, the player's cup and continental race events, and guest teams. Cup and continental races for the player are ordinary `CalendarEvent`s with `teamIds`, a `laps` override, the `h2h` points preset and `euro` metadata; the weekend engine treats them like any race, and the competition module turns the classification into a fixture result. Several player races can fall in one week; finishing one weekend starts the next straight away.
+A European career adds `state.europe`: clubs (with `teamId` for full teams), leagues, associations and their coefficients, the season's fixtures, ties, continental competitions and cups, the player's cup and continental race events, and guest teams. Cup and continental races for the player are ordinary `CalendarEvent`s with `teamIds`, a `laps` override, the `h2h` points preset and `euro` metadata; the weekend engine treats them like any race, and the competition module turns the classification into a fixture result. A league gameweek is one race; a cup or continental fixture in the same week runs first, and finishing it starts the league race straight away.
+
+A career can also start by taking over an existing team (`NewCareerConfig.takeover`): the world generator fills every seat with an established team and `career/manager.ts` hands the chosen one to the player. `player.managerHistory` records each appointment, the groundwork for moving between teams.
 
 European saves use their own IndexedDB slots (`euro-autosave`, `euro-slot-1…5`), and the title screen offers a separate continue entry.
 
@@ -81,13 +83,13 @@ European saves use their own IndexedDB slots (`euro-autosave`, `euro-slot-1…5`
 
 - `App.tsx` switches between the title screen, the career wizard and the game shell. Pages are selected by a `page` value in the store (no URL routing; the game is a single-screen app).
 - `useGame()` subscribes to the store's revision counter and returns the live `GameState`.
-- The live race keeps its animation outside React: `TrackMap` runs a `requestAnimationFrame` loop that positions SVG markers by interpolating each car's gap to the leader across the current lap, while React re-renders only once per simulated lap.
+- The live race keeps its animation outside React: `BroadcastMap` runs a `requestAnimationFrame` loop that positions SVG markers by interpolating each car's gap to the leader across the current lap (close cars side by side), drives the cameras (including the broadcast director) and labels, while React re-renders only once per simulated lap. The start lights, alerts and feeds are presentation only; every view and every simulate-to button runs the same laps.
 - `components/ui` is a small shadcn-style kit (Button, Panel, Tabs, Segmented, Modal, RatingBar and so on) built with `class-variance-authority` and `tailwind-merge`.
 
 ## Persistence
 
 - `serializeGame` wraps the state in an envelope `{ format, version, savedAt, checksum, meta }`. The checksum is an FNV-1a hash of the state JSON.
-- `deserializeGame` rejects foreign files, newer versions, checksum mismatches and states that fail `validateState`, and has a migration hook for future versions.
+- `deserializeGame` rejects foreign files, newer versions, checksum mismatches (checked on the save as written) and states that fail `validateState`, then runs `save/migrate.ts`. Version 2 migrations move European League weekends to one race per gameweek and queue Expanded points for the next season; every step only fills in or retires what is needed, so no raced result is lost.
 - `store/persistence.ts` stores envelopes in IndexedDB (`project-apex` database, `saves` store): one autosave slot (written about a second after any action) and five manual slots. Export downloads the same JSON; import accepts it back.
 
 ## Testing

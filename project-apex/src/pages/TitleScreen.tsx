@@ -122,6 +122,7 @@ export function TitleScreen() {
                     <button className="min-w-0 flex-1 text-left" onClick={() => load(s.slot)}>
                       <div className="truncate text-sm font-semibold">
                         {s.meta.teamName} <span className="text-apex-muted">· {s.meta.league ?? s.meta.division}</span>
+                        {s.meta.sandbox && <span className="ml-1 rounded bg-amber-500/20 px-1 text-[10px] font-semibold uppercase text-amber-300">Sandbox</span>}
                       </div>
                       <div className="text-[11px] text-apex-muted">
                         <span className={isEuroSlot(s.slot) ? 'text-sky-300' : 'text-apex-red'}>{isEuroSlot(s.slot) ? 'European' : 'Classic'}</span> · {slotLabel(s.slot)} · Season {s.meta.season} ({s.meta.year}) · {new Date(s.savedAt).toLocaleString()}

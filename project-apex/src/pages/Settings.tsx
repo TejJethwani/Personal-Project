@@ -154,7 +154,7 @@ export function SettingsPage() {
                 <span className="min-w-0 flex-1 truncate text-sm">
                   {s ? (
                     <>
-                      {s.meta.teamName} · {s.meta.league ?? s.meta.division} · Season {s.meta.season} ({s.meta.year}) <span className="text-apex-muted">· {new Date(s.savedAt).toLocaleString()} · {(s.size / 1024).toFixed(0)} KB</span>
+                      {s.meta.teamName} · {s.meta.league ?? s.meta.division} · Season {s.meta.season} ({s.meta.year}) {s.meta.sandbox && <span className="rounded bg-amber-500/20 px-1 text-[10px] font-semibold uppercase text-amber-300">Sandbox</span>} <span className="text-apex-muted">· {new Date(s.savedAt).toLocaleString()} · {(s.size / 1024).toFixed(0)} KB</span>
                     </>
                   ) : (
                     <span className="text-apex-dim">Empty</span>
