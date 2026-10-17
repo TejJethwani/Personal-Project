@@ -10,6 +10,7 @@ import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
 import { DivisionBadge, DriverLink, Flag, TeamCar } from './common';
 import { Badge, Modal, RatingBar, RatingPill, Stat } from './ui';
+import { heritageSummary } from '@/engine/world/heritage';
 
 export function TeamProfileModal() {
   const id = useStore((s) => s.teamProfile);
@@ -41,7 +42,7 @@ function TeamBody({ teamId }: { teamId: string }) {
           </div>
           <div className="mt-1 text-sm text-apex-muted">
             Team principal {team.principal}
-            {team.aiPersonality && ` · ${AI_PERSONALITIES[team.aiPersonality].label}`} · Founded season {team.foundedSeason}
+            {team.aiPersonality && ` · ${AI_PERSONALITIES[team.aiPersonality].label}`} · {team.heritage ? heritageSummary(team.heritage) : `Founded season ${team.foundedSeason}`}
           </div>
           <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-5">
             <Stat label="Reputation" value={Math.round(team.reputation)} />
