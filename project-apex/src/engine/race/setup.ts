@@ -36,6 +36,44 @@ export function idealSetup(seed: number, eventId: string, circuit: Circuit, driv
   };
 }
 
+/** What the simulator suggests for a circuit before any running: the track's part of the ideal setup. */
+export function simulatorBaseline(circuit: Circuit): Setup {
+  const d = circuit.weights.aerodynamics * 4 + circuit.weights.cornering * 2;
+  const p = circuit.weights.straightLine * 3 + circuit.weights.powerUnit * 2;
+  const m = circuit.weights.suspension * 4;
+  return {
+    frontWing: Math.round(clamp(25 + d * 55, 5, 95)),
+    rearWing: Math.round(clamp(30 + d * 50 - p * 35, 5, 95)),
+    suspension: Math.round(clamp(75 - m * 55 + (circuit.type === 'street' ? -10 : 0), 5, 95)),
+    rideHeight: Math.round(clamp(30 + m * 40 + (circuit.type === 'street' ? 12 : 0), 5, 95)),
+    gearing: Math.round(clamp(20 + p * 70, 5, 95)),
+  };
+}
+
+export interface SetupPreset {
+  id: string;
+  label: string;
+  description: string;
+  setup: Setup;
+}
+
+/** Starting points for practice: the simulator baseline and variations on it. */
+export function setupPresets(circuit: Circuit): SetupPreset[] {
+  const b = simulatorBaseline(circuit);
+  const adj = (patch: Partial<Record<keyof Setup, number>>): Setup => {
+    const out = { ...b };
+    for (const [k, v] of Object.entries(patch) as [keyof Setup, number][]) out[k] = Math.round(clamp(b[k] + v, 0, 100));
+    return out;
+  };
+  return [
+    { id: 'baseline', label: 'Simulator baseline', description: 'The track data from the simulator, before driver preference and conditions.', setup: b },
+    { id: 'lowDrag', label: 'Low drag', description: 'Less wing and longer gears for the straights.', setup: adj({ frontWing: -8, rearWing: -15, gearing: 12 }) },
+    { id: 'highDownforce', label: 'High downforce', description: 'More wing and shorter gears for the corners.', setup: adj({ frontWing: 10, rearWing: 15, gearing: -10 }) },
+    { id: 'kerbs', label: 'Kerbs & bumps', description: 'Softer and higher, for street tracks and kerb-hopping.', setup: adj({ suspension: -15, rideHeight: 12 }) },
+    { id: 'wet', label: 'Wet weather', description: 'More wing, softer, higher: grip over speed in the rain.', setup: adj({ frontWing: 10, rearWing: 12, suspension: -15, rideHeight: 12 }) },
+  ];
+}
+
 export function setupQuality(setup: Setup, ideal: Setup): number {
   let err = 0;
   for (const k of SETUP_KEYS) err += Math.abs(setup[k] - ideal[k]) * SETUP_WEIGHT[k];

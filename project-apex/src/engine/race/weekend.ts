@@ -444,6 +444,7 @@ export function startRace(state: GameState): RaceState {
   const race = createRaceState(state, event, buildEntrants(state, event, quali.entries, weekend, false));
   weekend.race = race;
   weekend.phase = 'race';
+  weekend.startMood = Object.fromEntries(race.cars.filter((c) => c.isPlayer).map((c) => [c.driverId, { morale: state.drivers[c.driverId].morale, confidence: state.drivers[c.driverId].confidence }]));
   return race;
 }
 

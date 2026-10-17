@@ -1,7 +1,7 @@
 import { Flag } from 'lucide-react';
 import { DIVISIONS, eventLaps } from '@/engine/config/divisions';
 import { chooseStrategy, setFuelMargin, setStartInstructions, startRace, weekendEvent } from '@/engine/race/weekend';
-import type { PaceMode, TireMode } from '@/engine/types';
+import type { PaceMode, StrategyPlan, TireCompound, TireMode } from '@/engine/types';
 import { DriverLink, TireIcon } from '@/components/common';
 import { Badge, Button, cn, Panel, Segmented } from '@/components/ui';
 import { useGame, useStore } from '@/store/gameStore';
@@ -44,7 +44,10 @@ export function RaceSetup() {
                           </span>
                         ))}
                       </span>
-                      <span className="flex-1 text-sm font-semibold">{o.label}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold">{o.label}</span>
+                        <StintBar plan={o} laps={laps} />
+                      </span>
                       <span className="mono text-xs text-apex-muted">{o.predictedTime !== undefined ? (i === 0 ? 'fastest' : `+${(o.predictedTime - best).toFixed(1)}s`) : ''}</span>
                     </button>
                   );
@@ -99,5 +102,27 @@ export function RaceSetup() {
         <QualiTable entries={grid} gridOnly={derivedGrid} />
       </Panel>
     </div>
+  );
+}
+
+const COMPOUND_COLOR: Record<TireCompound, string> = { soft: '#ef4444', medium: '#facc15', hard: '#e5e7eb', intermediate: '#22c55e', wet: '#3b82f6' };
+
+/** Stints of a strategy drawn to scale across the race distance. */
+function StintBar({ plan, laps }: { plan: StrategyPlan; laps: number }) {
+  const stints: { compound: TireCompound; from: number; to: number }[] = [];
+  let from = 1;
+  let compound = plan.startCompound;
+  for (const stop of plan.stops) {
+    stints.push({ compound, from, to: stop.lap });
+    from = stop.lap + 1;
+    compound = stop.compound;
+  }
+  stints.push({ compound, from, to: laps });
+  return (
+    <span className="mt-1 flex h-1.5 w-full overflow-hidden rounded bg-white/[0.05]" title={stints.map((st) => `${st.compound} L${st.from}-${st.to}`).join(' · ')}>
+      {stints.map((st, i) => (
+        <span key={i} className="h-full border-r border-apex-bg last:border-0" style={{ width: `${((st.to - st.from + 1) / laps) * 100}%`, background: COMPOUND_COLOR[st.compound] }} />
+      ))}
+    </span>
   );
 }

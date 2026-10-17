@@ -77,3 +77,30 @@
     background: linear-gradient(90deg, #e10600 0 4px, transparent 4px);
   }
 }
+
+/* Live race broadcast effects */
+@keyframes apex-rain {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -40px 120px;
+  }
+}
+.rain-overlay {
+  background-image: repeating-linear-gradient(105deg, rgba(147, 197, 253, 0.28) 0 1px, transparent 1px 14px);
+  background-size: 120px 120px;
+  animation: apex-rain 0.5s linear infinite;
+}
+@keyframes apex-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+.battle-glow {
+  animation: apex-glow 1s ease-in-out infinite;
+}

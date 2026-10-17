@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, Bot, Check, Timer } from 'lucide-react';
 import { useState } from 'react';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { driverName } from '@/engine/drivers/ratings';
-import { feedbackAccuracy, SETUP_INFO, SETUP_KEYS } from '@/engine/race/setup';
+import { feedbackAccuracy, SETUP_INFO, SETUP_KEYS, setupPresets } from '@/engine/race/setup';
 import { autoPractice, finishPractice, runPractice, setPracticeSetup, weekendEvent } from '@/engine/race/weekend';
 import { playerTeam } from '@/engine/selectors';
 import { staffRating } from '@/engine/staff/staff';
@@ -77,6 +77,22 @@ function DriverPractice({ driverId }: { driverId: string }) {
     >
       <div className="grid gap-5 md:grid-cols-[1fr_220px]">
         <div className="space-y-3">
+          <div className="flex flex-wrap gap-1">
+            {setupPresets(game.circuits[weekendEvent(game)!.circuitId]).map((p) => (
+              <button
+                key={p.id}
+                disabled={remaining === 0}
+                title={p.description}
+                onClick={() => {
+                  setLocal(p.setup);
+                  commit(p.setup);
+                }}
+                className="rounded border border-apex-line2 px-2 py-0.5 text-[11px] text-apex-muted transition hover:border-white/40 hover:text-white disabled:opacity-40"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
           {SETUP_KEYS.map((k) => {
             const fb = last?.feedback.find((f) => f.key === k);
             return (

@@ -1,32 +1,40 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, CloudRain, FastForward, Pause, Play, Radio, SkipForward, Thermometer } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { AlertTriangle, CloudRain, FastForward, Pause, Play, SkipForward, Thermometer } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pointsSystemFor } from '@/engine/config/divisions';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { TIRE_TUNING } from '@/engine/config/tuning';
 import { divisionStandings } from '@/engine/championship/standings';
 import { driverCode, driverName, driverShortName } from '@/engine/drivers/ratings';
-import { applyRaceCommand, type RaceCommand } from '@/engine/race/engine';
+import { applyRaceCommand, fuelPerLap, type RaceCommand } from '@/engine/race/engine';
 import { allowedCompounds } from '@/engine/race/tires';
 import { weatherLabel } from '@/engine/race/weather';
 import { advanceRace, weekendEvent } from '@/engine/race/weekend';
-import type { CarRaceState, Circuit, ErsMode, FuelMode, PaceMode, RaceLogEntry, RaceState, TeamOrder, TireMode } from '@/engine/types';
-import { CircuitOutline, type PathSampler } from '@/components/CircuitMap';
+import type { CarRaceState, ErsMode, FuelMode, PaceMode, RaceState, TeamOrder, TireMode } from '@/engine/types';
 import { TeamDot, TireIcon } from '@/components/common';
 import { Badge, Button, cn, Panel, Progress, Segmented, Toggle } from '@/components/ui';
 import { lapTime } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { BroadcastMap, type AnimState, type Camera } from './live/BroadcastMap';
+import { Tower, type GapMode } from './live/Tower';
+import { CarStrip, CommentaryPanel, MomentOverlay, StrategyPanel, useCommentary } from './live/Panels';
 import { H2HLiveScore } from '@/components/EuroCommon';
 import { askConfirm } from '@/store/confirm';
 
-interface AnimState {
-  start: number;
-  f: number;
-  prevGaps: Map<string, number>;
-  prevLap: number;
-}
-
 const SPEEDS = [1, 5, 20, 60] as const;
+
+type ViewMode = 'broadcast' | 'manager' | 'highlights' | 'fast';
+const VIEW_KEY = 'apex-race-view';
+
+function loadView(): ViewMode {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === 'broadcast' || v === 'manager' || v === 'highlights' || v === 'fast') return v;
+  } catch {
+    // Storage unavailable: default view.
+  }
+  return 'manager';
+}
 
 export function LiveRace() {
   const game = useGame();
@@ -34,15 +42,32 @@ export function LiveRace() {
   const race = game.weekend!.race!;
   const event = weekendEvent(game)!;
   const circuit = game.circuits[race.circuitId];
+  const [view, setView] = useState<ViewMode>(() => loadView());
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(game.settings.defaultRaceSpeed ?? 20);
-  const [gapMode, setGapMode] = useState<'interval' | 'leader'>('interval');
+  const [gapMode, setGapMode] = useState<GapMode>('interval');
   const [selected, setSelected] = useState<string | null>(null);
+  const [camera, setCamera] = useState<Camera>('full');
   const anim = useRef<AnimState>({ start: performance.now(), f: 1, prevGaps: new Map(), prevLap: race.lap });
   const leader = race.cars.find((c) => c.position === 1);
   const leaderLap = race.lap > 0 && leader ? Math.max(20, leader.lastLap) : race.baseLapTime;
   const leaderLapRef = useRef(leaderLap);
   leaderLapRef.current = leaderLap;
+  const lines = useCommentary(game, race);
+  const order = [...race.cars].sort((a, b) => a.position - b.position);
+  const playerCars = order.filter((c) => c.isPlayer);
+  const focusId = selected ?? playerCars[0]?.driverId ?? order[0]?.driverId ?? null;
+  const rejoinFor = selected && race.cars.find((c) => c.driverId === selected)?.isPlayer ? selected : playerCars.find((c) => c.status === 'running')?.driverId ?? null;
+
+  const changeView = (v: ViewMode) => {
+    setView(v);
+    setPlaying(false);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Preference not kept without storage.
+    }
+  };
 
   const snapshotGaps = () => {
     const m = new Map<string, number>();
@@ -52,21 +77,21 @@ export function LiveRace() {
   };
 
   const step = useCallback(
-    (mode: 'lap' | 'key' | 'finish') => {
+    (mode: 'lap' | 'key' | 'finish', animate = true) => {
       snapshotGaps();
       act((g) => advanceRace(g, mode));
       anim.current.start = performance.now();
-      anim.current.f = mode === 'lap' ? 0 : 1;
+      anim.current.f = mode === 'lap' && animate ? 0 : 1;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [act, race],
   );
 
+  // Broadcast and manager views: one animated lap at a time.
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || (view !== 'broadcast' && view !== 'manager')) return;
     let raf = 0;
     const dur = () => (leaderLapRef.current / speed) * 1000;
-    // Resume from the current fraction.
     anim.current.start = performance.now() - Math.min(1, anim.current.f) * dur();
     const loop = (t: number) => {
       const a = anim.current;
@@ -82,14 +107,65 @@ export function LiveRace() {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [playing, speed, step]);
+  }, [playing, speed, step, view]);
+
+  // Highlights: jump from one key moment to the next, pausing on each.
+  useEffect(() => {
+    if (!playing || view !== 'highlights') return;
+    const t = setTimeout(() => {
+      if (useStore.getState().game?.weekend?.race?.finished) {
+        setPlaying(false);
+        return;
+      }
+      step('key');
+    }, race.lap === 0 ? 300 : 2600);
+    return () => clearTimeout(t);
+  }, [playing, view, step, race.lap]);
+
+  // Fast simulation: laps as quickly as the screen can show them.
+  useEffect(() => {
+    if (!playing || view !== 'fast') return;
+    const t = setTimeout(() => {
+      if (useStore.getState().game?.weekend?.race?.finished) {
+        setPlaying(false);
+        return;
+      }
+      step('lap', false);
+    }, 30);
+    return () => clearTimeout(t);
+  }, [playing, view, step, race.lap]);
 
   const command = (driverId: string, cmd: RaceCommand) => act((g) => applyRaceCommand(g, g.weekend!.race!, driverId, cmd));
-  const order = [...race.cars].sort((a, b) => a.position - b.position);
-  const playerCars = order.filter((c) => c.isPlayer);
   const wx = race.weather[Math.max(0, race.lap - 1)] ?? race.weather[0];
   const nextWx = race.weather[Math.min(race.weather.length - 1, race.lap)] ?? wx;
   const sc = race.safetyCar.type;
+  const playLabel = playing ? 'Pause' : race.lap === 0 ? (view === 'highlights' ? 'Play highlights' : view === 'fast' ? 'Simulate' : 'Lights out') : 'Resume';
+
+  const map = (
+    <div className="panel relative overflow-hidden p-2">
+      <BroadcastMap race={race} circuit={circuit} anim={anim} leaderLapRef={leaderLapRef} camera={camera} followId={focusId} sectorCar={focusId} />
+      <MomentOverlay game={game} race={race} lines={lines} />
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
+        <span className="font-display text-sm uppercase tracking-[0.14em] text-apex-muted">{circuit.location}</span>
+        {race.fastestLap && (
+          <span className="flex items-center gap-2 rounded bg-black/40 px-2 py-1 text-xs">
+            <span className="h-2 w-2 rounded-full bg-apex-purple" /> Fastest lap {driverShortName(game.drivers[race.fastestLap.driverId])} {lapTime(race.fastestLap.time)} (L{race.fastestLap.lap})
+          </span>
+        )}
+        <Segmented
+          size="xs"
+          value={camera}
+          onChange={setCamera}
+          options={[
+            { value: 'full', label: 'Full track' },
+            { value: 'follow', label: 'Follow', title: 'Follow the selected car (click a row in the timing tower)' },
+            { value: 'battle', label: 'Battle cam', title: 'Follow the closest fight on track' },
+          ]}
+        />
+      </div>
+    </div>
+  );
+  const tower = <Tower race={race} event={event} circuit={circuit} mode={gapMode} setMode={setGapMode} selected={selected} onSelect={setSelected} rejoinFor={rejoinFor} />;
 
   return (
     <div className="space-y-4">
@@ -102,32 +178,43 @@ export function LiveRace() {
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Button variant={playing ? 'secondary' : 'primary'} size="md" onClick={() => setPlaying(!playing)} disabled={race.finished}>
-            {playing ? <Pause size={16} /> : <Play size={16} />} {playing ? 'Pause' : race.lap === 0 ? 'Lights out' : 'Resume'}
+            {playing ? <Pause size={16} /> : <Play size={16} />} {playLabel}
           </Button>
-          <Segmented value={speed} onChange={setSpeed} options={SPEEDS.map((s) => ({ value: s, label: `${s}×`, title: s === 1 ? 'Real time' : `${s}× speed` }))} />
-          <Button size="md" onClick={() => step('lap')} disabled={race.finished} title="Simulate one lap">
+          {(view === 'broadcast' || view === 'manager') && <Segmented value={speed} onChange={setSpeed} options={SPEEDS.map((s) => ({ value: s, label: `${s}×`, title: s === 1 ? 'Real time' : `${s}× speed` }))} />}
+          <Button size="md" onClick={() => step('lap')} disabled={race.finished || playing} title="Simulate one lap">
             <SkipForward size={15} /> Lap
           </Button>
-          <Button size="md" onClick={() => step('key')} disabled={race.finished} title="Simulate to the next key event">
+          <Button size="md" onClick={() => step('key')} disabled={race.finished || playing} title="Simulate to the next key event">
             <FastForward size={15} /> Next event
           </Button>
           <Button size="md" variant="outline" onClick={async () => (await askConfirm('Simulate to the chequered flag?')) && step('finish')} disabled={race.finished}>
             Finish race
           </Button>
         </div>
-        <div className="ml-auto flex items-center gap-3 text-sm">
+        <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
+          <Segmented<ViewMode>
+            value={view}
+            onChange={changeView}
+            options={[
+              { value: 'broadcast', label: 'Broadcast', title: 'TV-style: big map, timing and commentary' },
+              { value: 'manager', label: 'Manager', title: 'Full race control for your cars' },
+              { value: 'highlights', label: 'Highlights', title: 'Jump from one key moment to the next' },
+              { value: 'fast', label: 'Fast sim', title: 'Run the race at full speed' },
+            ]}
+          />
           <span className="flex items-center gap-1.5">
             {wx.rain > 0.1 ? <CloudRain size={16} className="text-sky-400" /> : <Thermometer size={16} className="text-apex-muted" />}
             {weatherLabel(wx.rain, wx.wetness)}
           </span>
           <span className="text-apex-muted">Track {Math.round(wx.trackTemp)}°C</span>
-          <span className="w-24">
+          <span className="w-20">
             <span className="label">Wetness</span>
             <Progress value={wx.wetness * 100} color="#3b82f6" />
           </span>
           {nextWx.rain > wx.rain + 0.1 && <Badge tone="blue">Rain approaching</Badge>}
         </div>
       </div>
+      <p className="text-[11px] text-apex-muted">Every view runs the same simulation: switching views never changes the result. Your orders and pit calls do.</p>
 
       <H2HLiveScore game={game} event={event} race={race} />
 
@@ -139,157 +226,103 @@ export function LiveRace() {
         )}
       </AnimatePresence>
 
-      <div className="grid gap-4 2xl:grid-cols-[minmax(320px,380px)_1fr_360px] xl:grid-cols-[340px_1fr]">
-        <TimingTower race={race} gapMode={gapMode} setGapMode={setGapMode} selected={selected} onSelect={setSelected} />
-        <div className="space-y-4">
-          <div className="panel relative overflow-hidden p-2">
-            <TrackMap race={race} anim={anim} leaderLapRef={leaderLapRef} circuit={circuit} />
-            <div className="pointer-events-none absolute left-4 top-3 font-display text-sm uppercase tracking-[0.14em] text-apex-muted">{circuit.location}</div>
-            {race.fastestLap && (
-              <div className="absolute bottom-3 left-4 flex items-center gap-2 rounded bg-black/50 px-2 py-1 text-xs">
-                <span className="h-2 w-2 rounded-full bg-apex-purple" /> Fastest lap {driverShortName(game.drivers[race.fastestLap.driverId])} {lapTime(race.fastestLap.time)} (L{race.fastestLap.lap})
+      {view === 'broadcast' && (
+        <div className="grid gap-4 xl:grid-cols-[360px_1fr] 2xl:grid-cols-[380px_1fr_360px]">
+          {tower}
+          <div className="space-y-3">
+            {map}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {playerCars.map((c) => (
+                <CarStrip key={c.driverId} game={game} race={race} car={c} />
+              ))}
+            </div>
+            <div className="2xl:hidden">
+              <CommentaryPanel game={game} race={race} lines={lines} height={280} />
+            </div>
+          </div>
+          <div className="hidden space-y-4 2xl:block">
+            <CommentaryPanel game={game} race={race} lines={lines} height={420} />
+            {!event.pointsPreset && <LiveChampionship race={race} division={event.division} />}
+          </div>
+        </div>
+      )}
+
+      {view === 'manager' && (
+        <div className="grid gap-4 2xl:grid-cols-[minmax(320px,380px)_1fr_400px] xl:grid-cols-[360px_1fr]">
+          {tower}
+          <div className="space-y-4">
+            {map}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {playerCars.map((c) => (
+                <DriverControl key={c.driverId} car={c} race={race} onCommand={(cmd) => command(c.driverId, cmd)} />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-4 xl:col-span-2 2xl:col-span-1">
+            {playerCars
+              .filter((c) => c.status === 'running')
+              .map((c) => (
+                <StrategyPanel key={c.driverId} game={game} race={race} car={c} circuit={circuit} onCommand={command} />
+              ))}
+            <CommentaryPanel game={game} race={race} lines={lines} height={260} />
+            {!event.pointsPreset && <LiveChampionship race={race} division={event.division} />}
+            <SectorPanel race={race} driverId={focusId ?? undefined} />
+          </div>
+        </div>
+      )}
+
+      {view === 'highlights' && (
+        <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
+          <div className="space-y-3">
+            {map}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {playerCars.map((c) => (
+                <CarStrip key={c.driverId} game={game} race={race} car={c} />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-4">
+            <Panel title="Key moments">
+              <div className="max-h-[420px] space-y-1.5 overflow-y-auto">
+                {lines
+                  .filter((l) => l.key)
+                  .slice(-30)
+                  .reverse()
+                  .map((l) => (
+                    <div key={l.id} className="flex gap-2 text-xs">
+                      <span className="mono w-7 shrink-0 text-apex-dim">L{l.lap}</span>
+                      <span className="text-white/90">{l.text}</span>
+                    </div>
+                  ))}
               </div>
-            )}
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {playerCars.map((c) => (
-              <DriverControl key={c.driverId} car={c} race={race} onCommand={(cmd) => command(c.driverId, cmd)} />
-            ))}
+            </Panel>
+            {!event.pointsPreset && <LiveChampionship race={race} division={event.division} />}
           </div>
         </div>
-        <div className="space-y-4 xl:col-span-2 2xl:col-span-1">
-          <Commentary log={race.log} />
-          <LiveChampionship race={race} division={event.division} />
-          <SectorPanel race={race} driverId={selected ?? playerCars[0]?.driverId ?? order[0]?.driverId} />
+      )}
+
+      {view === 'fast' && (
+        <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
+          {tower}
+          <div className="space-y-4">
+            <Panel title="Fast simulation">
+              <Progress value={(race.lap / race.totalLaps) * 100} />
+              <div className="mt-2 flex justify-between text-xs text-apex-muted">
+                <span>
+                  Lap {race.lap} of {race.totalLaps}
+                </span>
+                <span>{race.finished ? 'Finished' : playing ? 'Simulating…' : 'Paused'}</span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {playerCars.map((c) => (
+                  <CarStrip key={c.driverId} game={game} race={race} car={c} />
+                ))}
+              </div>
+            </Panel>
+            <CommentaryPanel game={game} race={race} lines={lines} height={360} />
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function TrackMap({ race, anim, leaderLapRef, circuit }: { race: RaceState; anim: MutableRefObject<AnimState>; leaderLapRef: MutableRefObject<number>; circuit: Circuit }) {
-  const game = useGame();
-  const markers = useRef<Record<string, SVGGElement | null>>({});
-  const samplerRef = useRef<PathSampler | null>(null);
-  const raceRef = useRef(race);
-  raceRef.current = race;
-
-  useEffect(() => {
-    let raf = 0;
-    const loop = () => {
-      const s = samplerRef.current;
-      const r = raceRef.current;
-      if (s) {
-        const f = Math.max(0, Math.min(1, anim.current.f));
-        const lapLen = leaderLapRef.current;
-        for (const car of r.cars) {
-          const el = markers.current[car.driverId];
-          if (!el) continue;
-          if (car.status !== 'running') {
-            el.setAttribute('opacity', '0');
-            continue;
-          }
-          const prev = anim.current.prevGaps.get(car.driverId) ?? car.gapToLeader;
-          const gap = r.finished ? car.gapToLeader : prev + (car.gapToLeader - prev) * f;
-          const frac = (r.lap === 0 ? 0 : f) - gap / lapLen;
-          const p = s.at(frac);
-          el.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
-          el.setAttribute('opacity', '1');
-        }
-      }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [anim, leaderLapRef]);
-
-  const ordered = [...race.cars].sort((a, b) => b.position - a.position);
-  return (
-    <CircuitOutline circuit={circuit} className="h-[300px] w-full xl:h-[360px]">
-      {(sampler) => {
-        samplerRef.current = sampler;
-        return (
-          <g>
-            {ordered.map((c) => {
-              const team = game.teams[c.teamId];
-              const d = game.drivers[c.driverId];
-              return (
-                <g key={c.driverId} ref={(el) => (markers.current[c.driverId] = el)} opacity={0}>
-                  <circle r={c.isPlayer ? 7.5 : 5.5} fill={team.colors.primary} stroke={c.isPlayer ? '#fff' : team.colors.secondary} strokeWidth={c.isPlayer ? 2.2 : 1.4} />
-                  {(c.isPlayer || c.position <= 3) && (
-                    <text y={-11} textAnchor="middle" fontSize={c.isPlayer ? 10 : 8.5} fontWeight={700} fill={c.isPlayer ? '#fff' : '#cbd5e1'} fontFamily="Barlow Condensed" style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 3 }}>
-                      {c.position} {driverCode(d)}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </g>
-        );
-      }}
-    </CircuitOutline>
-  );
-}
-
-function statusBadge(c: CarRaceState, race: RaceState) {
-  if (c.status !== 'running') return <Badge tone="red">{c.status === 'dsq' ? 'DSQ' : 'OUT'}</Badge>;
-  const lastStint = c.stints[c.stints.length - 1];
-  if (lastStint.fromLap === race.lap + 1 && race.lap > 0) return <Badge tone="amber">PIT</Badge>;
-  if (lastStint.fromLap === race.lap && race.lap > 1) return <Badge tone="blue">OUT</Badge>;
-  return null;
-}
-
-function TimingTower({ race, gapMode, setGapMode, selected, onSelect }: { race: RaceState; gapMode: 'interval' | 'leader'; setGapMode: (m: 'interval' | 'leader') => void; selected: string | null; onSelect: (id: string) => void }) {
-  const game = useGame();
-  const order = [...race.cars].sort((a, b) => a.position - b.position);
-  const prevOrder = race.lapOrders[race.lapOrders.length - 2] ?? race.lapOrders[0];
-  return (
-    <div className="panel overflow-hidden">
-      <div className="flex items-center justify-between border-b border-apex-line bg-gradient-to-r from-apex-red/30 to-transparent px-3 py-2">
-        <span className="font-display text-sm font-bold uppercase tracking-[0.14em]">Timing</span>
-        <Segmented
-          size="xs"
-          value={gapMode}
-          onChange={setGapMode}
-          options={[
-            { value: 'interval', label: 'Interval' },
-            { value: 'leader', label: 'Leader' },
-          ]}
-        />
-      </div>
-      <div className="divide-y divide-apex-line/50">
-        {order.map((c) => {
-          const d = game.drivers[c.driverId];
-          const team = game.teams[c.teamId];
-          const before = prevOrder.indexOf(c.driverId) + 1;
-          const change = c.status === 'running' && before > 0 ? before - c.position : 0;
-          const gap = c.position === 1 ? 'Leader' : c.status !== 'running' ? (c.retireReason ?? 'Retired') : `+${(gapMode === 'interval' ? c.interval : c.gapToLeader).toFixed(c.gapToLeader > 99 ? 1 : 3)}`;
-          return (
-            <motion.button
-              layout
-              transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-              key={c.driverId}
-              onClick={() => onSelect(c.driverId)}
-              className={cn('grid w-full grid-cols-[26px_14px_6px_44px_1fr_auto_22px] items-center gap-1.5 px-2 py-[5px] text-left text-sm', c.isPlayer && 'bg-apex-red/[0.12]', selected === c.driverId && 'ring-1 ring-inset ring-white/30', c.status !== 'running' && 'opacity-50')}
-            >
-              <span className="num text-center font-bold">{c.status === 'running' ? c.position : '—'}</span>
-              <span className={cn('text-[10px]', change > 0 ? 'text-emerald-400' : change < 0 ? 'text-red-400' : 'text-transparent')}>{change > 0 ? '▲' : change < 0 ? '▼' : '·'}</span>
-              <span className="h-4 w-1 rounded" style={{ background: team.colors.primary }} />
-              <span className={cn('font-display font-bold tracking-wide', c.isPlayer && 'text-white')}>{driverCode(d)}</span>
-              <span className={cn('mono truncate text-right text-xs', c.status !== 'running' ? 'text-red-300' : 'text-apex-muted')}>
-                {gap}
-                {c.penaltySeconds > 0 && <span className="ml-1 text-amber-300">+{c.penaltySeconds}s</span>}
-              </span>
-              <span className="flex items-center gap-1">
-                {statusBadge(c, race)}
-                {race.fastestLap?.driverId === c.driverId && <span className="h-2 w-2 rounded-full bg-apex-purple" title="Fastest lap" />}
-                {c.isPlayer && c.warning && <AlertTriangle size={12} className="animate-pulseRed text-red-400" />}
-              </span>
-              <TireIcon compound={c.tire.compound} size={18} wear={c.tire.wear} />
-            </motion.button>
-          );
-        })}
-      </div>
+      )}
     </div>
   );
 }
@@ -306,7 +339,7 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
   const running = car.status === 'running';
   const cliff = TIRE_TUNING.compounds[car.tire.compound].cliff;
   const nextStop = car.plan.stops[car.pitStops];
-  const lapsOfFuel = car.fuel / cfg.fuelBurnPerLap;
+  const lapsOfFuel = car.fuel / fuelPerLap(cfg, game.circuits[race.circuitId]);
   const remaining = race.totalLaps - race.lap;
   const mate = order.find((c) => c.teamId === car.teamId && c.driverId !== car.driverId);
   return (
@@ -475,42 +508,6 @@ function DriverControl({ car, race, onCommand }: { car: CarRaceState; race: Race
         </div>
       )}
     </div>
-  );
-}
-
-const LOG_STYLE: Partial<Record<RaceLogEntry['type'], string>> = {
-  overtake: 'text-white',
-  pit: 'text-amber-200',
-  crash: 'text-red-300 font-semibold',
-  collision: 'text-red-300 font-semibold',
-  failure: 'text-red-300',
-  warning: 'text-orange-300',
-  safetyCar: 'text-yellow-300 font-semibold',
-  vsc: 'text-yellow-300',
-  safetyCarEnd: 'text-emerald-300',
-  penalty: 'text-orange-300',
-  weather: 'text-sky-300 font-semibold',
-  radio: 'text-sky-200 italic',
-  fastestLap: 'text-fuchsia-300',
-  finish: 'text-yellow-300 font-bold',
-  start: 'text-white font-semibold',
-};
-
-function Commentary({ log }: { log: RaceLogEntry[] }) {
-  const items = log.slice(-60).reverse();
-  return (
-    <Panel title="Race control & radio" icon={<Radio size={14} className="text-apex-red" />} bodyClass="p-0">
-      <div className="max-h-[320px] overflow-y-auto">
-        <AnimatePresence initial={false}>
-          {items.map((l, i) => (
-            <motion.div key={`${log.length - i}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className={cn('flex gap-2 border-b border-apex-line/40 px-3 py-1.5 text-xs', l.key && 'bg-white/[0.03]')}>
-              <span className="mono w-7 shrink-0 text-apex-dim">L{l.lap}</span>
-              <span className={LOG_STYLE[l.type] ?? 'text-apex-muted'}>{l.text}</span>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-    </Panel>
   );
 }
 

@@ -39,7 +39,7 @@ export function QualiTable({ entries, cutAfter, sessionIdx, gridOnly }: { entrie
           const mine = e.teamId === game.player.teamId;
           const lap = sessionIdx !== undefined ? (e.sessionTimes[sessionIdx] ?? e.bestLap) : e.bestLap;
           return (
-            <tr key={e.driverId} className={cn(mine && 'bg-apex-red/[0.08]', cutAfter !== undefined && i === cutAfter - 1 && 'border-b-2 border-b-apex-red')}>
+            <tr key={e.driverId} className={cn(mine && 'bg-apex-red/[0.08]', !mine && cutAfter !== undefined && i >= cutAfter && 'bg-red-500/[0.05] text-white/70', cutAfter !== undefined && i === cutAfter - 1 && 'border-b-2 border-b-apex-red')}>
               <td className="num font-bold">{i + 1}</td>
               <td>
                 <DriverLink driver={game.drivers[e.driverId]} />

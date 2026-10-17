@@ -24,7 +24,7 @@ import { RACE_TUNING, TIRE_TUNING } from '../config/tuning';
 import { reliabilityIndex, trackPerformance } from '../car/car';
 import { eventCarOffset } from '../europe/power';
 import { attackIndex, defenceIndex, driverShortName, racePaceIndex } from '../drivers/ratings';
-import { Rng } from '../rng';
+import { hashString, Rng } from '../rng';
 import { staffRating } from '../staff/staff';
 import type {
   CalendarEvent,
@@ -806,7 +806,10 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
       const tAhead = tentative.get(ahead.driverId);
       if (tCar === undefined || tAhead === undefined) continue;
       if (car.pitThisLap || ahead.pitThisLap) continue;
-      if (tCar < tAhead + 0.3) tentative.set(car.driverId, tAhead + 0.3);
+      // Cars queue behind the safety car with natural, uneven spacing. No random numbers
+      // are drawn, so the rest of the race stays reproducible.
+      const spacing = 0.3 + (hashString(`${car.driverId}:${lap}`) % 450) / 1000;
+      if (tCar < tAhead + spacing) tentative.set(car.driverId, tAhead + spacing);
     }
   }
 

@@ -991,6 +991,8 @@ export interface WeekendState {
   startFuelMargin: Record<string, number>;
   race: RaceState | null;
   resultApplied: boolean;
+  /** Player drivers' morale and confidence at the start of the race (for the post-race report). */
+  startMood?: Record<string, { morale: number; confidence: number }>;
 }
 
 // ---------------------------------------------------------------------------

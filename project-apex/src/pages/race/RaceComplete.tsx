@@ -4,18 +4,18 @@ import { useEffect, useState } from 'react';
 import { createDailyChallenge, dailyStars } from '@/engine/daily';
 import { loadProfile, recordDaily, type Profile } from '@/lib/profile';
 import { DIVISIONS } from '@/engine/config/divisions';
-import { divisionStandings } from '@/engine/championship/standings';
 import { driverName } from '@/engine/drivers/ratings';
 import { finishWeekendAndContinue } from '@/engine/season/advance';
 import { weekendEvent } from '@/engine/race/weekend';
 import { playerTeam } from '@/engine/selectors';
-import { DriverLink, TeamDot, TeamLink } from '@/components/common';
+import { DriverLink } from '@/components/common';
 import { ResultTable } from '@/components/RaceResultModal';
 import { Badge, Button, Panel } from '@/components/ui';
 import { money, ordinal } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
 import { nextPlayerEvent } from '@/engine/europe/season';
 import { H2HBanner } from '@/components/EuroCommon';
+import { PostRaceReport } from './PostRace';
 import { stageLabel } from '@/engine/europe/fixtures';
 import type { CalendarEvent, GameState } from '@/engine/types';
 
@@ -30,7 +30,6 @@ export function RaceComplete() {
   if (!result) return null;
   const podium = result.entries.slice(0, 3);
   const mine = result.entries.filter((e) => e.teamId === team.id);
-  const st = divisionStandings(game, event.division);
   const raceTx = team.ledger.filter((t) => t.season === game.season && t.week === game.week && (t.category === 'sponsor' || t.category === 'raceBonus' || t.category === 'repairs' || t.category === 'operations' || t.category === 'driverFunding'));
   const net = raceTx.reduce((s, t) => s + t.amount, 0);
   const h2h = !!event.euro && event.euro.competition !== 'league';
@@ -81,7 +80,7 @@ export function RaceComplete() {
       </div>
       {h2h && <H2HBanner game={game} event={event} />}
       {h2h && <TieStatus game={game} event={event} />}
-      <div className={game.mode === 'daily' || h2h ? 'hidden' : 'grid gap-5 xl:grid-cols-3'}>
+      <div className={game.mode === 'daily' ? 'hidden' : 'grid gap-5 xl:grid-cols-3'}>
         <Panel title="Weekend finances">
           <div className="space-y-1.5 text-sm">
             {raceTx.map((t, i) => (
@@ -96,31 +95,8 @@ export function RaceComplete() {
             </div>
           </div>
         </Panel>
-        <Panel title="Drivers' championship">
-          {st.drivers.slice(0, 6).map((r, i) => (
-            <div key={r.id} className="flex items-center gap-2 py-0.5 text-sm">
-              <span className="num w-6 font-bold">{i + 1}</span>
-              <TeamDot team={game.teams[r.teamId ?? '']} />
-              <span className="flex-1 truncate">{driverName(game.drivers[r.id])}</span>
-              <span className="num font-semibold">{r.points}</span>
-            </div>
-          ))}
-        </Panel>
-        <Panel title="Teams' championship">
-          {st.constructors.slice(0, 6).map((r, i) => (
-            <div key={r.id} className={`flex items-center gap-2 py-0.5 text-sm ${r.id === team.id ? 'text-white' : ''}`}>
-              <span className="num w-6 font-bold">{i + 1}</span>
-              <TeamLink team={game.teams[r.id]} className="flex-1" />
-              <span className="num font-semibold">{r.points}</span>
-            </div>
-          ))}
-          {st.constructors.findIndex((r) => r.id === team.id) >= 6 && (
-            <div className="mt-1 text-xs text-apex-muted">
-              You: P{st.constructors.findIndex((r) => r.id === team.id) + 1} with {st.constructors.find((r) => r.id === team.id)!.points} pts
-            </div>
-          )}
-        </Panel>
       </div>
+      {game.mode !== 'daily' && <PostRaceReport game={game} event={event} result={result} race={race} />}
       <Panel title={`Classification · ${event.euro?.label ?? `${DIVISIONS[event.division].name} round ${event.round}`}`} actions={<span className="text-xs text-apex-muted">{race.totalLaps} laps</span>}>
         <ResultTable result={result} />
       </Panel>
