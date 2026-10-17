@@ -127,7 +127,7 @@ export function RaceCenter() {
           <span className="text-white/90">{game.daily.description}</span>
         </div>
       )}
-      {event.euro && event.euro.competition !== 'league' && weekend.phase !== 'race' && <H2HBanner game={game} event={event} />}
+      {event.euro && event.euro.competition !== 'league' && weekend.phase !== 'race' && weekend.phase !== 'complete' && <H2HBanner game={game} event={event} />}
       {weekend.phase !== 'race' && (!event.euro || event.euro.competition === 'league') && <EventTwistNotes game={game} event={event} />}
       {weekend.phase === 'practice' && <Practice />}
       {weekend.phase === 'qualifying' && <Qualifying />}

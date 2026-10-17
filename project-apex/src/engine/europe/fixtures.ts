@@ -10,7 +10,7 @@ import type { CalendarEvent, DivisionId, EuroClub, EuroCompetition, EuroFixture,
 import { clamp } from '../util';
 import { baseTeam, makeContract } from '../world/generate';
 import { ASSOCIATION_BY_ID } from './data';
-import { associationPace, clubField, DRIVER_REFERENCE, DRIVER_WEIGHT, fieldPaceMean, LEVEL_PACE, quickLap, quickRace } from './power';
+import { clubField, guestCarFor, quickLap, quickRace } from './power';
 
 /**
  * Head-to-head races. Cup and continental fixtures are two-team races: both
@@ -84,9 +84,7 @@ function driverMeanFor(club: EuroClub): number {
 function guestCarBase(state: GameState, club: EuroClub, team: Team, division: DivisionId): number {
   const drivers = team.raceDrivers.map((id) => (id ? state.drivers[id] : null)).filter(Boolean);
   const avg = drivers.length ? drivers.reduce((s, d) => s + overall(d!), 0) / drivers.length : driverMeanFor(club);
-  const playerPace = associationPace(state.europe!.playerAssocId);
-  // In the frame of the division's developed field.
-  return clamp(club.power - 50 + fieldPaceMean(state, division) - LEVEL_PACE[division] - playerPace - DRIVER_WEIGHT * (avg - DRIVER_REFERENCE), 18, 95);
+  return clamp(guestCarFor(state, club.power, division, avg), 18, 95);
 }
 
 /** Bring a guest team's car in line with its club's current strength for an event of `division`. */

@@ -62,6 +62,14 @@ preseason (week 0) ──Start Season──► season weeks 1..44 ──last rac
 - Other divisions' events run through `simulateEventAutomatically`, which uses the same qualifying and race engine as the player's weekend.
 - `finalizeSeason` closes the championships (titles, prize money, sponsor reviews, awards, board review, reputation, history snapshot) and computes promotions. `beginOffseason` applies division moves, regulation resets, contract expiries, ageing, retirements and new talent, and builds the next calendar.
 
+## Game modes
+
+`GameState.mode` is absent for a Classic career, `'european'` for a European League career and `'daily'` for a daily challenge. Mode-specific division rules live in `config/ruleset.ts`: `applyRuleset(state)` swaps the values in `DIVISIONS` in place (Classic values are kept in a snapshot), so every system and page reads the right league names, field sizes, race counts and prize tables without passing the mode around. The store applies it on load, new game and quit; engine entry points (week advance, weekend close, season end) apply it defensively. `activeDivisions(state)` lists the divisions a career actually races.
+
+A European career adds `state.europe`: clubs (with `teamId` for full teams), leagues, associations and their coefficients, the season's fixtures, ties, continental competitions and cups, the player's cup and continental race events, and guest teams. Cup and continental races for the player are ordinary `CalendarEvent`s with `teamIds`, a `laps` override, the `h2h` points preset and `euro` metadata; the weekend engine treats them like any race, and the competition module turns the classification into a fixture result. Several player races can fall in one week; finishing one weekend starts the next straight away.
+
+European saves use their own IndexedDB slots (`euro-autosave`, `euro-slot-1…5`), and the title screen offers a separate continue entry.
+
 ## Determinism
 
 - `Rng` is mulberry32 with a single uint32 of state. `Rng.from(seed, ...labels)` derives independent streams with a hash, so results do not depend on the order of unrelated actions.

@@ -429,6 +429,10 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   replenishStaffPool(state, Rng.from(state.seed, 'staffPool', state.season));
 
   if (state.europe) euroOffseason(state);
+  // Bookkeeping for last season's races, fixtures and payments is no longer needed.
+  for (const k of Object.keys(state.processed)) {
+    if (/^(result|fixture|prize|cupRound|cupPrize|entry|lite):/.test(k)) delete state.processed[k];
+  }
   state.results = {};
   state.calendars = buildAllCalendars(state, state.season);
   state.player.promotionOffer = null;

@@ -147,3 +147,45 @@ Six personalities (`difficulty.ts`) weight the same decisions differently: R&D a
 **Achievements** (`achievements.ts`): 31 career achievements (first points to Formula 1 champion, one-two, wet win, win from 8th or lower, hat-trick, finale hero, challenge master, and more), checked after every race, every week and at season end. Unlocks raise a toast and a news story and are also kept in a browser profile across careers, alongside four daily-challenge trophies.
 
 **Daily challenge** (`daily.ts`): a world is generated from the local date. The player takes over a team ranked 4th-8th of 10 on paper in Formula 3, 2 or 1 at a random round, and must finish with a car at or above one place better than that ranking. Stars: 1 for the goal, 2 for beating it, 3 for a win or beating it by three places. The daily world is never autosaved over the career; the best result per day and a day streak are kept in the browser profile.
+
+## 10. European League
+
+**Structure.** 32 associations, ranked by a five-season coefficient. The top six have three divisions of 20 clubs, the next ten two of 18, then two of 16/14, then two of 12. The player's association runs as full teams on the division slots from the top (level 1 = F1 economics and format, level 2 = F2, level 3 = F3), with the division configs swapped for that association by the rules layer (`config/ruleset.ts`): league names, field sizes, `races = weekends × 2`, prize tables spread over the field, three-session knockout qualifying sized to the grid (40 cars: 40 → 25 → 10), modern points, and promotion and relegation of three places between 20-team leagues (two for smaller ones).
+
+**Weekends.** League weekends: 10-14 by league size, spread over weeks 2-41, each with a race 1 (75% distance) and race 2 (55%). Race 2's grid is its own qualifying, the race 1 result with the top ten reversed, or the race 1 grid. The player's race 2 keeps the race 1 setup work.
+
+**Strength scale.** Every club has a power on one continental scale (car-rating points):
+
+```
+power = 50 + (car pace − league car mean) + level pace + association pace
+           + 0.65 × (driver avg − league driver mean + level driver mean − 76)
+level pace: F1 0, F2 −6, F3 −12        association pace: +4.0 (#1) … −12.4 (#32)
+```
+
+Cars and drivers count relative to their own league, so in-season development and driver growth do not inflate one association against the rest. Quick-model clubs carry their power directly (spread across a league like full teams: car spread × 1.15 + 0.65 × 4.5) and evolve each season: regression to the level mean, league finish, European runs, and ±45% of the level gap on promotion or relegation.
+
+**Quick model.** Each car: `power + driver split + N(0, 3.2)`, 5.5% retirements (4.5% in head-to-heads). Used for leagues outside the player's association and for cup and continental races without the player.
+
+**Full engine against foreign clubs.** When the player's team races a quick-model club, the club becomes a guest team for the season: two drivers at its level's rating and a car whose rating gives exactly the club's power in the frame of the event's division (re-synced before every race). Cross-level races between full teams add the level pace difference to car performance. Guests never enter the market, finances or AI management and are removed at the season rollover.
+
+**Head-to-heads.** Four cars score 4-3-2-1 by classified position; retirements score nothing; more race points wins, equal totals draw (league phase: 3-1-0). Knockout ties go to aggregate race points over both legs, then an extra race at the same circuit, then a qualifying shoot-out (fastest lap of the extra race's qualifying on the full engine, a flying lap on the quick model).
+
+**Allocation.** By association rank (CL / EL / ECL places, D = direct, Q = qualifying):
+
+| Rank | Champions League | Europa League | Conference League |
+| --- | --- | --- | --- |
+| 1-4 | 1st-4th D | 5th D, cup D | 6th D |
+| 5 | 1st-3rd D | 4th D, cup D | 5th D |
+| 6-8 | 1st-2nd D | 3rd D, cup D | 4th D |
+| 9-11 | 1st D, 2nd Q | 3rd D, cup D | 4th D |
+| 12-16 | 1st Q | cup Q, 2nd Q | 3rd D |
+| 17-24 | 1st Q | cup Q | 2nd Q, 3rd Q |
+| 25-32 | 1st Q | – | cup Q, 2nd Q |
+
+Champions and Europa League holders go straight into the Champions League, the Conference League holder into the Europa League. A place already taken passes to the next club in the table, so no club appears twice. Each competition then has `36 − direct` qualifiers: single-race qualifying rounds, lowest seeds first, until exactly 36 remain.
+
+**League-phase draw.** Pots by club coefficient (holder in pot 1): four pots of nine with two opponents per pot, or six pots of six with one per pot. The fixture graph is built pot pair by pot pair from randomised perfect matchings (no same-association pairs, at most two opponents from one association); home and away come from an Euler orientation of the regular graph (exactly half at home); matchdays from a 1-factorisation (each club races once per matchday). The draw retries until every rule holds; only an impossible pot relaxes the same-association rule.
+
+**Knockouts.** League positions 9-24 play off (9 v 24 … 16 v 17), the winners meet 1-8 in the Round of 16 (1 v winner of 16/17 …), then a fixed bracket; the better-placed club hosts the second leg; the final is one race at a neutral circuit.
+
+**Coefficients.** Per club and season: league-phase win 2, draw 1, qualifying tie won 0.5, Round of 16 reached +2, quarter, semi and final +1.5 each, each knockout tie won +1, title +2.5, participation +4 / +1.5 / +0.75; weighted 1 / 0.75 / 0.5 for Champions / Europa / Conference League. An association's season coefficient is the average over its entrants; rankings and club seeding use five-season sums.

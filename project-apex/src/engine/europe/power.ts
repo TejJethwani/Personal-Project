@@ -48,12 +48,43 @@ export function fieldPaceMean(state: GameState, division: DivisionId): number {
   return teams.length ? teams.reduce((s, t) => s + overallPace(t.car), 0) / teams.length : 50;
 }
 
+/**
+ * Mean overall of a division's race drivers. Drivers develop over the years,
+ * so like cars they count relative to their own league.
+ */
+export function fieldDriverMean(state: GameState, division: DivisionId): number {
+  let sum = 0;
+  let n = 0;
+  for (const t of Object.values(state.teams)) {
+    if (t.division !== division || t.guest) continue;
+    for (const id of t.raceDrivers) {
+      const d = id ? state.drivers[id] : null;
+      if (d) {
+        sum += overall(d);
+        n++;
+      }
+    }
+  }
+  return n ? sum / n : DIVISIONS[division].driverRatingMean;
+}
+
+/** Driver contribution to power: against the league's own field, on the level's scale. */
+function driverTerm(state: GameState, division: DivisionId, avg: number): number {
+  return DRIVER_WEIGHT * (avg - fieldDriverMean(state, division) + DIVISIONS[division].driverRatingMean - DRIVER_REFERENCE);
+}
+
 /** Power of a fully simulated team, from its car and race drivers. */
 export function teamPower(state: GameState, team: Team): number {
   const drivers = team.raceDrivers.map((id) => (id ? state.drivers[id] : null)).filter((d) => !!d);
   const avg = drivers.length ? drivers.reduce((s, d) => s + overall(d!), 0) / drivers.length : DIVISIONS[team.division].driverRatingMean - 4;
   const assoc = state.europe?.playerAssocId ?? '';
-  return 50 + overallPace(team.car) - fieldPaceMean(state, team.division) + LEVEL_PACE[team.division] + associationPace(assoc) + DRIVER_WEIGHT * (avg - DRIVER_REFERENCE);
+  return 50 + overallPace(team.car) - fieldPaceMean(state, team.division) + LEVEL_PACE[team.division] + associationPace(assoc) + driverTerm(state, team.division, avg);
+}
+
+/** Car base rating a guest team needs to match `power` in the frame of `division`. */
+export function guestCarFor(state: GameState, power: number, division: DivisionId, guestDriverAvg: number): number {
+  const assoc = state.europe?.playerAssocId ?? '';
+  return power - 50 + fieldPaceMean(state, division) - LEVEL_PACE[division] - associationPace(assoc) - driverTerm(state, division, guestDriverAvg);
 }
 
 /** Power of any club: live for full teams, stored for quick-model clubs. */

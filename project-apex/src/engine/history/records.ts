@@ -33,7 +33,7 @@ export function driverDivisionTotals(state: GameState, division: DivisionId | 'a
     t[k] += v;
     totals.set(id, t);
   };
-  const results = [...state.history.flatMap((h) => Object.values(h.divisions).flatMap((dh) => dh.results)), ...Object.values(state.results)];
+  const results = [...state.history.flatMap((h) => Object.values(h.divisions).flatMap((dh) => dh.results)), ...Object.values(state.results)].filter((r) => !r.competition);
   for (const r of results) {
     if (division !== 'all' && r.division !== division) continue;
     for (const e of r.entries) {
@@ -172,7 +172,7 @@ export function hallOfFame(state: GameState): HallOfFamer[] {
 
 /** Head-to-head record between two drivers across all shared races. */
 export function headToHead(state: GameState, a: string, b: string): { races: number; aAhead: number; bAhead: number } {
-  const results = [...state.history.flatMap((h) => Object.values(h.divisions).flatMap((dh) => dh.results)), ...Object.values(state.results)];
+  const results = [...state.history.flatMap((h) => Object.values(h.divisions).flatMap((dh) => dh.results)), ...Object.values(state.results)].filter((r) => !r.competition);
   let races = 0;
   let aAhead = 0;
   let bAhead = 0;
