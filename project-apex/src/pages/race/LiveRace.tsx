@@ -14,9 +14,11 @@ import { TeamDot, TireIcon } from '@/components/common';
 import { Badge, Button, cn, Panel, Progress, Segmented, Toggle } from '@/components/ui';
 import { lapTime } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
-import { BroadcastMap, type AnimState, type Camera } from './live/BroadcastMap';
+import { BroadcastMap, CAMERA_LABELS, type AnimState, type Camera } from './live/BroadcastMap';
 import { Tower, type GapMode } from './live/Tower';
-import { CarStrip, CommentaryPanel, MomentOverlay, StrategyPanel, useCommentary } from './live/Panels';
+import { AlertTicker, CarStrip, CommentaryPanel, MomentOverlay, RaceDirectorPanel, StrategyPanel, TeamRadioPanel, useCommentary } from './live/Panels';
+import { StartOverlay, useStartSequence } from './live/StartSequence';
+import type { RaceAdvanceMode } from '@/engine/race/weekend';
 import { H2HLiveScore } from '@/components/EuroCommon';
 import { askConfirm } from '@/store/confirm';
 
@@ -76,7 +78,7 @@ export function LiveRace() {
   };
 
   const step = useCallback(
-    (mode: 'lap' | 'key' | 'finish', animate = true) => {
+    (mode: RaceAdvanceMode, animate = true) => {
       snapshotGaps();
       act((g) => advanceRace(g, mode));
       anim.current.start = performance.now();
@@ -134,6 +136,13 @@ export function LiveRace() {
     return () => clearTimeout(t);
   }, [playing, view, step, race.lap]);
 
+  // Lights out: a formation lap and the start lights before the first lap, in the watched views.
+  const start = useStartSequence(() => setPlaying(true));
+  const play = () => {
+    if (playing) return setPlaying(false);
+    if (race.lap === 0 && (view === 'broadcast' || view === 'manager') && !start.active) return start.begin();
+    setPlaying(true);
+  };
   const command = (driverId: string, cmd: RaceCommand) => act((g) => applyRaceCommand(g, g.weekend!.race!, driverId, cmd));
   const wx = race.weather[Math.max(0, race.lap - 1)] ?? race.weather[0];
   const nextWx = race.weather[Math.min(race.weather.length - 1, race.lap)] ?? wx;
@@ -144,6 +153,8 @@ export function LiveRace() {
     <div className="panel relative overflow-hidden p-2">
       <BroadcastMap race={race} circuit={circuit} anim={anim} leaderLapRef={leaderLapRef} camera={camera} followId={focusId} sectorCar={focusId} />
       <MomentOverlay game={game} race={race} lines={lines} />
+      <AlertTicker race={race} lines={lines} />
+      <StartOverlay game={game} race={race} seq={start} />
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
         <span className="font-display text-sm uppercase tracking-[0.14em] text-apex-muted">{circuit.location}</span>
         {race.fastestLap && (
@@ -151,16 +162,7 @@ export function LiveRace() {
             <span className="h-2 w-2 rounded-full bg-apex-purple" /> Fastest lap {driverShortName(game.drivers[race.fastestLap.driverId])} {lapTime(race.fastestLap.time)} (L{race.fastestLap.lap})
           </span>
         )}
-        <Segmented
-          size="xs"
-          value={camera}
-          onChange={setCamera}
-          options={[
-            { value: 'full', label: 'Full track' },
-            { value: 'follow', label: 'Follow', title: 'Follow the selected car (click a row in the timing tower)' },
-            { value: 'battle', label: 'Battle cam', title: 'Follow the closest fight on track' },
-          ]}
-        />
+        <Segmented size="xs" value={camera} onChange={setCamera} options={(Object.keys(CAMERA_LABELS) as Camera[]).map((c) => ({ value: c, label: CAMERA_LABELS[c].label, title: CAMERA_LABELS[c].title }))} />
       </div>
     </div>
   );
@@ -176,18 +178,32 @@ export function LiveRace() {
           <span className="num text-lg text-apex-muted">/ {race.totalLaps}</span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button variant={playing ? 'secondary' : 'primary'} size="md" onClick={() => setPlaying(!playing)} disabled={race.finished}>
+          <Button variant={playing ? 'secondary' : 'primary'} size="md" onClick={play} disabled={race.finished || start.active}>
             {playing ? <Pause size={16} /> : <Play size={16} />} {playLabel}
           </Button>
           {(view === 'broadcast' || view === 'manager') && <Segmented value={speed} onChange={setSpeed} options={SPEEDS.map((s) => ({ value: s, label: `${s}×`, title: s === 1 ? 'Real time' : `${s}× speed` }))} />}
           <Button size="md" onClick={() => step('lap')} disabled={race.finished || playing} title="Simulate one lap">
             <SkipForward size={15} /> Lap
           </Button>
-          <Button size="md" onClick={() => step('key')} disabled={race.finished || playing} title="Simulate to the next key event">
-            <FastForward size={15} /> Next event
-          </Button>
-          <Button size="md" variant="outline" onClick={async () => (await askConfirm('Simulate to the chequered flag?')) && step('finish')} disabled={race.finished}>
-            Finish race
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="label mr-1 flex items-center gap-1">
+            <FastForward size={13} /> Simulate to
+          </span>
+          {(
+            [
+              ['overtake', 'Next overtake', 'The next pass at the front or involving your cars'],
+              ['pitWindow', 'Pit window', 'Until one of your cars should pit'],
+              ['incident', 'Safety car / incident', 'Until a safety car, crash, collision or failure'],
+              ['final5', 'Final 5 laps', 'Until five laps to go'],
+            ] as const
+          ).map(([mode, label, title]) => (
+            <Button key={mode} size="sm" variant="secondary" onClick={() => step(mode, false)} disabled={race.finished || playing || start.active} title={`${title}. Stops early for anything urgent for your cars; if it never happens, runs to the flag.`}>
+              {label}
+            </Button>
+          ))}
+          <Button size="sm" variant="outline" onClick={async () => (await askConfirm('Simulate to the chequered flag?')) && step('finish')} disabled={race.finished || start.active}>
+            Finish
           </Button>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
@@ -235,12 +251,27 @@ export function LiveRace() {
                 <CarStrip key={c.driverId} game={game} race={race} car={c} />
               ))}
             </div>
-            <div className="2xl:hidden">
+            {camera === 'strategy' && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {playerCars
+                  .filter((c) => c.status === 'running')
+                  .map((c) => (
+                    <StrategyPanel key={c.driverId} game={game} race={race} car={c} circuit={circuit} onCommand={command} />
+                  ))}
+              </div>
+            )}
+            <div className="space-y-4 2xl:hidden">
               <CommentaryPanel game={game} race={race} lines={lines} height={280} />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <TeamRadioPanel game={game} race={race} />
+                <RaceDirectorPanel game={game} race={race} />
+              </div>
             </div>
           </div>
           <div className="hidden space-y-4 2xl:block">
-            <CommentaryPanel game={game} race={race} lines={lines} height={420} />
+            <CommentaryPanel game={game} race={race} lines={lines} height={360} />
+            <TeamRadioPanel game={game} race={race} height={200} />
+            <RaceDirectorPanel game={game} race={race} height={180} />
             {!event.pointsPreset && <LiveChampionship race={race} division={event.division} />}
           </div>
         </div>
@@ -263,7 +294,9 @@ export function LiveRace() {
               .map((c) => (
                 <StrategyPanel key={c.driverId} game={game} race={race} car={c} circuit={circuit} onCommand={command} />
               ))}
+            <TeamRadioPanel game={game} race={race} height={200} />
             <CommentaryPanel game={game} race={race} lines={lines} height={260} />
+            <RaceDirectorPanel game={game} race={race} height={180} />
             {!event.pointsPreset && <LiveChampionship race={race} division={event.division} />}
             <SectorPanel race={race} driverId={focusId ?? undefined} />
           </div>

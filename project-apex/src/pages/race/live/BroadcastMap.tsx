@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
+import { TIRE_TUNING } from '@/engine/config/tuning';
 import { driverCode } from '@/engine/drivers/ratings';
 import { liveBattles } from '@/engine/race/analysis';
 import type { CarRaceState, Circuit, RaceState } from '@/engine/types';
@@ -12,7 +13,15 @@ export interface AnimState {
   prevLap: number;
 }
 
-export type Camera = 'full' | 'follow' | 'battle';
+export type Camera = 'full' | 'follow' | 'battle' | 'auto' | 'strategy';
+
+export const CAMERA_LABELS: Record<Camera, { label: string; title: string }> = {
+  full: { label: 'Track overview', title: 'The whole circuit with every car' },
+  follow: { label: 'Driver focus', title: 'Follow the selected car (click a row in the timing tower)' },
+  battle: { label: 'Battle cam', title: 'Follow the closest fight on track' },
+  auto: { label: 'Broadcast auto', title: 'The director picks the story: incidents, the safety car queue, battles, your cars' },
+  strategy: { label: 'Strategy view', title: 'Cars coloured by tyre, with tyre age and the pit lane highlighted' },
+};
 
 const PIT_WINDOW = 0.045;
 
@@ -47,6 +56,8 @@ export function BroadcastMap({ race, circuit, anim, leaderLapRef, camera, follow
   raceRef.current = race;
   const camRef = useRef({ camera, followId });
   camRef.current = { camera, followId };
+  const autoRef = useRef<{ key: string; since: number }>({ key: '', since: 0 });
+  const autoLabelRef = useRef<HTMLDivElement>(null);
   const vb = useRef([0, 0, MAP_W, MAP_H]);
   const s1 = circuit.sectors[0];
   const s2 = circuit.sectors[0] + circuit.sectors[1];
@@ -113,6 +124,26 @@ export function BroadcastMap({ race, circuit, anim, leaderLapRef, camera, follow
         const pitting = r.lap > 0 && last.fromLap === r.lap + 1 && !r.finished;
         if (pitting) p = pitOffset(frac) ?? p;
         pos.set(car.driverId, { x: p.x, y: p.y, frac });
+      }
+      // Cars running within a few metres of each other sit side by side rather than on top of each other.
+      const along = [...pos.entries()].sort((a, b) => b[1].frac - a[1].frac);
+      let side = 1;
+      for (let i = 1; i < along.length; i++) {
+        const [, cur] = along[i];
+        const [, prev] = along[i - 1];
+        if (Math.hypot(cur.x - prev.x, cur.y - prev.y) < 7) {
+          const p0 = sampler.at(cur.frac);
+          const q = sampler.at(cur.frac + 0.002);
+          const len = Math.hypot(q.x - p0.x, q.y - p0.y) || 1;
+          const [nx, ny] = [-(q.y - p0.y) / len, (q.x - p0.x) / len];
+          cur.x += nx * 4.5 * side;
+          cur.y += ny * 4.5 * side;
+          side = -side;
+        } else side = 1;
+      }
+      for (const [id, p] of pos) {
+        const el = markers.current[id];
+        if (!el) continue;
         el.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
         el.setAttribute('opacity', '1');
       }
@@ -164,8 +195,31 @@ export function BroadcastMap({ race, circuit, anim, leaderLapRef, camera, follow
         if (a && c) focus = { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 };
         else if (cam.followId) focus = pos.get(cam.followId) ?? null;
       }
+      if (cam.camera === 'auto') {
+        // The director: an incident first, then the safety car queue, a fight near the front, the player's car, the leader.
+        const now = performance.now();
+        const out = r.cars.find((c) => c.status !== 'running' && c.retiredLap === r.lap && r.lap > 0);
+        const fight = battlesRef.current.filter((b) => b.forPosition <= 10).sort((a, b) => a.gap - b.gap)[0];
+        const mine = r.cars.filter((c) => c.isPlayer && c.status === 'running').sort((a, b) => a.position - b.position)[0];
+        const options: { key: string; label: string; at: () => { x: number; y: number } | null }[] = [];
+        if (out && !r.finished) options.push({ key: `inc-${out.driverId}`, label: 'Incident', at: () => { const p = sampler.at(-out.gapToLeader / lapLen); return { x: p.x, y: p.y }; } });
+        if (r.safetyCar.type === 'sc' && leader) options.push({ key: 'sc', label: 'Safety car queue', at: () => pos.get(leader.driverId) ?? null });
+        if (fight) options.push({ key: `b-${fight.ahead.driverId}-${fight.behind.driverId}`, label: `Battle for P${fight.forPosition}`, at: () => { const a = pos.get(fight.ahead.driverId); const c = pos.get(fight.behind.driverId); return a && c ? { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 } : null; } });
+        if (mine) options.push({ key: `me-${mine.driverId}`, label: `Your car · P${mine.position}`, at: () => pos.get(mine.driverId) ?? null });
+        if (leader) options.push({ key: `lead-${leader.driverId}`, label: 'Race leader', at: () => pos.get(leader.driverId) ?? null });
+        // Hold a shot for a few seconds unless something more important happens.
+        const current = options.find((o) => o.key === autoRef.current.key);
+        const best = options[0];
+        const pickShot = !current || (best && best.key !== current.key && (options.indexOf(best) < options.indexOf(current) || now - autoRef.current.since > 5000));
+        const shot = pickShot ? best : current;
+        if (shot && shot.key !== autoRef.current.key) {
+          autoRef.current = { key: shot.key, since: now };
+          if (autoLabelRef.current) autoLabelRef.current.textContent = `Director · ${shot.label}`;
+        }
+        focus = shot?.at() ?? null;
+      }
       if (focus) {
-        const z = 2.4;
+        const z = cam.camera === 'auto' ? 2.0 : 2.4;
         const w = MAP_W / z;
         const h = MAP_H / z;
         target = [Math.max(-20, Math.min(MAP_W - w + 20, focus.x - w / 2)), Math.max(-20, Math.min(MAP_H - h + 20, focus.y - h / 2)), w, h];
@@ -183,7 +237,9 @@ export function BroadcastMap({ race, circuit, anim, leaderLapRef, camera, follow
   const wx = race.weather[Math.max(0, race.lap - 1)] ?? race.weather[0];
   const sectorStatus = sectorColors(race, race.cars.find((c) => c.driverId === sectorCar));
   const ordered = [...race.cars].sort((a, b) => b.position - a.position);
-  const labelled = new Set([...race.cars.filter((c) => c.isPlayer || c.position <= 3).map((c) => c.driverId), ...(followId ? [followId] : [])]);
+  const strategyCam = camera === 'strategy';
+  const near = new Set(race.cars.filter((c) => c.isPlayer).flatMap((m) => race.cars.filter((c) => Math.abs(c.position - m.position) <= 2).map((c) => c.driverId)));
+  const labelled = new Set([...race.cars.filter((c) => c.isPlayer || c.position <= 3 || (strategyCam && near.has(c.driverId))).map((c) => c.driverId), ...(followId ? [followId] : [])]);
   return (
     <div className="relative">
       <svg ref={svgRef} viewBox={`0 0 ${MAP_W} ${MAP_H}`} className="h-[300px] w-full xl:h-[380px]" role="img" aria-label={`${circuit.name} live map`}>
@@ -191,7 +247,7 @@ export function BroadcastMap({ race, circuit, anim, leaderLapRef, camera, follow
         <path ref={ref} d={d} fill="none" stroke={caution ? '#3f3a1c' : wx.wetness > 0.3 ? '#253446' : '#2b303a'} strokeWidth={10} strokeLinejoin="round" />
         {geo && (
           <>
-            <path d={geo.pit} fill="none" stroke="#475569" strokeWidth={3} strokeDasharray="3 3" />
+            <path d={geo.pit} fill="none" stroke={strategyCam ? '#f59e0b' : '#475569'} strokeWidth={strategyCam ? 4 : 3} strokeDasharray="3 3" />
             {geo.sectors.map((sd, k) => (
               <path key={k} d={sd} fill="none" stroke={caution ? '#facc15' : sectorStatus[k]} strokeWidth={2} opacity={caution ? 0.8 : 0.55} strokeLinejoin="round" />
             ))}
@@ -226,12 +282,14 @@ export function BroadcastMap({ race, circuit, anim, leaderLapRef, camera, follow
           const team = game.teams[c.teamId];
           const dr = game.drivers[c.driverId];
           const big = c.isPlayer || c.driverId === followId;
+          const tyre = TIRE_TUNING.compounds[c.tire.compound].color;
           return (
             <g key={c.driverId} ref={(el) => (markers.current[c.driverId] = el)} opacity={0}>
-              <circle r={big ? 7.5 : 5.5} fill={team?.colors.primary ?? '#999'} stroke={big ? '#fff' : team?.colors.secondary ?? '#000'} strokeWidth={big ? 2.2 : 1.4} />
+              <circle r={big ? 7.5 : 5.5} fill={strategyCam ? tyre : team?.colors.primary ?? '#999'} stroke={big ? '#fff' : strategyCam ? '#000' : team?.colors.secondary ?? '#000'} strokeWidth={big ? 2.2 : 1.4} />
               {labelled.has(c.driverId) && (
                 <text y={-11} textAnchor="middle" fontSize={big ? 10 : 8.5} fontWeight={700} fill={big ? '#fff' : '#cbd5e1'} fontFamily="Barlow Condensed" style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 3 }}>
                   {c.position} {dr ? driverCode(dr) : ''}
+                  {strategyCam ? ` · ${c.tire.age}L` : ''}
                 </text>
               )}
             </g>
@@ -245,6 +303,17 @@ export function BroadcastMap({ race, circuit, anim, leaderLapRef, camera, follow
         </g>
       </svg>
       {wx.rain > 0.1 && <div className="rain-overlay pointer-events-none absolute inset-0 rounded" style={{ opacity: Math.min(0.9, 0.3 + wx.rain) }} />}
+      {camera === 'auto' && <div ref={autoLabelRef} className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 font-display text-[11px] font-bold uppercase tracking-[0.14em] text-apex-red" />}
+      {strategyCam && (
+        <div className="pointer-events-none absolute bottom-2 left-2 flex gap-2 rounded bg-black/70 px-2 py-1 text-[10px] text-white/80">
+          {[...new Set(race.cars.filter((c) => c.status === 'running').map((c) => c.tire.compound))].map((k) => (
+            <span key={k} className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ background: TIRE_TUNING.compounds[k].color }} />
+              {TIRE_TUNING.compounds[k].label} {race.cars.filter((c) => c.status === 'running' && c.tire.compound === k).length}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

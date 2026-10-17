@@ -30,7 +30,7 @@ import type {
   WeekendState,
 } from '../types';
 import { assertRule, clamp, ordinal } from '../util';
-import { createRaceState, DEFAULT_INSTRUCTIONS, lapsDownText, NO_TIME, runRaceToEnd, stepRaceLap, stepToNextKeyEvent, type RaceEntrantInput } from './engine';
+import { createRaceState, DEFAULT_INSTRUCTIONS, lapsDownText, NO_TIME, runRaceToEnd, stepRaceLap, stepToCheckpoint, stepToNextKeyEvent, type RaceCheckpoint, type RaceEntrantInput } from './engine';
 import { basePace, divisionBaseLap, formatRaceTime } from './pace';
 import { buildQualifying, combineSessions, qualifyingWetness, runSessions, sessionSizes, type QualiEntrant, type QualiRisk } from './qualifying';
 import { DEFAULT_SETUP, engineerAdjust, feedbackAccuracy, idealSetup, setupFeedback, setupQuality } from './setup';
@@ -415,7 +415,7 @@ export function startRace(state: GameState): RaceState {
   return race;
 }
 
-export type RaceAdvanceMode = 'lap' | 'key' | 'finish';
+export type RaceAdvanceMode = 'lap' | 'key' | 'finish' | RaceCheckpoint;
 
 export function advanceRace(state: GameState, mode: RaceAdvanceMode): void {
   const { weekend } = requireWeekend(state, 'race');
@@ -424,7 +424,8 @@ export function advanceRace(state: GameState, mode: RaceAdvanceMode): void {
   if (race.finished) return;
   if (mode === 'lap') stepRaceLap(state, race);
   else if (mode === 'key') stepToNextKeyEvent(state, race);
-  else runRaceToEnd(state, race);
+  else if (mode === 'finish') runRaceToEnd(state, race);
+  else stepToCheckpoint(state, race, mode);
   if (race.finished) completePlayerRace(state);
 }
 

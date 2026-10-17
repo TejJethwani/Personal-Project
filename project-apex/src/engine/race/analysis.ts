@@ -1,5 +1,5 @@
 import { DIVISIONS, type PointsSystem } from '../config/divisions';
-import { TIRE_TUNING } from '../config/tuning';
+import { RACE_TUNING, TIRE_TUNING } from '../config/tuning';
 import type { CarRaceState, Circuit, GameState, RaceState, TireCompound } from '../types';
 import { fuelPerLap, type RaceCommand } from './engine';
 import { pitLossFor } from './strategy';
@@ -84,7 +84,12 @@ export interface UndercutCall {
   /** Laps of fresh-tyre pace needed to make up the stop and the gap. */
   lapsToPass: number;
   viable: boolean;
+  /** Chance (0-1) the move works if the target pits a lap later. */
+  chance: number;
 }
+
+/** Turn a margin in seconds into a chance, allowing for the noise of a real lap. */
+const chanceOf = (margin: number, spread = 0.4) => Math.round((1 / (1 + Math.exp(-margin / spread))) * 100) / 100;
 
 /** Can pitting now jump the car ahead once it pits too? */
 export function undercut(race: RaceState, car: CarRaceState): UndercutCall | null {
@@ -94,11 +99,106 @@ export function undercut(race: RaceState, car: CarRaceState): UndercutCall | nul
   if (!target) return null;
   const compound = nextDryCompound(race, car);
   const gain = freshTyreGain(race, car, compound) - freshTyreGain(race, target, compound) * 0.15;
-  if (gain <= 0.05) return { target, gap: car.interval, gainPerLap: Math.max(0, gain), lapsToPass: 99, viable: false };
+  if (gain <= 0.05) return { target, gap: car.interval, gainPerLap: Math.max(0, gain), lapsToPass: 99, viable: false, chance: 0 };
   // The target loses the same stop time later; the undercut has to make up the gap in the laps
   // until the target pits (about two laps of an in-lap and out-lap).
   const lapsToPass = car.interval / gain;
-  return { target, gap: car.interval, gainPerLap: gain, lapsToPass, viable: lapsToPass <= 2.5 && target.pitStops <= car.pitStops };
+  return { target, gap: car.interval, gainPerLap: gain, lapsToPass, viable: lapsToPass <= 2.5 && target.pitStops <= car.pitStops, chance: target.pitStops <= car.pitStops ? chanceOf(gain * 2 - car.interval) : 0 };
+}
+
+export interface OvercutCall {
+  target: CarRaceState;
+  gap: number;
+  /** Time the target would lose rejoining in traffic, per lap. */
+  trafficLoss: number;
+  /** Time lost per lap staying out on these tyres instead of fresh ones. */
+  tyreLoss: number;
+  chance: number;
+  reason: string;
+}
+
+/**
+ * Staying out while the car ahead pits. With no out-lap penalty in the
+ * simulation, an overcut only works if the car ahead rejoins in traffic and is
+ * held up while this car runs in clean air on tyres that still have pace.
+ */
+export function overcut(race: RaceState, car: CarRaceState, circuit: Circuit): OvercutCall | null {
+  const order = running(race);
+  const idx = order.indexOf(car);
+  const target = idx > 0 ? order[idx - 1] : null;
+  if (!target || race.safetyCar.type !== 'none') return null;
+  const rejoin = rejoinEstimate(race, target, circuit);
+  const blocker = rejoin.behindOf && rejoin.behindOf.driverId !== car.driverId ? rejoin.behindOf : null;
+  const gapToBlocker = blocker ? target.gapToLeader + pitLoss(race, circuit) - blocker.gapToLeader : 99;
+  const trafficLoss = blocker && gapToBlocker < 1.2 ? 0.6 : 0;
+  const tyreLoss = Math.max(0, freshTyreGain(race, car, nextDryCompound(race, car)));
+  const margin = (trafficLoss - tyreLoss) * 2 - car.interval;
+  const reason = trafficLoss > 0 ? 'the car ahead would rejoin in traffic' : 'no traffic to hold the car ahead up';
+  return { target, gap: car.interval, trafficLoss, tyreLoss, chance: trafficLoss > 0 ? chanceOf(margin) : 0, reason };
+}
+
+/** Average of the last few clean laps (no pit stop, no safety car), or null. */
+export function recentPace(race: RaceState, car: CarRaceState, laps = 3): number | null {
+  const pits = new Set(car.stints.map((s) => s.toLap).filter((l): l is number => l !== null));
+  const clean = car.history.filter((h) => !pits.has(h.lap) && !race.scLaps.includes(h.lap) && h.lap > 1).slice(-laps);
+  return clean.length ? clean.reduce((s, h) => s + h.lapTime, 0) / clean.length : null;
+}
+
+export interface PaceRow {
+  car: CarRaceState;
+  label: string;
+  pace: number | null;
+  /** Seconds per lap faster (+) or slower (-) than the car being compared. */
+  delta: number | null;
+}
+
+/** This car's recent pace against the leader, the car ahead and the car behind. */
+export function paceComparison(race: RaceState, car: CarRaceState): PaceRow[] {
+  const order = running(race);
+  const idx = order.indexOf(car);
+  const mine = recentPace(race, car);
+  const rows: PaceRow[] = [];
+  const add = (c: CarRaceState | undefined, label: string) => {
+    if (!c || c.driverId === car.driverId) return;
+    const p = recentPace(race, c);
+    rows.push({ car: c, label, pace: p, delta: mine !== null && p !== null ? p - mine : null });
+  };
+  add(order[0], 'Leader');
+  if (idx > 1) add(order[idx - 1], 'Ahead');
+  add(order[idx + 1], 'Behind');
+  return rows;
+}
+
+/** Extra lap time the current tyres will cost over the coming laps at the present wear rate. */
+export function degradationForecast(race: RaceState, car: CarRaceState, laps = 6): { lap: number; loss: number }[] {
+  const scale = race.baseLapTime / 90;
+  const { perLap } = tyreLife(car);
+  const base = wearPenalty(car.tire.compound, car.tire.wear, scale);
+  const out: { lap: number; loss: number }[] = [];
+  for (let k = 1; k <= laps && race.lap + k <= race.totalLaps; k++) {
+    out.push({ lap: race.lap + k, loss: Math.round((wearPenalty(car.tire.compound, Math.min(100, car.tire.wear + perLap * k), scale) - base) * 100) / 100 });
+  }
+  return out;
+}
+
+/** The pit window: earliest sensible lap and the lap the tyres fall away. */
+export function pitWindow(race: RaceState, car: CarRaceState): { open: number; close: number; toFlag: boolean } {
+  const life = tyreLife(car);
+  const remaining = race.totalLaps - race.lap;
+  const close = Math.min(race.totalLaps - 1, race.lap + Math.max(1, Math.floor(life.lapsToCliff)));
+  const planned = car.plan.stops[car.pitStops]?.lap;
+  const open = Math.max(race.lap + 1, Math.min(close, planned ? planned - 2 : close - 4));
+  return { open, close, toFlag: life.lapsToCliff >= remaining };
+}
+
+/** Battery forecast under the current ERS mode. */
+export function ersForecast(car: CarRaceState): { perLap: number; lapsToEmpty: number | null; lapsToFull: number | null } {
+  const perLap = RACE_TUNING.ersCharge[car.instructions.ers] ?? 0;
+  return {
+    perLap,
+    lapsToEmpty: perLap < 0 ? Math.max(0, Math.floor(car.ers / -perLap)) : null,
+    lapsToFull: perLap > 0 ? Math.max(0, Math.ceil((100 - car.ers) / perLap)) : null,
+  };
 }
 
 function nextDryCompound(race: RaceState, car: CarRaceState): TireCompound {

@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { findEvent } from '@/engine/season/calendar';
 import type { RaceResult } from '@/engine/types';
@@ -25,7 +26,7 @@ export function RaceResultModal() {
   );
 }
 
-export function ResultTable({ result, compact = false }: { result: RaceResult; compact?: boolean }) {
+export function ResultTable({ result, compact = false, animate = false }: { result: RaceResult; compact?: boolean; animate?: boolean }) {
   const game = useGame();
   return (
     <table className="table-apex">
@@ -43,10 +44,10 @@ export function ResultTable({ result, compact = false }: { result: RaceResult; c
         </tr>
       </thead>
       <tbody>
-        {result.entries.map((e) => {
+        {result.entries.map((e, i) => {
           const mine = e.teamId === game.player.teamId;
           return (
-            <tr key={e.driverId} className={mine ? 'bg-apex-red/[0.07]' : ''}>
+            <motion.tr key={e.driverId} className={mine ? 'bg-apex-red/[0.07]' : ''} initial={animate ? { opacity: 0, x: -14 } : false} animate={{ opacity: 1, x: 0 }} transition={{ delay: animate ? Math.min(2.4, i * 0.06) : 0, duration: 0.25 }}>
               <td className="num font-bold">{e.status === 'finished' ? e.position : 'DNF'}</td>
               <td>
                 <DriverLink driver={game.drivers[e.driverId]} />
@@ -67,7 +68,7 @@ export function ResultTable({ result, compact = false }: { result: RaceResult; c
               <td>{e.pitStops}</td>
               {!compact && <td className="mono text-xs">{lapTime(e.bestLap)}</td>}
               <td className="num text-right font-bold">{e.points || ''}</td>
-            </tr>
+            </motion.tr>
           );
         })}
       </tbody>

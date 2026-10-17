@@ -1,11 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { CloudRain, Lightbulb, Radio } from 'lucide-react';
+import { AlertTriangle, CloudRain, Flag, Gauge, Lightbulb, Radio, Siren, Timer, Wrench, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { TIRE_TUNING } from '@/engine/config/tuning';
 import { driverShortName } from '@/engine/drivers/ratings';
-import { buildCommentary, latestMoment, type CommentaryLine, type CommentaryTone } from '@/engine/race/commentary';
-import { recommendations, rejoinEstimate, tyreLife, undercut, weatherRadar } from '@/engine/race/analysis';
+import { buildCommentary, lapAlerts, latestMoment, raceDirectorFeed, teamRadioFeed, type AlertKind, type CommentaryLine, type CommentaryTone, type FeedLine } from '@/engine/race/commentary';
+import { degradationForecast, ersForecast, overcut, paceComparison, pitWindow, recommendations, rejoinEstimate, tyreLife, undercut, weatherRadar } from '@/engine/race/analysis';
 import { fuelPerLap, type RaceCommand } from '@/engine/race/engine';
 import type { CarRaceState, Circuit, GameState, RaceState } from '@/engine/types';
 import { TireIcon } from '@/components/common';
@@ -25,6 +25,8 @@ const TONE_STYLE: Record<CommentaryTone, string> = {
   penalty: 'text-orange-300',
   fastest: 'text-fuchsia-300',
   start: 'text-white font-semibold',
+  defend: 'text-orange-100',
+  title: 'text-amber-300 font-bold',
 };
 
 export function useCommentary(game: GameState, race: RaceState): CommentaryLine[] {
@@ -70,14 +72,40 @@ export function CommentaryPanel({ game, race, lines, height = 340 }: { game: Gam
   );
 }
 
-const MOMENT_STYLE: Partial<Record<CommentaryTone, string>> = {
+const MOMENT_STYLE: Partial<Record<AlertKind, string>> = {
   finish: 'from-yellow-500/90 to-amber-700/90 text-black',
-  caution: 'from-yellow-400/95 to-yellow-600/90 text-black',
-  incident: 'from-red-600/95 to-red-900/90 text-white',
+  safetyCar: 'from-yellow-400/95 to-yellow-600/90 text-black',
+  crash: 'from-red-600/95 to-red-900/90 text-white',
+  collision: 'from-red-600/95 to-red-900/90 text-white',
+  failure: 'from-red-700/95 to-zinc-900/90 text-white',
+  puncture: 'from-orange-600/95 to-red-900/90 text-white',
   lead: 'from-apex-red/95 to-red-900/90 text-white',
-  weather: 'from-sky-500/90 to-sky-800/90 text-white',
-  overtake: 'from-emerald-500/90 to-emerald-800/90 text-white',
-  info: 'from-slate-200/95 to-slate-400/90 text-black',
+  titleLead: 'from-amber-400/95 to-amber-700/90 text-black',
+  rain: 'from-sky-500/90 to-sky-800/90 text-white',
+  finalLap: 'from-slate-100/95 to-slate-400/90 text-black',
+  start: 'from-apex-red/95 to-black/90 text-white',
+};
+
+/** Icon and colour of every alert kind, for the ticker. */
+const ALERT_STYLE: Record<AlertKind, { color: string; icon: typeof Zap; label: string }> = {
+  start: { color: '#e10600', icon: Flag, label: 'Start' },
+  lead: { color: '#e10600', icon: Zap, label: 'Lead' },
+  overtake: { color: '#22c55e', icon: Zap, label: 'Overtake' },
+  defend: { color: '#fb923c', icon: Gauge, label: 'Defended' },
+  fastest: { color: '#a855f7', icon: Timer, label: 'Fastest lap' },
+  lockup: { color: '#f59e0b', icon: AlertTriangle, label: 'Lock-up' },
+  mistake: { color: '#f59e0b', icon: AlertTriangle, label: 'Mistake' },
+  crash: { color: '#ef4444', icon: Siren, label: 'Crash' },
+  collision: { color: '#ef4444', icon: Siren, label: 'Contact' },
+  puncture: { color: '#f97316', icon: AlertTriangle, label: 'Puncture' },
+  failure: { color: '#ef4444', icon: Wrench, label: 'Failure' },
+  rain: { color: '#38bdf8', icon: CloudRain, label: 'Weather' },
+  pitError: { color: '#f59e0b', icon: Wrench, label: 'Pit stop' },
+  safetyCar: { color: '#facc15', icon: Siren, label: 'Safety car' },
+  titleLead: { color: '#fbbf24', icon: Flag, label: 'Championship' },
+  finalLap: { color: '#e5e7eb', icon: Flag, label: 'Final laps' },
+  battle: { color: '#fb923c', icon: Gauge, label: 'Battle' },
+  finish: { color: '#fbbf24', icon: Flag, label: 'Finish' },
 };
 
 /** Full-width banner for the big moments of the latest lap; fades out after a few seconds. */
@@ -93,12 +121,91 @@ export function MomentOverlay({ game, race, lines }: { game: GameState; race: Ra
   return (
     <AnimatePresence>
       {shown && (
-        <motion.div key={shown.id} initial={{ opacity: 0, y: -12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8 }} className={cn('pointer-events-none absolute inset-x-3 top-3 z-10 rounded-lg bg-gradient-to-r px-4 py-2 shadow-panel', MOMENT_STYLE[shown.tone] ?? MOMENT_STYLE.info)}>
+        <motion.div key={shown.id} initial={{ opacity: 0, y: -12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8 }} className={cn('pointer-events-none absolute inset-x-3 top-3 z-10 rounded-lg bg-gradient-to-r px-4 py-2 shadow-panel', MOMENT_STYLE[shown.alert] ?? MOMENT_STYLE.finalLap)}>
           <div className="font-display text-xl font-black uppercase tracking-[0.12em]">{shown.title}</div>
           <div className="text-sm font-semibold">{shown.text}</div>
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** Smaller alerts of the latest lap (passes, fastest laps, lock-ups, pit errors...), stacked in a corner of the map. */
+export function AlertTicker({ race, lines }: { race: RaceState; lines: CommentaryLine[] }) {
+  const alerts = useMemo(() => lapAlerts(race, lines), [race, lines]);
+  const [shown, setShown] = useState<CommentaryLine[]>([]);
+  useEffect(() => {
+    setShown(alerts);
+    const t = setTimeout(() => setShown([]), 4200);
+    return () => clearTimeout(t);
+  }, [alerts.map((a) => a.id).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="pointer-events-none absolute bottom-10 right-3 z-10 flex w-[min(340px,70%)] flex-col items-end gap-1">
+      <AnimatePresence>
+        {shown.map((a) => {
+          const st = ALERT_STYLE[a.alert!];
+          const Icon = st.icon;
+          return (
+            <motion.div key={a.id} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }} className="flex max-w-full items-center gap-2 rounded-md border bg-black/80 px-2 py-1 text-[11px] text-white shadow-panel" style={{ borderColor: `${st.color}99` }}>
+              <Icon size={12} style={{ color: st.color }} className="shrink-0" />
+              <span className="font-display font-bold uppercase tracking-wider" style={{ color: st.color }}>
+                {st.label}
+              </span>
+              <span className="truncate">{a.text}</span>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+const FEED_STYLE: Record<FeedLine['level'], string> = {
+  info: 'text-white/85',
+  flag: 'text-yellow-300',
+  penalty: 'text-orange-300',
+  caution: 'text-yellow-300 font-semibold',
+  green: 'text-emerald-300',
+};
+
+/** Official race control messages. */
+export function RaceDirectorPanel({ game, race, height = 220 }: { game: GameState; race: RaceState; height?: number }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const feed = useMemo(() => raceDirectorFeed(game, race), [race.id, race.lap, race.log.length]);
+  return (
+    <Panel title="Race director" icon={<Flag size={14} className="text-yellow-300" />} bodyClass="p-0">
+      <div className="overflow-y-auto font-mono" style={{ maxHeight: height }}>
+        {[...feed].reverse().map((l) => (
+          <div key={l.id} className="flex gap-2 border-b border-apex-line/40 px-3 py-1.5 text-[11px]">
+            <span className="w-7 shrink-0 text-apex-dim">L{l.lap}</span>
+            <span className={FEED_STYLE[l.level]}>{l.text}</span>
+          </div>
+        ))}
+        {feed.length === 0 && <div className="px-3 py-3 text-xs text-apex-muted">No messages.</div>}
+      </div>
+    </Panel>
+  );
+}
+
+/** The radio between the pit wall and the player's drivers. */
+export function TeamRadioPanel({ game, race, height = 220 }: { game: GameState; race: RaceState; height?: number }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const feed = useMemo(() => teamRadioFeed(game, race), [race.id, race.lap, race.log.length]);
+  return (
+    <Panel title="Team radio" icon={<Radio size={14} className="text-sky-300" />} bodyClass="p-0">
+      <div className="overflow-y-auto" style={{ maxHeight: height }}>
+        {[...feed].reverse().map((l) => (
+          <div key={l.id} className="flex gap-2 border-b border-apex-line/40 px-3 py-1.5 text-xs">
+            <span className="mono w-7 shrink-0 text-apex-dim">L{l.lap}</span>
+            <span className={cn('min-w-0', FEED_STYLE[l.level])}>
+              <span className={cn('mr-1 font-semibold', l.speaker === 'Engineer' ? 'text-sky-300' : 'text-white')}>{l.speaker}:</span>
+              <span className={l.speaker === 'Engineer' ? '' : 'italic'}>{l.text}</span>
+            </span>
+          </div>
+        ))}
+        {feed.length === 0 && <div className="px-3 py-3 text-xs text-apex-muted">Radio silence so far.</div>}
+      </div>
+    </Panel>
   );
 }
 
@@ -130,10 +237,14 @@ export function StrategyPanel({ game, race, car, circuit, onCommand }: { game: G
   const life = tyreLife(car);
   const rejoin = rejoinEstimate(race, car, circuit);
   const uc = undercut(race, car);
+  const oc = overcut(race, car, circuit);
   const recs = recommendations(game, race, car, circuit);
   const fuelLaps = car.fuel / fuelPerLap(cfg, circuit);
   const nextStop = car.plan.stops[car.pitStops];
-  const windowLap = race.lap + Math.max(1, Math.floor(life.lapsToCliff));
+  const win = pitWindow(race, car);
+  const deg = degradationForecast(race, car, 6);
+  const pace = paceComparison(race, car);
+  const ers = ersForecast(car);
   const name = (c: CarRaceState | null) => (c ? driverShortName(game.drivers[c.driverId]) : '—');
   if (car.status !== 'running') return null;
   return (
@@ -152,10 +263,21 @@ export function StrategyPanel({ game, race, car, circuit, onCommand }: { game: G
           <div className="text-apex-muted">
             {life.perLap.toFixed(1)}%/lap · cliff in ~{life.lapsToCliff >= 50 ? '50+' : Math.round(life.lapsToCliff)} laps · {remaining} laps to go
           </div>
+          {deg.length > 0 && (
+            <div>
+              <span className="label">Degradation forecast</span>
+              <div className="mt-1 flex h-8 items-end gap-0.5">
+                {deg.map((d) => (
+                  <div key={d.lap} className="flex-1 rounded-t bg-amber-500/70" style={{ height: `${Math.max(2, Math.min(32, d.loss * 16))}px` }} title={`Lap ${d.lap}: +${d.loss.toFixed(2)} s from tyre wear`} />
+                ))}
+              </div>
+              <div className="text-apex-muted">+{deg[deg.length - 1].loss.toFixed(2)} s/lap by lap {deg[deg.length - 1].lap} from wear alone</div>
+            </div>
+          )}
           <div>
             <span className="label">Pit window</span>
             <div className="text-white/90">
-              {life.lapsToCliff >= remaining ? 'These tyres can reach the flag.' : `Box by lap ${Math.min(race.totalLaps - 1, windowLap)}`}
+              {win.toFlag ? 'These tyres can reach the flag.' : win.open >= win.close ? `Box by lap ${win.close}` : `Open laps ${win.open}–${win.close}`}
               {nextStop && <span className="text-apex-muted"> · plan: L{nextStop.lap} → {TIRE_TUNING.compounds[nextStop.compound].label}</span>}
             </div>
           </div>
@@ -171,7 +293,15 @@ export function StrategyPanel({ game, race, car, circuit, onCommand }: { game: G
             <div>
               <span className="label">Undercut on {name(uc.target)}</span>
               <div className={uc.viable ? 'text-emerald-300' : 'text-apex-muted'}>
-                {uc.gainPerLap > 0.05 ? `Fresh tyres +${uc.gainPerLap.toFixed(2)} s/lap vs gap ${uc.gap.toFixed(1)} s: ${uc.viable ? 'on' : 'not enough yet'}` : 'No tyre advantage to gain yet.'}
+                {uc.gainPerLap > 0.05 ? `${Math.round(uc.chance * 100)}% chance · fresh tyres +${uc.gainPerLap.toFixed(2)} s/lap vs a ${uc.gap.toFixed(1)} s gap` : 'No tyre advantage to gain yet.'}
+              </div>
+            </div>
+          )}
+          {oc && (
+            <div>
+              <span className="label">Overcut on {name(oc.target)}</span>
+              <div className={oc.chance > 0.5 ? 'text-emerald-300' : 'text-apex-muted'}>
+                {oc.chance > 0 ? `${Math.round(oc.chance * 100)}% chance: ${oc.reason}` : `Unlikely: ${oc.reason}, and fresh tyres would be ${oc.tyreLoss.toFixed(2)} s/lap quicker.`}
               </div>
             </div>
           )}
@@ -187,8 +317,8 @@ export function StrategyPanel({ game, race, car, circuit, onCommand }: { game: G
             <div>
               <span className="label">Fuel</span>
               <Progress value={Math.min(100, (fuelLaps / Math.max(1, remaining)) * 100)} color={fuelLaps < remaining ? '#ef4444' : '#3b82f6'} />
-              <div className="text-apex-muted">
-                {fuelLaps.toFixed(1)} laps of fuel · {car.instructions.fuel} mix
+              <div className={fuelLaps < remaining ? 'text-red-300' : 'text-apex-muted'}>
+                {fuelLaps.toFixed(1)} laps of fuel for {remaining} to go · {car.instructions.fuel} mix{fuelLaps < remaining ? ': fuel warning' : ''}
               </div>
             </div>
           )}
@@ -197,8 +327,24 @@ export function StrategyPanel({ game, race, car, circuit, onCommand }: { game: G
               <span className="label">ERS</span>
               <Progress value={car.ers} color="#facc15" />
               <div className="text-apex-muted">
-                {Math.round(car.ers)}% · {car.instructions.ers}
+                {Math.round(car.ers)}% · {car.instructions.ers} mode ·{' '}
+                {ers.lapsToEmpty !== null ? (ers.lapsToEmpty <= 2 ? <span className="text-amber-300">empty in {ers.lapsToEmpty} lap{ers.lapsToEmpty === 1 ? '' : 's'}</span> : `empty in ${ers.lapsToEmpty} laps`) : ers.lapsToFull !== null ? (ers.lapsToFull === 0 ? 'full' : `full in ${ers.lapsToFull} lap${ers.lapsToFull === 1 ? '' : 's'}`) : 'steady'}
               </div>
+            </div>
+          )}
+          {pace.length > 0 && (
+            <div>
+              <span className="label">Pace (last 3 clean laps)</span>
+              {pace.map((r) => (
+                <div key={r.car.driverId} className="flex justify-between">
+                  <span className="text-apex-muted">
+                    {r.label} · {name(r.car)}
+                  </span>
+                  <span className={r.delta === null ? 'text-apex-dim' : r.delta > 0.05 ? 'text-emerald-300' : r.delta < -0.05 ? 'text-red-300' : 'text-white/80'}>
+                    {r.delta === null ? '—' : r.delta > 0 ? `you +${r.delta.toFixed(2)} s/lap` : `you ${r.delta.toFixed(2)} s/lap`}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>

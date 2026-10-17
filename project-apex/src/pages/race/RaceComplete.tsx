@@ -97,7 +97,7 @@ export function RaceComplete() {
       </div>
       {game.mode !== 'daily' && <PostRaceReport game={game} event={event} result={result} race={race} />}
       <Panel title={`Classification · ${event.euro?.label ?? `${DIVISIONS[event.division].name} round ${event.round}`}`} actions={<span className="text-xs text-apex-muted">{race.totalLaps} laps</span>}>
-        <ResultTable result={result} />
+        <ResultTable result={result} animate />
       </Panel>
       {game.mode !== 'daily' && (
         <div className="flex justify-end">

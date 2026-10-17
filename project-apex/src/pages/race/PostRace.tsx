@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Award, Flag, Smile, TrendingUp, Trophy, Wrench } from 'lucide-react';
+import { Award, Flag, Newspaper, Smile, TrendingUp, Trophy, Wrench } from 'lucide-react';
+import { DIVISIONS } from '@/engine/config/divisions';
 import { useEffect, useMemo, useState } from 'react';
 import { driverShortName } from '@/engine/drivers/ratings';
-import { raceReport, strategyVerdict, type ChampionshipMove, type StintSummary } from '@/engine/race/postrace';
+import { raceReport, strategyVerdict, titlesDecided, type ChampionshipMove, type StintSummary } from '@/engine/race/postrace';
 import type { CalendarEvent, GameState, RaceResult, RaceState, TireCompound } from '@/engine/types';
 import { DriverLink, TeamDot, TeamLink } from '@/components/common';
 import { Badge, cn, Panel } from '@/components/ui';
@@ -77,10 +78,26 @@ export function PostRaceReport({ game, event, result, race }: { game: GameState;
   const tie = fx?.tieId ? game.europe?.ties[fx.tieId] : null;
   const pc = game.teams[playerTeam]?.clubId;
   const trophy = tie?.stage === 'final' && tie.winner && tie.winner === pc;
+  const titles = useMemo(() => titlesDecided(game, result), [game, result]);
+  const myTitle = titles.find((t) => t.mine);
+  const titleName = (t: (typeof titles)[number]) => (t.kind === 'drivers' ? driverShortName(game.drivers[t.id]) : game.teams[t.id]?.name ?? '');
+  const headlines = game.news.filter((n) => n.season === game.season && n.week === game.week && ['race', 'championship', 'milestone', 'interview', 'discipline', 'injury'].includes(n.category)).slice(0, 6);
   return (
     <div className="space-y-5">
       {trophy && <Celebration title="Champions!" text={`${game.europe?.clubs[pc!]?.name} win the ${event.euro?.label.split(' · ')[0]}.`} />}
-      {!trophy && won && <Celebration title="Victory!" text={`${driverShortName(game.drivers[result.entries[0].driverId])} wins at ${game.circuits[result.circuitId].name}.`} />}
+      {!trophy && myTitle && <Celebration title="Champions!" text={`${titleName(myTitle)} ${myTitle.kind === 'drivers' ? 'is' : 'are'} ${DIVISIONS[result.division].name} ${myTitle.kind === 'drivers' ? 'drivers’' : 'teams’'} champion${myTitle.kind === 'drivers' ? '' : 's'}!`} />}
+      {!trophy && !myTitle && won && <Celebration title="Victory!" text={`${driverShortName(game.drivers[result.entries[0].driverId])} wins at ${game.circuits[result.circuitId].name}.`} />}
+      {titles.length > 0 && (
+        <div className="rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-500/20 to-transparent p-4">
+          <div className="label text-amber-300">Championship decided</div>
+          {titles.map((t) => (
+            <div key={t.kind} className="mt-1 font-display text-2xl font-black uppercase">
+              <Trophy size={20} className="mr-2 inline text-amber-400" />
+              {titleName(t)}: {DIVISIONS[result.division].name} {t.kind === 'drivers' ? 'drivers’' : 'teams’'} champion{t.kind === 'drivers' ? '' : 's'}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="grid gap-5 lg:grid-cols-3">
         <Panel title="Driver of the race" icon={<Award size={15} className="text-amber-400" />}>
           {report.driverOfTheRace ? (
@@ -158,6 +175,18 @@ export function PostRaceReport({ game, event, result, race }: { game: GameState;
             <Moves game={game} rows={report.constructors} kind="team" highlight={(id) => id === playerTeam} />
           </Panel>
         </div>
+      )}
+      {headlines.length > 0 && (
+        <Panel title="Headlines" icon={<Newspaper size={15} className="text-apex-red" />}>
+          <div className="space-y-2">
+            {headlines.map((n, i) => (
+              <motion.div key={n.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.12 }} className="border-b border-apex-line/50 pb-2 last:border-0">
+                <div className="font-display text-base font-bold uppercase leading-tight">{n.headline}</div>
+                <div className="text-xs text-apex-muted">{n.body}</div>
+              </motion.div>
+            ))}
+          </div>
+        </Panel>
       )}
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="Pit stops & tyres" icon={<Wrench size={15} className="text-apex-red" />}>

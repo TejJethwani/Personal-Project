@@ -852,6 +852,10 @@ export interface CarRaceState {
 export type RaceLogType =
   | 'start'
   | 'overtake'
+  /** An attack that did not come off. */
+  | 'defend'
+  /** Race director notices: DRS, flags, track limits. */
+  | 'control'
   | 'pit'
   | 'fastestLap'
   | 'mistake'

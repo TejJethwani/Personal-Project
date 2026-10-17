@@ -254,7 +254,8 @@ function pushLog(race: RaceState, lap: number, type: RaceLogType, text: string, 
 
 function radio(race: RaceState, car: CarRaceState, state: GameState, text: string): void {
   if (!car.isPlayer) return;
-  pushLog(race, race.lap, 'radio', `${driverShortName(state.drivers[car.driverId])}: "${text}"`, [car.driverId], false);
+  // Radio is heard on the lap being run (race.lap still holds the last completed lap).
+  pushLog(race, Math.min(race.totalLaps, race.lap + 1), 'radio', `${driverShortName(state.drivers[car.driverId])}: "${text}"`, [car.driverId], false);
 }
 
 // ---------------------------------------------------------------------------
@@ -502,7 +503,10 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
 
   if (prevWx && prevWx.rain < 0.1 && wx.rain >= 0.1) pushLog(race, lap, 'weather', `Rain is falling at ${circuit.name}!`, [], true);
   if (prevWx && prevWx.rain >= 0.1 && wx.rain < 0.1) pushLog(race, lap, 'weather', 'The rain has stopped. A dry line will start to appear.', [], false);
+  const drsBefore = race.drsEnabled;
   race.drsEnabled = cfg.drs && lap > 2 && ctx.sc === 'none' && ctx.wetness < 0.25 && !race.scLaps.includes(lap - 1);
+  if (race.drsEnabled && !drsBefore) pushLog(race, lap, 'control', 'DRS enabled.', [], false);
+  else if (!race.drsEnabled && drsBefore) pushLog(race, lap, 'control', 'DRS disabled.', [], false);
 
   // 1. Decisions: instructions and pit calls.
   const pitCalls = new Map<string, TireCompound>();
@@ -596,13 +600,18 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
         pushLog(race, lap, 'mistake', `${driverShortName(driver)} spins! Loses a lot of time.`, [car.driverId], car.isPlayer || car.position <= 3);
       } else {
         lapTime += rng.range(0.4, 2.0) * ctx.scale;
-        if (car.isPlayer) pushLog(race, lap, 'mistake', `${driverShortName(driver)} runs wide and loses time.`, [car.driverId], false);
+        if (car.isPlayer || car.position <= 10) {
+          // Heavy braking zones produce lock-ups; elsewhere the car runs wide (wording only, no extra randomness).
+          const lockup = circuit.brakeStress >= 1.05 && hashString(`${car.driverId}:${lap}`) % 3 !== 0;
+          pushLog(race, lap, 'mistake', lockup ? `${driverShortName(driver)} locks up into the braking zone and runs wide!` : `${driverShortName(driver)} runs wide and loses time.`, [car.driverId], false);
+        }
       }
     }
 
     // Track limits.
     if (ctx.sc === 'none' && rng.chance(0.004 * (driver.attributes.aggression / 60) * t.paceModeMistake[ins.pace])) {
       car.trackLimitWarnings += 1;
+      if (car.trackLimitWarnings === 3) pushLog(race, lap, 'control', `Black and white flag for ${driverShortName(driver)}: one more track-limits offence brings a penalty.`, [car.driverId], false);
       if (car.trackLimitWarnings === 4) {
         car.penaltySeconds += 5;
         race.stewards.push({ driverId: car.driverId, seconds: 5, points: 0, reason: 'Repeated track limits', lap });
@@ -785,7 +794,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
           tentative.set(ahead.driverId, Math.max(tAhead + t.battleTimeLoss, tCar + 0.2));
           running[j] = ahead;
           running[j - 1] = car;
-          if (j - 1 === 0 || car.isPlayer || ahead.isPlayer || j <= 3) {
+          if (j - 1 === 0 || car.isPlayer || ahead.isPlayer || j <= 10) {
             const forWhat = j - 1 === 0 ? ' for the LEAD' : ` for P${j}`;
             pushLog(race, lap, 'overtake', `${driverShortName(dCar)} passes ${driverShortName(dAhead)}${forWhat}!`, [car.driverId, ahead.driverId], j - 1 === 0 || car.isPlayer || ahead.isPlayer);
           }
@@ -793,6 +802,10 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
         } else {
           tentative.set(car.driverId, tAhead + rng.range(t.heldUpGapMin, t.heldUpGapMax) * (lap === 1 ? 0.6 : 1));
           tentative.set(ahead.driverId, tAhead + t.battleTimeLoss * 0.4);
+          // A serious attack that failed, for the top five or the player's cars (once per pair every few laps).
+          if ((j <= 5 || car.isPlayer || ahead.isPlayer) && sigmoid(logit) > 0.3 && !recentDefence(race, lap, car.driverId, ahead.driverId)) {
+            pushLog(race, lap, 'defend', `${driverShortName(dAhead)} holds off ${driverShortName(dCar)} for P${j}!`, [ahead.driverId, car.driverId], false);
+          }
           break;
         }
       }
@@ -1067,6 +1080,51 @@ function finishRace(state: GameState, race: RaceState): void {
 }
 
 /** Advance until the next key event (or the end). Returns number of laps run. */
+/** Was this defence already reported in the last three laps? */
+function recentDefence(race: RaceState, lap: number, attacker: string, defender: string): boolean {
+  for (let i = race.log.length - 1; i >= 0; i--) {
+    const e = race.log[i];
+    if (e.lap < lap - 3) return false;
+    if (e.type === 'defend' && e.driverIds[0] === defender && e.driverIds[1] === attacker) return true;
+  }
+  return false;
+}
+
+export type RaceCheckpoint = 'overtake' | 'pitWindow' | 'incident' | 'final5';
+
+/**
+ * Simulate lap by lap (the same laps as watching live) until something worth
+ * seeing: the next pass at the front or involving the player's cars, a
+ * player's car reaching its pit window, a safety car or incident, or five laps
+ * to go. Stops early for anything urgent for the player's cars (a warning, a
+ * retirement, rain), and at the flag if nothing else comes.
+ */
+export function stepToCheckpoint(state: GameState, race: RaceState, checkpoint: RaceCheckpoint): number {
+  let laps = 0;
+  const mine = new Set(race.cars.filter((c) => c.isPlayer).map((c) => c.driverId));
+  const windowOpen = () =>
+    race.cars.some((c) => {
+      if (!c.isPlayer || c.status !== 'running' || race.totalLaps - race.lap < 3) return false;
+      const next = c.plan.stops[c.pitStops];
+      const cliff = TIRE_TUNING.compounds[c.tire.compound].cliff;
+      return (next && next.lap - race.lap <= 1) || c.tire.wear >= cliff - 8;
+    });
+  if (checkpoint === 'final5' && race.totalLaps - race.lap <= 5) checkpoint = 'overtake';
+  while (!race.finished) {
+    const before = race.log.length;
+    stepRaceLap(state, race);
+    laps++;
+    const fresh = race.log.slice(before);
+    const urgent = fresh.some((e) => (e.type === 'warning' || e.type === 'failure' || e.type === 'crash' || e.type === 'collision') && e.driverIds.some((id) => mine.has(id))) || fresh.some((e) => e.type === 'weather' && e.key);
+    if (urgent) break;
+    if (checkpoint === 'overtake' && fresh.some((e) => e.type === 'overtake' && !e.text.startsWith('Team orders') && (/LEAD|for P([1-9]|10)!/.test(e.text) || e.driverIds.some((id) => mine.has(id))))) break;
+    if (checkpoint === 'pitWindow' && windowOpen()) break;
+    if (checkpoint === 'incident' && fresh.some((e) => e.type === 'safetyCar' || e.type === 'vsc' || e.type === 'crash' || e.type === 'collision' || e.type === 'failure')) break;
+    if (checkpoint === 'final5' && race.totalLaps - race.lap <= 5) break;
+  }
+  return laps;
+}
+
 export function stepToNextKeyEvent(state: GameState, race: RaceState): number {
   let laps = 0;
   const before = race.log.length;

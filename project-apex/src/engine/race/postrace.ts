@@ -1,4 +1,4 @@
-import { computeStandingsFromResults, seasonResults } from '../championship/standings';
+import { championshipPoints, computeStandingsFromResults, pointsRemaining, seasonResults, teamPointsRemaining } from '../championship/standings';
 import { driverShortName } from '../drivers/ratings';
 import type { CalendarEvent, GameState, RaceLogEntry, RaceResult, RaceState, TireCompound } from '../types';
 import { pitLossFor } from './strategy';
@@ -108,6 +108,40 @@ export function raceReport(state: GameState, event: CalendarEvent, result: RaceR
     playerStrategy,
     winnerStrategy: winner ? { driverId: winner.driverId, stints: stintsOf(race, winner.driverId) } : null,
   };
+}
+
+export interface TitleDecided {
+  kind: 'drivers' | 'teams';
+  id: string;
+  mine: boolean;
+}
+
+/**
+ * Championships this race settled: before it the title was still open, after
+ * it nobody can catch the leader with the points still available.
+ */
+export function titlesDecided(state: GameState, result: RaceResult): TitleDecided[] {
+  if (result.competition) return [];
+  const all = seasonResults(state, result.division);
+  if (!all.some((r) => r.eventId === result.eventId)) return [];
+  const before = computeStandingsFromResults(all.filter((r) => r.eventId !== result.eventId));
+  const after = computeStandingsFromResults(all);
+  const left = { drivers: pointsRemaining(state, result.division), teams: teamPointsRemaining(state, result.division) };
+  const sys = championshipPoints(state, result.division);
+  const perRace = { drivers: sys.positions[0] + sys.fastestLap + sys.pole, teams: (sys.positions[0] ?? 0) + (sys.positions[1] ?? 0) + sys.fastestLap + sys.pole };
+  const out: TitleDecided[] = [];
+  for (const kind of ['drivers', 'teams'] as const) {
+    const [a, b] = after[kind === 'drivers' ? 'drivers' : 'constructors'];
+    const [pa, pb] = before[kind === 'drivers' ? 'drivers' : 'constructors'];
+    if (!a) continue;
+    const settledNow = !b || a.points - b.points > left[kind];
+    const settledBefore = !!pa && (!pb || pa.points - pb.points > left[kind] + perRace[kind]);
+    if (settledNow && !settledBefore) {
+      const mine = kind === 'drivers' ? state.drivers[a.id]?.contract?.teamId === state.player.teamId : a.id === state.player.teamId;
+      out.push({ kind, id: a.id, mine });
+    }
+  }
+  return out;
 }
 
 /** A sentence on how the player's strategy compared with the winner's. */
