@@ -1,5 +1,5 @@
 import { Flag } from 'lucide-react';
-import { DIVISIONS, raceLapsFor } from '@/engine/config/divisions';
+import { DIVISIONS, eventLaps } from '@/engine/config/divisions';
 import { chooseStrategy, setFuelMargin, setStartInstructions, startRace, weekendEvent } from '@/engine/race/weekend';
 import type { PaceMode, TireMode } from '@/engine/types';
 import { DriverLink, TireIcon } from '@/components/common';
@@ -14,9 +14,10 @@ export function RaceSetup() {
   const event = weekendEvent(game)!;
   const cfg = DIVISIONS[event.division];
   const circuit = game.circuits[event.circuitId];
-  const laps = raceLapsFor(event.division, circuit.laps);
+  const laps = eventLaps(event, circuit.laps);
   const quali = weekend.qualifying.result!;
   const grid = [...quali.entries].sort((a, b) => a.grid - b.grid);
+  const derivedGrid = quali.sessions === 0;
   const driverIds = Object.keys(weekend.strategies);
   return (
     <div className="space-y-5">
@@ -94,8 +95,8 @@ export function RaceSetup() {
           <Flag size={16} /> Start the race
         </Button>
       </div>
-      <Panel title="Starting grid">
-        <QualiTable entries={grid} />
+      <Panel title={derivedGrid ? `Starting grid · ${grid[0]?.note ?? ''}` : 'Starting grid'}>
+        <QualiTable entries={grid} gridOnly={derivedGrid} />
       </Panel>
     </div>
   );

@@ -28,12 +28,14 @@ function TrophyTile({ title, description, tier, unlocked, note }: { title: strin
 export function TrophyCabinet({ game }: { game: GameState }) {
   const profile = loadProfile();
   const mine = game.player.achievements ?? {};
-  const careerCount = ACHIEVEMENTS.filter((a) => mine[a.id]).length;
+  const mode = game.mode === 'european' ? 'european' : 'classic';
+  const list = ACHIEVEMENTS.filter((a) => !a.mode || a.mode === mode);
+  const careerCount = list.filter((a) => mine[a.id]).length;
   return (
     <div className="space-y-5">
-      <Panel title="This career" actions={<span className="text-xs text-apex-muted">{careerCount}/{ACHIEVEMENTS.length} unlocked</span>}>
+      <Panel title="This career" actions={<span className="text-xs text-apex-muted">{careerCount}/{list.length} unlocked</span>}>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {ACHIEVEMENTS.map((a) => (
+          {list.map((a) => (
             <TrophyTile
               key={a.id}
               title={a.title}

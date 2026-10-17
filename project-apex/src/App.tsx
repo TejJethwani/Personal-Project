@@ -14,6 +14,7 @@ import { MarketPage } from './pages/Market';
 import { CarPage } from './pages/CarDevelopment';
 import { RaceCenter } from './pages/race/RaceCenter';
 import { ChampionshipPage } from './pages/Championship';
+import { EuropePage } from './pages/Europe';
 import { FinancesPage } from './pages/Finances';
 import { StaffPage } from './pages/StaffFacilities';
 import { NewsPage } from './pages/News';
@@ -58,6 +59,8 @@ function GamePages() {
       return <RaceCenter />;
     case 'championship':
       return <ChampionshipPage />;
+    case 'europe':
+      return <EuropePage />;
     case 'finances':
       return <FinancesPage />;
     case 'staff':

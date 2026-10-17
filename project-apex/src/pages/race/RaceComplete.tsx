@@ -14,6 +14,10 @@ import { ResultTable } from '@/components/RaceResultModal';
 import { Badge, Button, Panel } from '@/components/ui';
 import { money, ordinal } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { nextPlayerEvent } from '@/engine/europe/season';
+import { H2HBanner } from '@/components/EuroCommon';
+import { stageLabel } from '@/engine/europe/fixtures';
+import type { CalendarEvent, GameState } from '@/engine/types';
 
 export function RaceComplete() {
   const game = useGame();
@@ -29,10 +33,19 @@ export function RaceComplete() {
   const st = divisionStandings(game, event.division);
   const raceTx = team.ledger.filter((t) => t.season === game.season && t.week === game.week && (t.category === 'sponsor' || t.category === 'raceBonus' || t.category === 'repairs' || t.category === 'operations' || t.category === 'driverFunding'));
   const net = raceTx.reduce((s, t) => s + t.amount, 0);
+  const h2h = !!event.euro && event.euro.competition !== 'league';
+  // The next race this week (race 2, an extra race, a cup tie...) starts straight after this one.
+  const nextUp = (() => {
+    if (!game.europe) return null;
+    const after = nextPlayerEvent(game);
+    if (!after || after.id === event.id || after.week > game.week) return null;
+    if (after.euro?.raceNo === 2 && after.euro.pairedEventId === event.id) return 'Race 2';
+    return after.euro?.label ?? 'next race';
+  })();
   const cont = () => {
     act((g) => finishWeekendAndContinue(g));
     const phase = useStore.getState().game?.phase;
-    setPage(phase === 'seasonReview' ? 'seasonReview' : 'hq');
+    setPage(phase === 'seasonReview' ? 'seasonReview' : phase === 'weekend' ? 'race' : 'hq');
   };
   return (
     <div className="space-y-5">
@@ -66,7 +79,9 @@ export function RaceComplete() {
           {result.wet && <Badge tone="blue">Wet race</Badge>}
         </div>
       </div>
-      <div className={game.mode === 'daily' ? 'hidden' : 'grid gap-5 xl:grid-cols-3'}>
+      {h2h && <H2HBanner game={game} event={event} />}
+      {h2h && <TieStatus game={game} event={event} />}
+      <div className={game.mode === 'daily' || h2h ? 'hidden' : 'grid gap-5 xl:grid-cols-3'}>
         <Panel title="Weekend finances">
           <div className="space-y-1.5 text-sm">
             {raceTx.map((t, i) => (
@@ -106,13 +121,13 @@ export function RaceComplete() {
           )}
         </Panel>
       </div>
-      <Panel title={`Classification · ${DIVISIONS[event.division].name} round ${event.round}`} actions={<span className="text-xs text-apex-muted">{race.totalLaps} laps</span>}>
+      <Panel title={`Classification · ${event.euro?.label ?? `${DIVISIONS[event.division].name} round ${event.round}`}`} actions={<span className="text-xs text-apex-muted">{race.totalLaps} laps</span>}>
         <ResultTable result={result} />
       </Panel>
       {game.mode !== 'daily' && (
         <div className="flex justify-end">
           <Button variant="primary" size="lg" onClick={cont}>
-            <Trophy size={16} /> Continue
+            <Trophy size={16} /> {nextUp ? `Continue to ${nextUp}` : 'Continue'}
           </Button>
         </div>
       )}
@@ -162,5 +177,32 @@ function DailyResultCard() {
         </Button>
       </div>
     </motion.div>
+  );
+}
+
+/** After a head-to-head race: where the tie or the league phase stands now. */
+function TieStatus({ game, event }: { game: GameState; event: CalendarEvent }) {
+  const europe = game.europe!;
+  const fx = event.euro?.fixtureId ? europe.fixtures[event.euro.fixtureId] : null;
+  if (!fx?.result) return null;
+  const pc = game.teams[game.player.teamId].clubId!;
+  const mine = fx.home === pc ? fx.result.home : fx.result.away;
+  const theirs = fx.home === pc ? fx.result.away : fx.result.home;
+  const tie = fx.tieId ? europe.ties[fx.tieId] : null;
+  let text = mine > theirs ? 'Race won on race points.' : mine === theirs ? 'Level on race points.' : 'Race lost on race points.';
+  if (tie) {
+    const side = tie.home === pc ? 0 : 1;
+    if (tie.winner) {
+      const how = tie.shootout ? ' after a qualifying shoot-out' : tie.decider ? ' after an extra race' : tie.fixtures.length > 1 ? ` on aggregate (${tie.aggregate[side]}–${tie.aggregate[1 - side]})` : '';
+      text = tie.winner === pc ? `Through! ${stageLabel(tie.stage)} won${how}.` : `Knocked out in the ${stageLabel(tie.stage).toLowerCase()}${how}.`;
+      if (tie.stage === 'final' && tie.winner === pc) text = `Champions! ${europe.clubs[pc].name} win the final${how}.`;
+    } else if (tie.decider && !europe.fixtures[tie.decider].result) text = `Level on aggregate at ${tie.aggregate[side]}–${tie.aggregate[1 - side]}: an extra race decides the tie, straight after this one.`;
+    else if (fx.kind === 'leg1') text = `${text} The second leg follows in week ${europe.fixtures[tie.fixtures[1]].week}.`;
+  }
+  const won = tie?.winner === pc || (!tie && mine > theirs);
+  return (
+    <div className={`rounded-lg border px-4 py-3 text-sm ${won ? 'border-emerald-500/40 bg-emerald-500/[0.07]' : tie?.winner && tie.winner !== pc ? 'border-red-500/40 bg-red-500/[0.07]' : 'border-apex-line bg-apex-panel'}`}>
+      <span className="font-semibold text-white">{text}</span>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 /** Small validated player actions used by the UI. */
 import { POINTS_PRESETS } from './config/divisions';
 import { playerTeam } from './selectors';
-import type { Difficulty, DivisionId, GameSettings, TrainingFocus, TrainingIntensity } from './types';
+import type { Difficulty, DivisionId, GameSettings, Race2GridRule, TrainingFocus, TrainingIntensity } from './types';
 import type { GameState } from './types';
 import { assertRule } from './util';
 
@@ -29,6 +29,16 @@ export function setPointsPreset(state: GameState, division: DivisionId, preset: 
   const pending = { ...(state.settings.pendingPointsPreset ?? state.settings.pointsPreset) };
   pending[division] = preset;
   state.settings.pendingPointsPreset = pending;
+}
+
+/** European League: how the second race of each weekend lines up (applies to every race 2 still to run). */
+export function setRace2Grid(state: GameState, rule: Race2GridRule): void {
+  assertRule(!!state.europe, 'Only European League careers race two-race weekends.');
+  assertRule(['qualifying', 'reverseTop10', 'sameGrid'].includes(rule), 'Unknown grid rule.');
+  state.europe!.race2Grid = rule;
+  for (const events of Object.values(state.calendars)) {
+    for (const e of events) if (!e.completed && e.euro?.raceNo === 2 && state.weekend?.eventId !== e.id) e.euro.gridRule = rule;
+  }
 }
 
 export function updateSettings(state: GameState, patch: Partial<Pick<GameSettings, 'autosave' | 'defaultRaceSpeed' | 'autoSkipAiWeekends'>>): void {

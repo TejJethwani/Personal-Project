@@ -1,10 +1,13 @@
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Flag as FlagIcon, Globe2 } from 'lucide-react';
 import { useState } from 'react';
 import { DIFFICULTIES, FINANCIAL_STARTS, PHILOSOPHIES } from '@/engine/config/difficulty';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { NATIONALITIES } from '@/engine/data/names';
-import type { Difficulty, FinancialStart, LiveryPattern, NewCareerConfig, Philosophy } from '@/engine/types';
+import { divisionForLevel, europeanDivisionConfigs } from '@/engine/config/ruleset';
+import { ASSOCIATIONS, ASSOCIATION_BY_ID, leagueWeekends } from '@/engine/europe/data';
+import { berthsForRank } from '@/engine/europe/continental';
+import type { Difficulty, FinancialStart, LiveryPattern, NewCareerConfig, Philosophy, Race2GridRule } from '@/engine/types';
 import { CarLivery } from '@/components/common';
 import { Button, cn, Field } from '@/components/ui';
 import { money } from '@/lib/format';
@@ -20,7 +23,27 @@ const LIVERIES: { id: LiveryPattern; label: string }[] = [
   { id: 'fade', label: 'Fade' },
 ];
 
-const STEPS = ['Identity', 'Philosophy', 'Challenge', 'Confirm'];
+const STEPS = ['Mode', 'Identity', 'Philosophy', 'Challenge', 'Confirm'];
+
+const GRID_RULES: { id: Race2GridRule; label: string; text: string }[] = [
+  { id: 'qualifying', label: 'Separate qualifying', text: 'Race 2 has its own qualifying session.' },
+  { id: 'reverseTop10', label: 'Reverse top ten', text: 'Race 1 result with the top ten reversed.' },
+  { id: 'sameGrid', label: 'Same grid', text: 'Race 2 starts from the race 1 grid.' },
+];
+
+function placesText(rank: number): string {
+  const b = berthsForRank(rank);
+  const count = (comp: string, direct?: boolean) => b.filter((x) => x.comp === comp && (direct === undefined || x.direct === direct)).length;
+  return (['CL', 'EL', 'ECL'] as const)
+    .map((c) => {
+      const n = count(c);
+      if (!n) return null;
+      const q = count(c, false);
+      return `${c} ${n}${q ? ` (${q} via qualifying)` : ''}`;
+    })
+    .filter(Boolean)
+    .join(' · ');
+}
 
 export function NewCareer() {
   const setScreen = useStore((s) => s.setScreen);
@@ -39,13 +62,24 @@ export function NewCareer() {
     financialStart: 'modest',
   });
   const [seedText, setSeedText] = useState('');
+  const [mode, setMode] = useState<'classic' | 'european'>('classic');
+  const [assocId, setAssocId] = useState('ENG');
+  const [race2Grid, setRace2Grid] = useState<Race2GridRule>('qualifying');
   const set = <K extends keyof NewCareerConfig>(k: K, v: NewCareerConfig[K]) => setCfg((c) => ({ ...c, [k]: v }));
   const valid = cfg.teamName.trim().length >= 3 && cfg.shortName.trim().length >= 2 && cfg.principalName.trim().length >= 2;
-  const startingCash = DIVISIONS.F5.typicalBudget * 0.42 * FINANCIAL_STARTS[cfg.financialStart].cashFactor * DIFFICULTIES[cfg.difficulty].startingCash;
+  const assoc = ASSOCIATION_BY_ID[assocId];
+  const startLevel = assoc.levels.length;
+  const startConfig = mode === 'european' ? europeanDivisionConfigs(assocId)[divisionForLevel(startLevel)] : DIVISIONS.F5;
+  const startingCash = startConfig.typicalBudget * 0.42 * FINANCIAL_STARTS[cfg.financialStart].cashFactor * DIFFICULTIES[cfg.difficulty].startingCash;
+  const startText = mode === 'european' ? `${startConfig.name} (${leagueWeekends(assoc.levels[startLevel - 1].teams)} weekends, ${startConfig.races} races)` : 'Formula 5 (8 races)';
 
   const start = () => {
     const seed = seedText.trim() ? Number.parseInt(seedText.trim(), 10) : undefined;
-    newGame({ ...cfg, seed: Number.isFinite(seed) ? seed : undefined });
+    newGame({ ...cfg, seed: Number.isFinite(seed) ? seed : undefined, ...(mode === 'european' ? { european: { assocId, race2Grid } } : {}) });
+  };
+  const chooseAssoc = (id: string) => {
+    setAssocId(id);
+    set('nationality', ASSOCIATION_BY_ID[id].nationality);
   };
 
   return (
@@ -71,6 +105,62 @@ export function NewCareer() {
 
         <motion.div key={step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="panel p-6">
           {step === 0 && (
+            <div className="space-y-6">
+              <div className="grid gap-3 md:grid-cols-2">
+                <button onClick={() => setMode('classic')} className={cn('rounded-xl border p-5 text-left transition', mode === 'classic' ? 'border-apex-red bg-apex-red/[0.08] shadow-glow' : 'border-apex-line hover:border-apex-line2')}>
+                  <div className="flex items-center gap-2 font-display text-2xl font-black uppercase">
+                    <FlagIcon size={20} className="text-apex-red" /> Classic Career
+                  </div>
+                  <p className="mt-2 text-sm text-apex-muted">The original ladder: five Formula series of ten teams, one race per round. Start in Formula 5 and climb to Formula 1.</p>
+                </button>
+                <button onClick={() => setMode('european')} className={cn('rounded-xl border p-5 text-left transition', mode === 'european' ? 'border-sky-400 bg-sky-400/[0.08]' : 'border-apex-line hover:border-apex-line2')}>
+                  <div className="flex items-center gap-2 font-display text-2xl font-black uppercase">
+                    <Globe2 size={20} className="text-sky-400" /> European League
+                  </div>
+                  <p className="mt-2 text-sm text-apex-muted">Join a national league pyramid of full grids, with up to 20 teams and 40 cars. Every weekend has two championship races. Climb through promotion and win domestic cups, then go after the Apex Champions, Europa and Conference Leagues.</p>
+                </button>
+              </div>
+              {mode === 'european' && (
+                <>
+                  <div>
+                    <div className="label mb-2">Association · coefficient ranking</div>
+                    <div className="grid max-h-[420px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                      {ASSOCIATIONS.map((a, i) => (
+                        <button key={a.id} onClick={() => chooseAssoc(a.id)} className={cn('rounded-lg border p-3 text-left text-xs', assocId === a.id ? 'border-sky-400 bg-sky-400/[0.08]' : 'border-apex-line hover:border-apex-line2')}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-display text-base font-bold uppercase">
+                              <span className="text-apex-muted">#{i + 1}</span> {a.name}
+                            </span>
+                            <span className="num text-apex-muted">{a.id}</span>
+                          </div>
+                          <div className="mt-1 text-apex-muted">
+                            {a.levels.length} divisions · {a.levels.map((l) => l.teams).join('/')} clubs
+                          </div>
+                          <div className="text-apex-muted">Start: {a.levels[a.levels.length - 1].name}</div>
+                          <div className="mt-1 text-sky-300">{placesText(i + 1)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="label mb-2">Race 2 starting grid</div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {GRID_RULES.map((r) => (
+                        <button key={r.id} onClick={() => setRace2Grid(r.id)} className={cn('rounded-lg border p-3 text-left text-xs', race2Grid === r.id ? 'border-sky-400 bg-sky-400/[0.08]' : 'border-apex-line hover:border-apex-line2')}>
+                          <div className="font-semibold text-white">{r.label}</div>
+                          <div className="text-apex-muted">{r.text}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="rounded-lg border border-apex-line bg-apex-bg p-3 text-xs text-apex-muted">
+                    {assoc.name}: you enter the {assoc.levels[startLevel - 1].name}, the bottom of {startLevel} divisions. Both races of every weekend score full points (25-18-15-12-10-8-6-4-2-1), and the teams' championship decides titles, promotion, relegation and European places. Clubs from other countries race on a quick statistical model. Every race your team takes part in runs on the full race engine. European League saves are kept apart from Classic saves.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          {step === 1 && (
             <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
               <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
@@ -119,7 +209,7 @@ export function NewCareer() {
             </div>
           )}
 
-          {step === 1 && (
+          {step === 2 && (
             <div className="space-y-6">
               <Field label="Team principal (you)">
                 <input className="input w-full max-w-md" placeholder="Your name" value={cfg.principalName} maxLength={30} onChange={(e) => set('principalName', e.target.value)} />
@@ -149,7 +239,7 @@ export function NewCareer() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div className="space-y-6">
               <div>
                 <div className="label mb-2">Difficulty</div>
@@ -179,7 +269,7 @@ export function NewCareer() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="space-y-3 text-sm">
                 <Row k="Team" v={`${cfg.teamName} (${cfg.shortName})`} />
@@ -187,10 +277,13 @@ export function NewCareer() {
                 <Row k="Philosophy" v={PHILOSOPHIES[cfg.philosophy].label} />
                 <Row k="Difficulty" v={DIFFICULTIES[cfg.difficulty].label} />
                 <Row k="Finances" v={FINANCIAL_STARTS[cfg.financialStart].label} />
-                <Row k="Starting division" v="Formula 5 (8 races)" />
+                <Row k="Mode" v={mode === 'european' ? `European League · ${assoc.name}` : 'Classic Career'} />
+                <Row k="Starting division" v={startText} />
                 <Row k="Starting cash" v={money(startingCash)} />
                 <div className="rounded-lg border border-apex-line bg-apex-bg p-4 text-apex-muted">
-                  You start at the very bottom: two contracted drivers, a basic car, four staff and a garage-sized headquarters. Nine rival teams stand between you and promotion. Every division above is faster, richer and more expensive.
+                  {mode === 'european'
+                    ? `You start at the bottom of ${assoc.name}'s pyramid with two contracted drivers, a basic car and four staff. You face ${assoc.levels[startLevel - 1].teams - 1} rival clubs, and ${placesText(ASSOCIATIONS.indexOf(assoc) + 1)} European places wait at the top.`
+                    : 'You start at the very bottom: two contracted drivers, a basic car, four staff and a garage-sized headquarters. Nine rival teams stand between you and promotion. Every division above is faster, richer and more expensive.'}
                 </div>
               </div>
               <div className="flex flex-col items-center justify-center rounded-xl border border-apex-line bg-apex-bg p-6">
@@ -206,7 +299,7 @@ export function NewCareer() {
             <ArrowLeft size={16} /> Previous
           </Button>
           {step < STEPS.length - 1 ? (
-            <Button variant="primary" onClick={() => setStep(step + 1)} disabled={step === 1 && cfg.principalName.trim().length < 2}>
+            <Button variant="primary" onClick={() => setStep(step + 1)} disabled={step === 2 && cfg.principalName.trim().length < 2}>
               Next <ArrowRight size={16} />
             </Button>
           ) : (
@@ -215,7 +308,7 @@ export function NewCareer() {
             </Button>
           )}
         </div>
-        {!valid && step === 3 && <p className="mt-2 text-right text-xs text-amber-300">A team name (3+), abbreviation (2+) and principal name (2+) are required.</p>}
+        {!valid && step === 4 && <p className="mt-2 text-right text-xs text-amber-300">A team name (3+), abbreviation (2+) and principal name (2+) are required.</p>}
       </div>
     </div>
   );

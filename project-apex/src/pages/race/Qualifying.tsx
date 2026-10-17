@@ -13,8 +13,9 @@ export function sessionName(sessions: number, idx: number): string {
   return `Q${idx + 1}`;
 }
 
-export function QualiTable({ entries, cutAfter, sessionIdx }: { entries: QualifyingEntry[]; cutAfter?: number; sessionIdx?: number }) {
+export function QualiTable({ entries, cutAfter, sessionIdx, gridOnly }: { entries: QualifyingEntry[]; cutAfter?: number; sessionIdx?: number; gridOnly?: boolean }) {
   const game = useGame();
+  if (gridOnly) return <GridOnlyTable entries={entries} />;
   const valid = entries.filter((e) => e.bestLap !== null);
   const pole = valid[0]?.bestLap ?? null;
   const bestSec = [0, 1, 2].map((k) => Math.min(...entries.filter((e) => e.sectors).map((e) => e.sectors![k])));
@@ -116,5 +117,36 @@ export function Qualifying() {
         )}
       </Panel>
     </div>
+  );
+}
+
+/** A grid set without qualifying (a weekend's second race): order only. */
+function GridOnlyTable({ entries }: { entries: QualifyingEntry[] }) {
+  const game = useGame();
+  return (
+    <table className="table-apex">
+      <thead>
+        <tr>
+          <th>Grid</th>
+          <th>Driver</th>
+          <th>Team</th>
+          <th>Race 1 qualifying lap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map((e, i) => (
+          <tr key={e.driverId} className={cn(e.teamId === game.player.teamId && 'bg-apex-red/[0.08]')}>
+            <td className="num font-bold">{i + 1}</td>
+            <td>
+              <DriverLink driver={game.drivers[e.driverId]} />
+            </td>
+            <td>
+              <TeamLink team={game.teams[e.teamId]} short />
+            </td>
+            <td className="mono text-apex-muted">{lapTime(e.bestLap)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

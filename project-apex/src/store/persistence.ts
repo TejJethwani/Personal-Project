@@ -17,6 +17,18 @@ export type SaveSummary = Omit<SaveRecord, 'data'>;
 
 export const MANUAL_SLOTS = ['slot-1', 'slot-2', 'slot-3', 'slot-4', 'slot-5'];
 export const AUTOSAVE_SLOT = 'autosave';
+/** European League careers save to their own slots, never over a Classic career. */
+export const EURO_MANUAL_SLOTS = ['euro-slot-1', 'euro-slot-2', 'euro-slot-3', 'euro-slot-4', 'euro-slot-5'];
+export const EURO_AUTOSAVE_SLOT = 'euro-autosave';
+
+export const isEuroSlot = (slot: string): boolean => slot.startsWith('euro-');
+export const autosaveSlotFor = (state: Pick<GameState, 'mode'>): string => (state.mode === 'european' ? EURO_AUTOSAVE_SLOT : AUTOSAVE_SLOT);
+export const manualSlotsFor = (state: Pick<GameState, 'mode'>): string[] => (state.mode === 'european' ? EURO_MANUAL_SLOTS : MANUAL_SLOTS);
+
+export function slotLabel(slot: string): string {
+  if (slot === AUTOSAVE_SLOT || slot === EURO_AUTOSAVE_SLOT) return 'Autosave';
+  return slot.replace('euro-', '').replace('slot-', 'Slot ');
+}
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 

@@ -4,6 +4,7 @@ import {
   CarFront,
   ChevronRight,
   Flag as FlagIcon,
+  Globe2,
   History,
   LayoutDashboard,
   Loader2,
@@ -18,7 +19,7 @@ import { useState, type ReactNode } from 'react';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { teamPosition } from '@/engine/championship/standings';
 import { advanceBlocker, advanceToNextEvent, advanceWeek } from '@/engine/season/advance';
-import { nextEventFor } from '@/engine/season/calendar';
+import { nextPlayerEvent } from '@/engine/europe/season';
 import { playerTeam } from '@/engine/selectors';
 import { money, ordinal, weekLabel } from '@/lib/format';
 import type { GameState } from '@/engine/types';
@@ -33,6 +34,7 @@ const NAV: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'car', label: 'Car Development', icon: CarFront },
   { id: 'race', label: 'Race Center', icon: FlagIcon },
   { id: 'championship', label: 'Championship', icon: Trophy },
+  { id: 'europe', label: 'Europe & Cups', icon: Globe2 },
   { id: 'finances', label: 'Finances', icon: Wallet },
   { id: 'staff', label: 'Staff & Facilities', icon: Building2 },
   { id: 'news', label: 'News', icon: Newspaper },
@@ -72,10 +74,10 @@ export function useContinue(): { label: string; hint: string; run: () => void; d
         run: () => act((g) => afterAdvance(advanceWeek(g).stoppedFor)),
       };
     default: {
-      const ev = nextEventFor(game, team.division);
+      const ev = nextPlayerEvent(game);
       return {
         label: ev ? 'Advance to Race' : 'Continue',
-        hint: blocker ?? (ev ? `Simulate to ${game.circuits[ev.circuitId].location} (week ${ev.week})` : 'Advance one week'),
+        hint: blocker ?? (ev ? `Simulate to ${ev.euro && ev.euro.competition !== 'league' ? `${ev.euro.label} at ` : ''}${game.circuits[ev.circuitId].location} (week ${ev.week})` : 'Advance one week'),
         disabled: !!blocker,
         run: () => act((g) => afterAdvance(advanceToNextEvent(g).stoppedFor)),
         fast: () => act((g) => afterAdvance(advanceWeek(g).stoppedFor)),
@@ -114,7 +116,7 @@ function ContinueButton() {
 function TopBar() {
   const game = useGame();
   const team = playerTeam(game);
-  const ev = nextEventFor(game, team.division);
+  const ev = nextPlayerEvent(game);
   const pos = teamPosition(game, team.id);
   const c = useContinue();
   return (
@@ -179,7 +181,7 @@ function TopStat({ label, value, sub, tone }: { label: string; value: ReactNode;
 
 /** In a daily challenge only the race-related pages make sense. */
 const DAILY_PAGES: Page[] = ['race', 'drivers', 'championship'];
-const navFor = (game: GameState) => (game.mode === 'daily' ? NAV.filter((n) => DAILY_PAGES.includes(n.id)) : NAV);
+const navFor = (game: GameState) => (game.mode === 'daily' ? NAV.filter((n) => DAILY_PAGES.includes(n.id)) : NAV.filter((n) => n.id !== 'europe' || !!game.europe));
 
 function Sidebar() {
   const game = useGame();

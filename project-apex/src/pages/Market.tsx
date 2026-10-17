@@ -7,7 +7,7 @@ import { cancelScouting, estimateOverall, estimatePotential, scoutingWeeklyCost,
 import { activeDrivers, playerTeam } from '@/engine/selectors';
 import { scoutingCapacity } from '@/engine/team/facilities';
 import type { DivisionId, Driver } from '@/engine/types';
-import { DIVISION_ORDER } from '@/engine/types';
+import { activeDivisions } from '@/engine/config/ruleset';
 import { DivisionBadge, DriverLink, TeamLink } from '@/components/common';
 import { Badge, Button, Empty, Panel, Progress, RatingPill, SectionTitle, Select, Tabs, Toggle } from '@/components/ui';
 import { money } from '@/lib/format';
@@ -102,7 +102,7 @@ function DriverSearch() {
           <Search size={14} className="absolute left-3 top-2.5 text-apex-muted" />
           <input className="input w-full pl-8" placeholder="Search name" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <Select value={division} onChange={setDivision} options={[{ value: 'any', label: 'All series' }, { value: 'none', label: 'Unattached' }, ...DIVISION_ORDER.map((d) => ({ value: d, label: DIVISIONS[d].name }))]} />
+        <Select value={division} onChange={setDivision} options={[{ value: 'any', label: 'All series' }, { value: 'none', label: 'Unattached' }, ...activeDivisions(game).map((d) => ({ value: d, label: DIVISIONS[d].name }))]} />
         <Select<Availability> value={availability} onChange={setAvailability} options={[{ value: 'any', label: 'Any status' }, { value: 'free', label: 'Free agents' }, { value: 'expiring', label: 'Expiring contracts' }, { value: 'contracted', label: 'Under contract' }]} />
         <Select value={nat} onChange={setNat} options={[{ value: 'any', label: 'Any nationality' }, ...[...NATIONALITIES].sort((a, b) => a.name.localeCompare(b.name)).map((n) => ({ value: n.code, label: n.name }))]} />
         <Select<SortKey> value={sort} onChange={setSort} options={[{ value: 'rating', label: 'Sort: rating' }, { value: 'potential', label: 'Sort: potential' }, { value: 'age', label: 'Sort: youngest' }, { value: 'value', label: 'Sort: value' }, { value: 'salary', label: 'Sort: cheapest' }]} />

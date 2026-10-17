@@ -7,7 +7,8 @@ import { driverName } from '@/engine/drivers/ratings';
 import { licensingChecks, promotionPicture } from '@/engine/season/promotion';
 import { playerTeam } from '@/engine/selectors';
 import type { DivisionId } from '@/engine/types';
-import { DIVISION_ORDER } from '@/engine/types';
+import { activeDivisions, divisionShort, levelOfDivision } from '@/engine/config/ruleset';
+import { leagueZones, type LeagueZone } from '@/engine/europe/season';
 import { DivisionBadge, DriverLink, TeamLink } from '@/components/common';
 import { Badge, Button, cn, Panel, SectionTitle, Segmented, Tabs } from '@/components/ui';
 import { useGame, useStore } from '@/store/gameStore';
@@ -22,7 +23,7 @@ export function ChampionshipPage() {
     <div className="space-y-5">
       <SectionTitle
         sub={`${cfg.name}: ${cfg.races} rounds · points: ${pointsSystemFor(game.settings.pointsPreset[division]).label}`}
-        right={<Segmented value={division} onChange={setDivision} options={DIVISION_ORDER.map((d) => ({ value: d, label: d }))} />}
+        right={<Segmented value={division} onChange={setDivision} options={activeDivisions(game).map((d) => ({ value: d, label: divisionShort(d) }))} />}
       >
         Championship
       </SectionTitle>
@@ -92,10 +93,23 @@ function DriverTable({ division }: { division: DivisionId }) {
   );
 }
 
+const ZONE_STYLE: Record<LeagueZone, { label: string; cls: string }> = {
+  CL: { label: 'Champions League', cls: 'bg-blue-500/25 text-blue-200' },
+  CLq: { label: 'Champions League qualifying', cls: 'bg-blue-500/15 text-blue-200' },
+  EL: { label: 'Europa League', cls: 'bg-orange-500/25 text-orange-200' },
+  ELq: { label: 'Europa League qualifying', cls: 'bg-orange-500/15 text-orange-200' },
+  ECL: { label: 'Conference League', cls: 'bg-emerald-500/25 text-emerald-200' },
+  ECLq: { label: 'Conference League qualifying', cls: 'bg-emerald-500/15 text-emerald-200' },
+  up: { label: 'Promotion', cls: 'bg-emerald-500/25 text-emerald-200' },
+  down: { label: 'Relegation', cls: 'bg-red-500/25 text-red-200' },
+};
+
 function TeamTable({ division }: { division: DivisionId }) {
   const game = useGame();
   const st = divisionStandings(game, division);
   const cfg = DIVISIONS[division];
+  const zones = leagueZones(game, division);
+  const legend = [...new Set(zones.values())];
   return (
     <div className="panel overflow-x-auto">
       <table className="table-apex">
@@ -115,9 +129,14 @@ function TeamTable({ division }: { division: DivisionId }) {
         <tbody>
           {st.constructors.map((r, i) => {
             const t = game.teams[r.id];
+            const zone = zones.get(i + 1);
             return (
               <tr key={r.id} className={t.isPlayer ? 'bg-apex-red/[0.08]' : ''}>
-                <td className="num font-bold">{i + 1}</td>
+                <td className="num font-bold">
+                  <span className={cn('inline-block w-7 rounded text-center', zone && ZONE_STYLE[zone].cls)} title={zone ? ZONE_STYLE[zone].label : undefined}>
+                    {i + 1}
+                  </span>
+                </td>
                 <td>
                   <TeamLink team={t} />
                 </td>
@@ -133,6 +152,16 @@ function TeamTable({ division }: { division: DivisionId }) {
           })}
         </tbody>
       </table>
+      {legend.length > 0 && (
+        <div className="flex flex-wrap gap-3 px-3 py-2 text-[11px] text-apex-muted">
+          {legend.map((z) => (
+            <span key={z} className="flex items-center gap-1">
+              <span className={cn('inline-block h-3 w-3 rounded-sm', ZONE_STYLE[z].cls)} /> {ZONE_STYLE[z].label}
+            </span>
+          ))}
+          {levelOfDivision(division) === 1 && <span>The domestic cup winner also earns a European place. Places taken twice pass down the table.</span>}
+        </div>
+      )}
     </div>
   );
 }

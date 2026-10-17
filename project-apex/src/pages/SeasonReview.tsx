@@ -128,6 +128,27 @@ export function SeasonReview() {
         </Panel>
         <Panel title="Looking ahead">
           <div className="space-y-3 text-sm">
+            {review.europe && (
+              <div>
+                <div className="label">Cups &amp; Europe</div>
+                {review.europe.reached.length ? (
+                  <ul className="space-y-0.5">
+                    {review.europe.reached.map((r) => (
+                      <li key={r.competition}>
+                        {r.name}: <span className="font-semibold text-white">{r.reached}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-apex-muted">No cup or European runs this season.</p>
+                )}
+                <p className="mt-1">
+                  {review.europe.nextSeason.length
+                    ? `Next season: ${review.europe.nextSeason.map((n) => `${n.name}${n.direct ? '' : ' (qualifying)'}`).join(', ')}.`
+                    : 'No European place next season.'}
+                </p>
+              </div>
+            )}
             {review.regulation && (
               <div>
                 <div className="label">Regulations</div>

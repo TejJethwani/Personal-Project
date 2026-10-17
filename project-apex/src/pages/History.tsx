@@ -5,7 +5,7 @@ import { DIVISIONS } from '@/engine/config/divisions';
 import { computeRecords, hallOfFame } from '@/engine/history/records';
 import { playerTeam } from '@/engine/selectors';
 import type { DivisionId } from '@/engine/types';
-import { DIVISION_ORDER } from '@/engine/types';
+import { activeDivisions, divisionShort } from '@/engine/config/ruleset';
 import { DivisionBadge, DriverLink, Flag, TeamLink } from '@/components/common';
 import { Badge, Button, Empty, Panel, SectionTitle, Segmented, Tabs } from '@/components/ui';
 import { money } from '@/lib/format';
@@ -79,7 +79,7 @@ function Seasons() {
                 </tr>
               </thead>
               <tbody>
-                {[...DIVISION_ORDER].reverse().map((d) => (
+                {[...activeDivisions(game)].reverse().map((d) => (
                   <tr key={d}>
                     <td>
                       <DivisionBadge division={d} />
@@ -117,7 +117,7 @@ function Seasons() {
               </div>
             </Panel>
           )}
-          <Panel title="Final standings" actions={<Segmented value={div} onChange={setDiv} options={DIVISION_ORDER.map((d) => ({ value: d, label: d }))} />}>
+          <Panel title="Final standings" actions={<Segmented value={div} onChange={setDiv} options={activeDivisions(game).map((d) => ({ value: d, label: divisionShort(d) }))} />}>
             <div className="grid gap-4 lg:grid-cols-2">
               <table className="table-apex">
                 <thead>
@@ -264,7 +264,7 @@ function Records() {
   const tables = computeRecords(game, div);
   return (
     <div className="space-y-4">
-      <Segmented value={div} onChange={setDiv} options={[...DIVISION_ORDER.map((d) => ({ value: d as DivisionId | 'all', label: d })), { value: 'all', label: 'All series' }]} />
+      <Segmented value={div} onChange={setDiv} options={[...activeDivisions(game).map((d) => ({ value: d as DivisionId | 'all', label: divisionShort(d) })), { value: 'all', label: 'All series' }]} />
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {tables.map((t) => (
           <Panel key={t.title} title={t.title}>

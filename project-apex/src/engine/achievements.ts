@@ -24,6 +24,8 @@ export interface AchievementDef {
   title: string;
   description: string;
   tier: AchievementTier;
+  /** Only in this career mode (absent = both). */
+  mode?: 'classic' | 'european';
   check: (c: CheckContext) => boolean;
 }
 
@@ -52,25 +54,40 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'survivor', title: 'Survivor', description: 'Score points in a race with five or more retirements.', tier: 'bronze', check: (c) => !!c.result && c.result.entries.filter((e) => !finished(e)).length >= 5 && c.mine.some((e) => e.points > 0) },
   { id: 'finaleHero', title: 'Finale Hero', description: 'Win a double-points finale.', tier: 'silver', check: (c) => !!c.result && twistEffects(c.state, c.result.division).doublePointsRound === c.result.round && won(c) },
   { id: 'reverseGridWin', title: 'Upside Down', description: 'Win a reverse-grid round.', tier: 'silver', check: (c) => !!c.result && twistEffects(c.state, c.result.division).reverseGridRound === c.result.round && won(c) },
-  { id: 'f1Win', title: 'Grand Prix Winner', description: 'Win a Formula 1 race.', tier: 'gold', check: (c) => c.result?.division === 'F1' && won(c) },
+  { id: 'f1Win', mode: 'classic', title: 'Grand Prix Winner', description: 'Win a Formula 1 race.', tier: 'gold', check: (c) => c.result?.division === 'F1' && won(c) },
   { id: 'tenWins', title: 'Serial Winner', description: 'Win 10 races.', tier: 'silver', check: (c) => c.team.stats.wins >= 10 },
   { id: 'fiftyWins', title: 'Legend', description: 'Win 50 races.', tier: 'gold', check: (c) => c.team.stats.wins >= 50 },
   { id: 'fiftyRaces', title: 'Seasoned', description: 'Start 50 races.', tier: 'bronze', check: (c) => c.team.stats.races >= 50 },
   { id: 'centurion', title: 'Centurion', description: 'Start 100 races.', tier: 'silver', check: (c) => c.team.stats.races >= 100 },
   { id: 'promoted', title: 'Moving Up', description: 'Win promotion.', tier: 'bronze', check: (c) => c.team.stats.promotions >= 1 },
-  { id: 'reachF3', title: 'Formula 3', description: 'Reach Formula 3.', tier: 'bronze', check: (c) => DIVISIONS[c.team.division].tier >= 2 },
-  { id: 'reachF2', title: 'Formula 2', description: 'Reach Formula 2.', tier: 'silver', check: (c) => DIVISIONS[c.team.division].tier >= 3 },
-  { id: 'reachF1', title: 'The Big Time', description: 'Reach Formula 1.', tier: 'gold', check: (c) => c.team.division === 'F1' },
+  { id: 'reachF3', mode: 'classic', title: 'Formula 3', description: 'Reach Formula 3.', tier: 'bronze', check: (c) => DIVISIONS[c.team.division].tier >= 2 },
+  { id: 'reachF2', mode: 'classic', title: 'Formula 2', description: 'Reach Formula 2.', tier: 'silver', check: (c) => DIVISIONS[c.team.division].tier >= 3 },
+  { id: 'reachF1', mode: 'classic', title: 'The Big Time', description: 'Reach Formula 1.', tier: 'gold', check: (c) => c.team.division === 'F1' },
   { id: 'champion', title: 'Champions', description: 'Win a teams\' championship.', tier: 'silver', check: (c) => c.team.stats.constructorTitles >= 1 },
   { id: 'dynasty', title: 'Dynasty', description: 'Win three teams\' championships.', tier: 'gold', check: (c) => c.team.stats.constructorTitles >= 3 },
-  { id: 'f1Champion', title: 'World Champions', description: 'Win the Formula 1 teams\' championship.', tier: 'gold', check: (c) => (c.team.stats.constructorTitlesByDivision.F1 ?? 0) >= 1 },
+  { id: 'f1Champion', mode: 'classic', title: 'World Champions', description: 'Win the Formula 1 teams\' championship.', tier: 'gold', check: (c) => (c.team.stats.constructorTitlesByDivision.F1 ?? 0) >= 1 },
   { id: 'dominant', title: 'Dominant', description: 'Win at least half the races of a season.', tier: 'gold', check: (c) => c.state.phase === 'seasonReview' && seasonWinShare(c.state, c.team) >= 0.5 },
   { id: 'challengeMaster', title: 'Challenge Master', description: 'Complete all of a season\'s challenges.', tier: 'gold', check: (c) => !!c.state.lastSeasonReview?.challenges && c.state.lastSeasonReview.challenges.total >= 3 && c.state.lastSeasonReview.challenges.completed >= c.state.lastSeasonReview.challenges.total },
   { id: 'rivalSlayer', title: 'Rival Slayer', description: 'Beat your season rival in the championship.', tier: 'silver', check: (c) => (c.state.player.challenges ?? []).some((ch) => ch.kind === 'beatRival' && ch.completed) },
   { id: 'breakthrough', title: 'Eureka', description: 'Score an R&D breakthrough.', tier: 'bronze', check: (c) => c.team.rndHistory.some((r) => r.outcome === 'breakthrough') },
   { id: 'fullHouse', title: 'Full House', description: 'Fill all seven senior staff roles.', tier: 'bronze', check: (c) => fullStaff(c.team) },
   { id: 'millionaire', title: 'Deep Pockets', description: 'Have $10M in the bank.', tier: 'silver', check: (c) => c.team.cash >= 10_000_000 },
+  // European League careers.
+  { id: 'euroTopFlight', mode: 'european', title: 'Top Flight', description: "Reach your association's top division.", tier: 'silver', check: (c) => c.team.division === 'F1' },
+  { id: 'euroLeagueTitle', mode: 'european', title: 'National Champions', description: 'Win the top-flight league.', tier: 'gold', check: (c) => (c.team.stats.constructorTitlesByDivision.F1 ?? 0) >= 1 },
+  { id: 'euroCup', mode: 'european', title: 'Cup Winners', description: 'Win the domestic cup.', tier: 'silver', check: (c) => (honours(c).cup ?? 0) >= 1 },
+  { id: 'euroLeagueCup', mode: 'european', title: 'League Cup Glory', description: 'Win the league cup.', tier: 'bronze', check: (c) => (honours(c).leagueCup ?? 0) >= 1 },
+  { id: 'euroDouble', mode: 'european', title: 'The Double', description: 'Win the league and the domestic cup in the same season.', tier: 'gold', check: (c) => (c.state.europe?.history ?? []).some((h) => { const d = h.domestic[c.state.europe!.playerAssocId]; return !!d && d.champion === c.team.clubId && d.cup === c.team.clubId; }) },
+  { id: 'euroNights', mode: 'european', title: 'European Nights', description: 'Race in a continental competition.', tier: 'bronze', check: (c) => Object.values(c.state.europe?.fixtures ?? {}).some((f) => (f.competition === 'CL' || f.competition === 'EL' || f.competition === 'ECL') && !!f.result && (f.home === c.team.clubId || f.away === c.team.clubId)) },
+  { id: 'euroLast16', mode: 'european', title: 'Last Sixteen', description: 'Reach a continental Round of 16.', tier: 'silver', check: (c) => Object.values(c.state.europe?.ties ?? {}).some((t) => t.stage === 'r16' && (t.home === c.team.clubId || t.away === c.team.clubId)) },
+  { id: 'euroSilverware', mode: 'european', title: 'Silverware Abroad', description: 'Win the Europa or Conference League.', tier: 'gold', check: (c) => (honours(c).EL ?? 0) + (honours(c).ECL ?? 0) >= 1 },
+  { id: 'euroKings', mode: 'european', title: 'Kings of Europe', description: 'Win the Apex Champions League.', tier: 'gold', check: (c) => (honours(c).CL ?? 0) >= 1 },
+  { id: 'euroTreble', mode: 'european', title: 'The Treble', description: 'League, domestic cup and Champions League in one season.', tier: 'gold', check: (c) => (c.state.europe?.history ?? []).some((h) => { const d = h.domestic[c.state.europe!.playerAssocId]; return !!d && d.champion === c.team.clubId && d.cup === c.team.clubId && h.winners.CL?.winner === c.team.clubId; }) },
 ];
+
+function honours(c: CheckContext): Partial<Record<string, number>> {
+  return (c.team.clubId && c.state.europe?.clubs[c.team.clubId]?.honours) || {};
+}
 
 export const ACHIEVEMENT_BY_ID: Record<string, AchievementDef> = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
@@ -83,8 +100,10 @@ export function checkAchievements(state: GameState, result: RaceResult | null = 
   const mine = result && result.division === team.division ? result.entries.filter((e) => e.teamId === team.id) : [];
   const ctx: CheckContext = { state, team, result: mine.length ? result : null, mine };
   const fresh: string[] = [];
+  const mode = state.mode === 'european' ? 'european' : 'classic';
   for (const a of ACHIEVEMENTS) {
     if (unlocked[a.id]) continue;
+    if (a.mode && a.mode !== mode) continue;
     if (!a.check(ctx)) continue;
     unlocked[a.id] = { season: state.season, week: state.week };
     fresh.push(a.id);

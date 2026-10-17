@@ -10,9 +10,11 @@ import { driverName, overall } from '@/engine/drivers/ratings';
 import { resolveOpportunity } from '@/engine/events/opportunities';
 import { freeSponsorTiers } from '@/engine/finance/sponsors';
 import { financialForecast } from '@/engine/finance/weekly';
-import { raceLapsFor } from '@/engine/config/divisions';
+import { eventLaps } from '@/engine/config/divisions';
 import { lineupIssues } from '@/engine/race/weekend';
-import { nextEventFor } from '@/engine/season/calendar';
+import { nextPlayerEvent } from '@/engine/europe/season';
+import { findEvent } from '@/engine/season/calendar';
+import { H2HBanner } from '@/components/EuroCommon';
 import { playerTeam, raceDrivers, teamsInDivision } from '@/engine/selectors';
 import { STAFF_ROLE_INFO, STAFF_ROLES } from '@/engine/staff/staff';
 import type { GameState } from '@/engine/types';
@@ -69,7 +71,7 @@ export function Headquarters() {
   const act = useStore((s) => s.act);
   const team = playerTeam(game);
   const cfg = DIVISIONS[team.division];
-  const ev = nextEventFor(game, team.division);
+  const ev = nextPlayerEvent(game);
   const alerts = computeAlerts(game);
   const standings = divisionStandings(game, team.division);
   const myPos = standings.constructors.findIndex((r) => r.id === team.id) + 1;
@@ -307,19 +309,22 @@ function NextEvent({ eventId }: { eventId: string }) {
   const game = useGame();
   const setPage = useStore((s) => s.setPage);
   const team = playerTeam(game);
-  const ev = game.calendars[team.division].find((e) => e.id === eventId)!;
+  const ev = findEvent(game, eventId)!;
   const c = game.circuits[ev.circuitId];
-  const laps = raceLapsFor(ev.division, c.laps);
+  const h2h = !!ev.euro && ev.euro.competition !== 'league';
+  const laps = eventLaps(ev, c.laps);
   const live = game.weekend?.eventId === ev.id;
   return (
     <div className="grid gap-5 md:grid-cols-[1fr_auto]">
       <div>
-        <div className="flex items-center gap-2">
-          <DivisionBadge division={ev.division} />
-          <span className="label">
-            Round {ev.round} of {game.calendars[team.division].length} · Week {ev.week}
-          </span>
-        </div>
+        {h2h ? (
+          <H2HBanner game={game} event={ev} />
+        ) : (
+          <div className="flex items-center gap-2">
+            <DivisionBadge division={ev.division} />
+            <span className="label">{ev.euro ? `${ev.euro.label} · Week ${ev.week}` : `Round ${ev.round} of ${game.calendars[team.division].length} · Week ${ev.week}`}</span>
+          </div>
+        )}
         <div className="mt-1 font-display text-3xl font-black uppercase">{c.name}</div>
         <div className="text-sm text-apex-muted">
           {c.location} · {c.lengthKm.toFixed(2)} km · {laps} laps · {c.type}

@@ -1,8 +1,8 @@
 import { Cloud, CloudRain, FastForward, Sun } from 'lucide-react';
 import { autoplayPlayerWeekend } from '@/engine/game';
 import { askConfirm } from '@/store/confirm';
-import { DIVISIONS, raceLapsFor } from '@/engine/config/divisions';
-import { nextEventFor } from '@/engine/season/calendar';
+import { DIVISIONS, eventLaps } from '@/engine/config/divisions';
+import { nextPlayerEvent } from '@/engine/europe/season';
 import { playerTeam } from '@/engine/selectors';
 import { weekendEvent } from '@/engine/race/weekend';
 import type { WeatherForecastEntry } from '@/engine/types';
@@ -17,6 +17,7 @@ import { LiveRace } from './LiveRace';
 import { RaceComplete } from './RaceComplete';
 import { ResultTable } from '@/components/RaceResultModal';
 import { EventTwistNotes } from '@/components/SeasonFeatures';
+import { H2HBanner } from '@/components/EuroCommon';
 
 const PHASES = [
   { id: 'practice', label: 'Practice' },
@@ -49,19 +50,20 @@ export function RaceCenter() {
   const event = weekendEvent(game);
 
   if (!weekend || !event) {
-    const next = nextEventFor(game, team.division);
+    const next = nextPlayerEvent(game);
     const last = [...game.calendars[team.division]].reverse().find((e) => e.completed);
     return (
       <div className="space-y-6">
         <SectionTitle sub="Practice, qualifying and live race management.">Race Center</SectionTitle>
         {next ? (
-          <Panel title="Next race weekend">
+          <Panel title={next.euro && next.euro.competition !== 'league' ? 'Next race' : 'Next race weekend'}>
             <div className="grid items-center gap-6 md:grid-cols-[1fr_360px]">
               <div>
-                <DivisionBadge division={next.division} />
+                {next.euro && next.euro.competition !== 'league' ? <H2HBanner game={game} event={next} /> : <DivisionBadge division={next.division} />}
+                {next.euro?.competition === 'league' && <div className="label mt-1">{next.euro.label}</div>}
                 <div className="mt-1 font-display text-3xl font-black uppercase">{game.circuits[next.circuitId].name}</div>
                 <div className="text-sm text-apex-muted">
-                  Round {next.round} · Week {next.week} · {raceLapsFor(next.division, game.circuits[next.circuitId].laps)} laps
+                  Round {next.round} · Week {next.week} · {eventLaps(next, game.circuits[next.circuitId].laps)} laps
                 </div>
                 <p className="mt-3 text-sm">{game.circuits[next.circuitId].character}</p>
                 <p className="mt-3 text-sm text-apex-muted">The weekend opens when you advance to week {next.week} (use the Continue button in the top bar).</p>
@@ -91,14 +93,12 @@ export function RaceCenter() {
         <div>
           <div className="flex items-center gap-2">
             <DivisionBadge division={event.division} />
-            <span className="label">
-              Round {event.round} · Week {event.week}
-            </span>
+            <span className="label">{event.euro ? `${event.euro.label} · Week ${event.week}` : `Round ${event.round} · Week ${event.week}`}</span>
             {weekend.phase === 'race' && <Badge tone="solid">Live</Badge>}
           </div>
           <h1 className="font-display text-3xl font-black uppercase">{circuit.name}</h1>
           <div className="text-sm text-apex-muted">
-            {circuit.location} · {circuit.lengthKm.toFixed(2)} km · {raceLapsFor(event.division, circuit.laps)} laps
+            {circuit.location} · {circuit.lengthKm.toFixed(2)} km · {eventLaps(event, circuit.laps)} laps
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-4">
@@ -127,7 +127,8 @@ export function RaceCenter() {
           <span className="text-white/90">{game.daily.description}</span>
         </div>
       )}
-      {weekend.phase !== 'race' && <EventTwistNotes game={game} event={event} />}
+      {event.euro && event.euro.competition !== 'league' && weekend.phase !== 'race' && <H2HBanner game={game} event={event} />}
+      {weekend.phase !== 'race' && (!event.euro || event.euro.competition === 'league') && <EventTwistNotes game={game} event={event} />}
       {weekend.phase === 'practice' && <Practice />}
       {weekend.phase === 'qualifying' && <Qualifying />}
       {weekend.phase === 'raceSetup' && <RaceSetup />}

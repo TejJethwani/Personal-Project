@@ -1,3 +1,4 @@
+import { DIVISIONS } from '../config/divisions';
 import type { GameState } from '../types';
 import { validateState } from '../validation';
 import { SAVE_VERSION } from '../world/generate';
@@ -22,10 +23,15 @@ export interface SaveMeta {
   week: number;
   principal: string;
   difficulty: string;
+  /** Career mode (absent in older saves = Classic). */
+  mode?: 'career' | 'european';
+  /** League name for European League careers. */
+  league?: string;
 }
 
 export function saveMeta(state: GameState): SaveMeta {
   const team = state.teams[state.player.teamId];
+  const european = state.mode === 'european';
   return {
     teamName: team?.name ?? 'Unknown',
     division: team?.division ?? 'F5',
@@ -34,6 +40,8 @@ export function saveMeta(state: GameState): SaveMeta {
     week: state.week,
     principal: state.player.principalName,
     difficulty: state.settings.difficulty,
+    mode: european ? 'european' : 'career',
+    ...(european && team ? { league: DIVISIONS[team.division].name } : {}),
   };
 }
 

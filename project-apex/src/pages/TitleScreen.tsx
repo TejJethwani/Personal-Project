@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { CalendarClock, Download, Flame, FolderOpen, Play, Plus, Star, Trash2, Trophy } from 'lucide-react';
+import { CalendarClock, Download, Flame, FolderOpen, Globe2, Play, Plus, Star, Trash2, Trophy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { ACHIEVEMENTS } from '@/engine/achievements';
@@ -8,7 +8,7 @@ import type { DailyChallengeInfo, DivisionId } from '@/engine/types';
 import { DAILY_TROPHIES, liveStreak, loadProfile } from '@/lib/profile';
 import { CarLivery } from '@/components/common';
 import { Button } from '@/components/ui';
-import { AUTOSAVE_SLOT, deleteSlot, importSave, listSaves, loadFromSlot, type SaveSummary } from '@/store/persistence';
+import { AUTOSAVE_SLOT, deleteSlot, EURO_AUTOSAVE_SLOT, importSave, isEuroSlot, listSaves, loadFromSlot, slotLabel, type SaveSummary } from '@/store/persistence';
 import { useStore } from '@/store/gameStore';
 import { askConfirm } from '@/store/confirm';
 
@@ -30,6 +30,7 @@ export function TitleScreen() {
   }, []);
 
   const auto = saves.find((s) => s.slot === AUTOSAVE_SLOT);
+  const euroAuto = saves.find((s) => s.slot === EURO_AUTOSAVE_SLOT);
   const load = async (slot: string) => {
     try {
       loadGame(await loadFromSlot(slot));
@@ -61,7 +62,7 @@ export function TitleScreen() {
               <br />
               <span className="text-apex-red">Apex</span>
             </h1>
-            <p className="mt-5 max-w-md text-lg text-apex-muted">From backmarkers to world champions. Build a Formula 5 garage into the greatest constructor in motorsport history.</p>
+            <p className="mt-5 max-w-md text-lg text-apex-muted">From backmarkers to world champions. Build a Formula 5 garage into the greatest constructor in motorsport history, or take a club up your nation's league pyramid and into the Apex Champions League.</p>
             <div className="mt-8 flex flex-wrap gap-2">
               {(['F5', 'F4', 'F3', 'F2', 'F1'] as DivisionId[]).map((d, i) => (
                 <motion.div key={d} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.07 }} className="rounded-md border border-apex-line bg-apex-panel/70 px-3 py-2">
@@ -80,14 +81,24 @@ export function TitleScreen() {
             {auto && (
               <Button variant="primary" size="lg" className="w-full justify-between" onClick={() => load(AUTOSAVE_SLOT)}>
                 <span className="flex items-center gap-2">
-                  <Play size={18} /> Continue
+                  <Play size={18} /> Continue Classic
                 </span>
                 <span className="font-sans text-xs normal-case tracking-normal opacity-80">
                   {auto.meta.teamName} · {auto.meta.division} · S{auto.meta.season}
                 </span>
               </Button>
             )}
-            <Button variant={auto ? 'secondary' : 'primary'} size="lg" className="w-full" onClick={() => setScreen('newCareer')}>
+            {euroAuto && (
+              <Button variant={auto ? 'secondary' : 'primary'} size="lg" className="w-full justify-between" onClick={() => load(EURO_AUTOSAVE_SLOT)}>
+                <span className="flex items-center gap-2">
+                  <Globe2 size={18} /> Continue European
+                </span>
+                <span className="font-sans text-xs normal-case tracking-normal opacity-80">
+                  {euroAuto.meta.teamName} · {euroAuto.meta.league ?? euroAuto.meta.division} · S{euroAuto.meta.season}
+                </span>
+              </Button>
+            )}
+            <Button variant={auto || euroAuto ? 'secondary' : 'primary'} size="lg" className="w-full" onClick={() => setScreen('newCareer')}>
               <Plus size={18} /> New Career
             </Button>
             <Button variant="secondary" size="lg" className="w-full" onClick={() => fileRef.current?.click()}>
@@ -110,10 +121,10 @@ export function TitleScreen() {
                   <div key={s.slot} className="flex items-center gap-2 rounded-md border border-apex-line bg-apex-bg/60 px-3 py-2">
                     <button className="min-w-0 flex-1 text-left" onClick={() => load(s.slot)}>
                       <div className="truncate text-sm font-semibold">
-                        {s.meta.teamName} <span className="text-apex-muted">· {s.meta.division}</span>
+                        {s.meta.teamName} <span className="text-apex-muted">· {s.meta.league ?? s.meta.division}</span>
                       </div>
                       <div className="text-[11px] text-apex-muted">
-                        {s.slot === AUTOSAVE_SLOT ? 'Autosave' : s.slot.replace('slot-', 'Slot ')} · Season {s.meta.season} ({s.meta.year}) · {new Date(s.savedAt).toLocaleString()}
+                        <span className={isEuroSlot(s.slot) ? 'text-sky-300' : 'text-apex-red'}>{isEuroSlot(s.slot) ? 'European' : 'Classic'}</span> · {slotLabel(s.slot)} · Season {s.meta.season} ({s.meta.year}) · {new Date(s.savedAt).toLocaleString()}
                       </div>
                     </button>
                     <Button

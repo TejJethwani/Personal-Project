@@ -1,16 +1,16 @@
 import { Download, Palmtree, Save, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { renameTeam, setDifficulty, setPointsPreset, updateSettings } from '@/engine/actions';
+import { renameTeam, setDifficulty, setPointsPreset, setRace2Grid, updateSettings } from '@/engine/actions';
+import { activeDivisions } from '@/engine/config/ruleset';
 import { assistantManage } from '@/engine/ai/assistant';
 import { DIFFICULTIES } from '@/engine/config/difficulty';
 import { DIVISIONS, POINTS_PRESETS } from '@/engine/config/divisions';
 import { autoplayPlayerWeekend } from '@/engine/game';
 import { advanceBlocker, advanceWeek, finishWeekendAndContinue } from '@/engine/season/advance';
 import { playerTeam } from '@/engine/selectors';
-import type { Difficulty, GameState } from '@/engine/types';
-import { DIVISION_ORDER } from '@/engine/types';
+import type { Difficulty, GameState, Race2GridRule } from '@/engine/types';
 import { Badge, Button, Field, Panel, SectionTitle, Segmented, Select, Toggle } from '@/components/ui';
-import { deleteSlot, exportSave, importSave, listSaves, loadFromSlot, MANUAL_SLOTS, saveToSlot, type SaveSummary } from '@/store/persistence';
+import { deleteSlot, exportSave, importSave, listSaves, loadFromSlot, manualSlotsFor, saveToSlot, type SaveSummary } from '@/store/persistence';
 import { useGame, useStore } from '@/store/gameStore';
 import { askConfirm } from '@/store/confirm';
 
@@ -70,14 +70,27 @@ export function SettingsPage() {
             <div>
               <div className="label mb-2">Championship points systems {pending && <Badge tone="amber">changes apply next season</Badge>}</div>
               <div className="space-y-2">
-                {DIVISION_ORDER.map((d) => (
+                {[...activeDivisions(game)].reverse().map((d) => (
                   <div key={d} className="flex items-center gap-3 text-sm">
-                    <span className="w-24">{DIVISIONS[d].name}</span>
-                    <Select value={(pending ?? game.settings.pointsPreset)[d]} onChange={(v) => act((g) => setPointsPreset(g, d, v))} options={Object.values(POINTS_PRESETS).map((p) => ({ value: p.id, label: p.label }))} className="flex-1" />
+                    <span className="w-36 truncate">{DIVISIONS[d].name}</span>
+                    <Select value={(pending ?? game.settings.pointsPreset)[d]} onChange={(v) => act((g) => setPointsPreset(g, d, v))} options={Object.values(POINTS_PRESETS).filter((p) => p.id !== 'h2h').map((p) => ({ value: p.id, label: p.label }))} className="flex-1" />
                   </div>
                 ))}
               </div>
             </div>
+            {game.europe && (
+              <Field label="Race 2 starting grid" hint="Both races of a weekend score full points. Changes apply to every second race still to run.">
+                <Select<Race2GridRule>
+                  value={game.europe.race2Grid}
+                  onChange={(v) => act((g) => setRace2Grid(g, v), { success: 'Race 2 grid rule updated.' })}
+                  options={[
+                    { value: 'qualifying', label: 'Its own qualifying session' },
+                    { value: 'reverseTop10', label: 'Race 1 result, top ten reversed' },
+                    { value: 'sameGrid', label: 'Same grid as race 1' },
+                  ]}
+                />
+              </Field>
+            )}
           </div>
         </Panel>
         <Panel title="Simulation">
@@ -110,7 +123,7 @@ export function SettingsPage() {
       </div>
       <Panel title="Saves" actions={<span className="text-xs text-apex-muted">{lastSaved ? `Autosaved ${new Date(lastSaved).toLocaleTimeString()}` : 'Autosave on next action'}</span>}>
         <div className="space-y-2">
-          {MANUAL_SLOTS.map((slot, i) => {
+          {manualSlotsFor(game).map((slot, i) => {
             const s = saves.find((x) => x.slot === slot);
             return (
               <div key={slot} className="flex flex-wrap items-center gap-3 rounded-md border border-apex-line px-3 py-2">
@@ -118,7 +131,7 @@ export function SettingsPage() {
                 <span className="min-w-0 flex-1 truncate text-sm">
                   {s ? (
                     <>
-                      {s.meta.teamName} · {s.meta.division} · Season {s.meta.season} ({s.meta.year}) <span className="text-apex-muted">· {new Date(s.savedAt).toLocaleString()} · {(s.size / 1024).toFixed(0)} KB</span>
+                      {s.meta.teamName} · {s.meta.league ?? s.meta.division} · Season {s.meta.season} ({s.meta.year}) <span className="text-apex-muted">· {new Date(s.savedAt).toLocaleString()} · {(s.size / 1024).toFixed(0)} KB</span>
                     </>
                   ) : (
                     <span className="text-apex-dim">Empty</span>

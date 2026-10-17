@@ -48,7 +48,7 @@ export function DivisionBadge({ division, className }: { division: DivisionId; c
   const colors = ['#64748b', '#0ea5e9', '#22c55e', '#f59e0b', '#e10600'];
   return (
     <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 font-display text-xs font-bold tracking-wider text-white', className)} style={{ background: `${colors[tier]}33`, boxShadow: `inset 0 0 0 1px ${colors[tier]}88` }}>
-      {division}
+      {DIVISIONS[division].short ?? division}
     </span>
   );
 }

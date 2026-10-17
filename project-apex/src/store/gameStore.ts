@@ -4,9 +4,10 @@ import type { GameState, NewCareerConfig } from '@/engine/types';
 import { GameRuleError } from '@/engine/util';
 import { ACHIEVEMENT_BY_ID } from '@/engine/achievements';
 import { recordAchievements } from '@/lib/profile';
-import { AUTOSAVE_SLOT, saveToSlot } from './persistence';
+import { autosaveSlotFor, saveToSlot } from './persistence';
+import { applyRuleset } from '@/engine/config/ruleset';
 
-export type Page = 'hq' | 'drivers' | 'market' | 'car' | 'race' | 'championship' | 'finances' | 'staff' | 'news' | 'history' | 'settings' | 'seasonReview';
+export type Page = 'hq' | 'drivers' | 'market' | 'car' | 'race' | 'championship' | 'europe' | 'finances' | 'staff' | 'news' | 'history' | 'settings' | 'seasonReview';
 
 export interface Toast {
   id: number;
@@ -76,12 +77,17 @@ export const useStore = create<Store>((set, get) => ({
     void get().autosaveNow();
   },
   loadGame: (game) => {
+    applyRuleset(game);
     set({ game, rev: get().rev + 1, screen: 'game', page: game.phase === 'weekend' ? 'race' : game.phase === 'seasonReview' ? 'seasonReview' : 'hq', driverProfile: null, teamProfile: null, negotiation: null });
   },
   loadDaily: (game) => {
+    applyRuleset(game);
     set({ game, rev: get().rev + 1, screen: 'game', page: 'race', driverProfile: null, teamProfile: null, negotiation: null });
   },
-  quitToTitle: () => set({ game: null, screen: 'title', driverProfile: null, teamProfile: null, negotiation: null }),
+  quitToTitle: () => {
+    applyRuleset(null);
+    set({ game: null, screen: 'title', driverProfile: null, teamProfile: null, negotiation: null });
+  },
   act: (fn, opts = {}) => {
     const game = get().game;
     if (!game) return undefined;
@@ -125,7 +131,7 @@ export const useStore = create<Store>((set, get) => ({
     const game = get().game;
     if (!game || !game.settings.autosave || game.mode === 'daily') return;
     try {
-      await saveToSlot(AUTOSAVE_SLOT, game);
+      await saveToSlot(autosaveSlotFor(game), game);
       set({ lastSaved: Date.now() });
     } catch (err) {
       console.warn('Autosave failed', err);

@@ -16,6 +16,7 @@ import { TeamDot, TireIcon } from '@/components/common';
 import { Badge, Button, cn, Panel, Progress, Segmented, Toggle } from '@/components/ui';
 import { lapTime } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { H2HLiveScore } from '@/components/EuroCommon';
 import { askConfirm } from '@/store/confirm';
 
 interface AnimState {
@@ -127,6 +128,8 @@ export function LiveRace() {
           {nextWx.rain > wx.rain + 0.1 && <Badge tone="blue">Rain approaching</Badge>}
         </div>
       </div>
+
+      <H2HLiveScore game={game} event={event} race={race} />
 
       <AnimatePresence>
         {sc !== 'none' && (
