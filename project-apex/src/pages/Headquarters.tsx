@@ -21,6 +21,7 @@ import { Badge, Button, Panel, Progress, RatingPill, SectionTitle, Stat } from '
 import { money, ordinal } from '@/lib/format';
 import { useGame, useStore, type Page } from '@/store/gameStore';
 import { useContinue } from '@/components/Shell';
+import { ChallengesPanel, SeasonTwistsPanel } from '@/components/SeasonFeatures';
 
 interface AlertItem {
   level: 'critical' | 'warning' | 'info';
@@ -134,6 +135,13 @@ export function Headquarters() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {game.phase !== 'gameOver' && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <SeasonTwistsPanel game={game} division={team.division} />
+          <ChallengesPanel game={game} />
         </div>
       )}
 

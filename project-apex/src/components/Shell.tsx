@@ -21,6 +21,7 @@ import { advanceBlocker, advanceToNextEvent, advanceWeek } from '@/engine/season
 import { nextEventFor } from '@/engine/season/calendar';
 import { playerTeam } from '@/engine/selectors';
 import { money, ordinal, weekLabel } from '@/lib/format';
+import type { GameState } from '@/engine/types';
 import { useGame, useStore, type Page } from '@/store/gameStore';
 import { DivisionBadge, TeamDot } from './common';
 import { Button, cn } from './ui';
@@ -134,20 +135,33 @@ function TopBar() {
             </div>
           </div>
         </div>
-        <div className="ml-auto hidden items-center gap-6 xl:flex">
+        <div className={cn('ml-auto hidden items-center gap-6', game.mode !== 'daily' && 'xl:flex')}>
           <TopStat label="Budget" value={money(team.cash)} tone={team.cash < 0 ? 'text-red-400' : undefined} />
           <TopStat label="Reputation" value={`${Math.round(team.reputation)}`} />
           <TopStat label="Championship" value={game.phase === 'season' || game.phase === 'weekend' ? `P${pos}` : '—'} />
           <TopStat label="Next race" value={ev ? <span className="inline-block max-w-[180px] truncate align-bottom">{game.circuits[ev.circuitId].name.replace(/^(Circuit|Autodromo|Autódromo|Circuito) (de |do |di |of |del )?/i, '')}</span> : '—'} sub={ev ? (ev.week - game.week <= 0 ? 'This week' : `in ${ev.week - Math.max(0, game.week)} wk`) : undefined} />
         </div>
         <div className="ml-auto xl:ml-4" title={c.hint}>
-          <ContinueButton />
+          {game.mode === 'daily' ? <DailyBadge /> : <ContinueButton />}
         </div>
       </div>
-      {c.disabled && game.phase !== 'gameOver' && (
+      {c.disabled && game.phase !== 'gameOver' && game.mode !== 'daily' && (
         <div className="border-t border-amber-500/20 bg-amber-500/10 px-5 py-1.5 text-xs text-amber-200">{c.hint}</div>
       )}
     </header>
+  );
+}
+
+function DailyBadge() {
+  const game = useGame();
+  const quit = useStore((s) => s.quitToTitle);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="hidden rounded bg-amber-500/15 px-2 py-1 text-xs font-semibold text-amber-200 sm:inline">Daily challenge · goal P{game.daily?.goalPosition}</span>
+      <Button variant="secondary" size="md" onClick={quit}>
+        Exit
+      </Button>
+    </div>
   );
 }
 
@@ -163,14 +177,19 @@ function TopStat({ label, value, sub, tone }: { label: string; value: ReactNode;
   );
 }
 
+/** In a daily challenge only the race-related pages make sense. */
+const DAILY_PAGES: Page[] = ['race', 'drivers', 'championship'];
+const navFor = (game: GameState) => (game.mode === 'daily' ? NAV.filter((n) => DAILY_PAGES.includes(n.id)) : NAV);
+
 function Sidebar() {
   const game = useGame();
   const page = useStore((s) => s.page);
   const setPage = useStore((s) => s.setPage);
+  const quit = useStore((s) => s.quitToTitle);
   const unread = game.news.filter((n) => !n.read && n.importance >= 2).length;
   return (
     <nav className="sticky top-16 hidden h-[calc(100vh-4rem)] w-56 shrink-0 flex-col border-r border-apex-line bg-apex-bg py-4 md:flex">
-      {NAV.map((item) => {
+      {navFor(game).map((item) => {
         const Icon = item.icon;
         const active = page === item.id || (item.id === 'hq' && page === 'seasonReview');
         const pulse = item.id === 'race' && game.phase === 'weekend';
@@ -188,21 +207,30 @@ function Sidebar() {
           </button>
         );
       })}
-      <div className="mt-auto px-5 pt-4 text-[10px] leading-relaxed text-apex-dim">
-        {ordinal(game.player.seasonsPlayed + 1)} season in charge
-        <br />
-        {game.player.principalName}
-      </div>
+      {game.mode === 'daily' ? (
+        <div className="mt-auto px-4 pt-4">
+          <Button variant="secondary" size="sm" className="w-full" onClick={quit}>
+            Exit challenge
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-auto px-5 pt-4 text-[10px] leading-relaxed text-apex-dim">
+          {ordinal(game.player.seasonsPlayed + 1)} season in charge
+          <br />
+          {game.player.principalName}
+        </div>
+      )}
     </nav>
   );
 }
 
 function MobileNav() {
+  const game = useGame();
   const page = useStore((s) => s.page);
   const setPage = useStore((s) => s.setPage);
   return (
     <div className="flex gap-1 overflow-x-auto border-b border-apex-line px-3 py-2 md:hidden">
-      {NAV.map((n) => (
+      {navFor(game).map((n) => (
         <button key={n.id} onClick={() => setPage(n.id)} className={cn('whitespace-nowrap rounded px-3 py-1.5 text-xs font-semibold', page === n.id ? 'bg-apex-red text-white' : 'text-apex-muted')}>
           {n.label}
         </button>
@@ -230,6 +258,7 @@ export function Toasts() {
               t.kind === 'error' && 'border-red-800/70 bg-red-950/90 text-red-100',
               t.kind === 'success' && 'border-emerald-700/60 bg-emerald-950/90 text-emerald-100',
               t.kind === 'info' && 'border-apex-line2 bg-apex-panel/95 text-white',
+              t.kind === 'achievement' && 'border-amber-500/60 bg-amber-950/90 font-semibold text-amber-100',
             )}
           >
             {t.text}

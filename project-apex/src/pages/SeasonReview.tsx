@@ -11,6 +11,7 @@ import { Badge, Button, Empty, Panel, SectionTitle, Stat } from '@/components/ui
 import { money, ordinal } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
 import { askConfirm } from '@/store/confirm';
+import { ChallengesPanel, SeasonTwistsPanel } from '@/components/SeasonFeatures';
 
 /** What promotion does to the car at this difficulty. */
 function carryText(difficulty: keyof typeof DIFFICULTIES): string {
@@ -70,6 +71,11 @@ export function SeasonReview() {
                 </Badge>
               )}
               <Badge className="px-3 py-1 text-xs">Prize money {money(review.prizeMoney)}</Badge>
+              {review.challenges && review.challenges.total > 0 && (
+                <Badge tone={review.challenges.completed === review.challenges.total ? 'gold' : 'neutral'} className="px-3 py-1 text-xs">
+                  Challenges {review.challenges.completed}/{review.challenges.total}
+                </Badge>
+              )}
               {review.developmentBoost !== undefined && (
                 <Badge tone="blue" className="px-3 py-1 text-xs" title="Added to every area of the car when the off-season starts. Top finishers are rewarded, the bottom teams get catch-up help, mid-table gets the least.">
                   Car development boost +{review.developmentBoost.toFixed(1)}
@@ -143,6 +149,11 @@ export function SeasonReview() {
             <p className="text-xs text-apex-muted">Next: a six-week off-season transfer window. Rivals will sign free agents each week; act early for the best drivers.</p>
           </div>
         </Panel>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SeasonTwistsPanel game={game} division={review.newDivision} season={review.season + 1} title={`Next season's twists · ${DIVISIONS[review.newDivision].name}`} />
+        <ChallengesPanel game={game} />
       </div>
 
       {game.phase === 'seasonReview' && (

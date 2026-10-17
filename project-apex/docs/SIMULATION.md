@@ -125,3 +125,25 @@ Sponsor appeal follows reputation and results. Sponsors pay per race plus bonuse
 ## 8. AI managers
 
 Six personalities (`difficulty.ts`) weight the same decisions differently: R&D appetite and preferred project scale, facility appetite, cash reserve target, salary premium, youth focus, race risk and ruthlessness. Each week an AI team protects its finances (a takeover rescue below −0.25B), fills empty seats, ensures a substitute for injured or banned drivers, starts R&D projects aimed at the components that matter at the remaining circuits, upgrades facilities (prioritising the next division's licence when contending), hires staff, extends or replaces drivers for next season, and occasionally sacks an underperformer. In races it picks strategies with its strategist's accuracy (bold personalities gamble on alternatives) and manages pace, tyres, fuel, ERS and team orders lap by lap.
+
+## 9. Seasons that play differently
+
+**Season twists** (`season/twists.ts`) are drawn for every series every season (one in a career's first season, two after) from the world seed, so they are fixed for a save but new each year, and they apply to every team alike:
+
+| Twist | Effect |
+| --- | --- |
+| Monsoon Season | Rain chance ×1.9 |
+| Tyre War | Tyre wear ×1.3 (strategy estimates included) |
+| New Power Units | Mechanical failure probability ×1.6 |
+| Overtaking Package | +0.7 on the overtaking logit |
+| Double-Points Finale | The last round pays double points |
+| Reverse-Grid Round | The middle round reverses the top ten of qualifying |
+| Development Race | R&D gains ×1.25, costs ×0.85 |
+| Bumper TV Deal | Race prize money ×1.5, season prize money ×1.25 |
+| Heatwave Summer | Track temperature +8°C, tyre wear ×1.08, failures ×1.15 |
+
+**Season challenges** (`season/challenges.ts`): at the start of each season the player gets two challenges from a pool pitched at the team's projected position (e.g. score points, a points streak, both cars in the points, points in the wet, gain N places, front row, a podium, a win, fastest lap) plus *beat your rival*: the team just above on paper (just below for the favourite), with a race-by-race head-to-head. Rewards are a share of the series' typical budget (4%, 6% or 9%), 1-3 reputation and a 0.5-1.5 boost to every car component; each pays once, and unfinished challenges are settled at season end.
+
+**Achievements** (`achievements.ts`): 31 career achievements (first points to Formula 1 champion, one-two, wet win, win from 8th or lower, hat-trick, finale hero, challenge master, and more), checked after every race, every week and at season end. Unlocks raise a toast and a news story and are also kept in a browser profile across careers, alongside four daily-challenge trophies.
+
+**Daily challenge** (`daily.ts`): a world is generated from the local date. The player takes over a team ranked 4th-8th of 10 on paper in Formula 3, 2 or 1 at a random round, and must finish with a car at or above one place better than that ranking. Stars: 1 for the goal, 2 for beating it, 3 for a win or beating it by three places. The daily world is never autosaved over the career; the best result per day and a day streak are kept in the browser profile.

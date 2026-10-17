@@ -70,7 +70,7 @@ describe('finances', () => {
     playSeason(s);
     expect(s.phase).toBe('seasonReview');
     expect(() => finalizeSeason(s)).toThrow();
-    const prizeTx = playerTeam(s).ledger.filter((t) => t.category === 'prize');
+    const prizeTx = playerTeam(s).ledger.filter((t) => t.category === 'prize' && t.label.includes('championship prize'));
     expect(prizeTx).toHaveLength(1);
   });
 });

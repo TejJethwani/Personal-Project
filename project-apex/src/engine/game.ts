@@ -12,11 +12,13 @@ import { DIVISIONS } from './config/divisions';
 import { advanceRace, autoPractice, finishPractice, runNextQualifyingSession, startRace } from './race/weekend';
 import type { GameState, NewCareerConfig } from './types';
 import { createWorld } from './world/generate';
+import { ensureSeasonChallenges } from './season/challenges';
 
 export function createNewGame(config: NewCareerConfig): GameState {
   const state = createWorld(config);
   const team = playerTeam(state);
   setSeasonObjectives(state);
+  ensureSeasonChallenges(state);
   refreshSponsorOffers(state, true);
   addNews(state, {
     category: 'board',

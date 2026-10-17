@@ -33,6 +33,9 @@ import { DIVISION_ORDER } from '../types';
 import { assertRule, clamp, ordinal, roundMoney } from '../util';
 import { buildAllCalendars } from './calendar';
 import { computeDivisionMoves, licensingChecks, type DivisionMove } from './promotion';
+import { checkAchievements } from '../achievements';
+import { settleSeasonChallenges } from './challenges';
+import { twistEffects } from './twists';
 import { COMPONENT_INFO } from '../car/car';
 
 export const POOL_TARGET = 330;
@@ -163,7 +166,7 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
     // Prize money.
     st.constructors.forEach((r, i) => {
       const t = state.teams[r.id];
-      const prize = cfg.prizeMoney[i] ?? 0;
+      const prize = Math.round((cfg.prizeMoney[i] ?? 0) * twistEffects(state, division).seasonPrize);
       postTransaction(state, t, 'prize', prize, `${cfg.name} championship prize: P${i + 1}`);
       if (t.isPlayer) prizeForPlayer = prize;
     });
@@ -273,6 +276,8 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
   }
 
   const expiring = Object.values(state.drivers).filter((d) => d.contract?.teamId === player.id && d.contract.endSeason <= state.season && !d.futureContract).map((d) => d.id);
+  const challengesDone = settleSeasonChallenges(state);
+  const challengesSet = (state.player.challenges ?? []).filter((c) => c.season === state.season).length;
   const summary: SeasonReviewSummary = {
     season: state.season,
     division: player.division,
@@ -292,9 +297,11 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
     notes,
     missedPromotion,
     developmentBoost: finishDevelopmentBoost(pStand),
+    challenges: { completed: challengesDone, total: challengesSet },
   };
   state.lastSeasonReview = summary;
   state.phase = 'seasonReview';
+  checkAchievements(state);
 
   // Career-ending outcomes.
   if (canBeSacked(state) && player.boardConfidence < 12) {
@@ -422,6 +429,7 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
   state.phase = 'offseason';
   state.week = -6;
   refreshSponsorOffers(state, true);
+  checkAchievements(state);
 }
 
 /** Contracts expire, pre-contracts activate, veterans retire. Returns retired driver ids. */

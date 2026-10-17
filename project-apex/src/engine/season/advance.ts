@@ -23,6 +23,9 @@ import { DIVISION_ORDER } from '../types';
 import { assertRule, clamp, roundMoney } from '../util';
 import { nextEventFor } from './calendar';
 import { announceRegulations, finalizeSeason } from './seasonEnd';
+import { checkAchievements } from '../achievements';
+import { ensureSeasonChallenges } from './challenges';
+import { SEASON_TWISTS, seasonTwists } from './twists';
 
 export interface AdvanceResult {
   stoppedFor: 'race' | 'seasonEnd' | 'decision' | 'preseason' | 'seasonStart' | 'week' | 'gameOver';
@@ -95,8 +98,18 @@ function startSeason(state: GameState): AdvanceResult {
     chargeEntryFee(state, t);
   }
   if (team.objectives.length === 0) setSeasonObjectives(state);
+  ensureSeasonChallenges(state);
   state.phase = 'season';
   state.week = 0;
+  const twists = seasonTwists(state, team.division);
+  addNews(state, {
+    category: 'regulation',
+    headline: `SEASON TWIST${twists.length > 1 ? 'S' : ''}: ${twists.map((t) => SEASON_TWISTS[t].name.toUpperCase()).join(' + ')}`,
+    body: `${DIVISIONS[team.division].name} season ${state.season}: ${twists.map((t) => `${SEASON_TWISTS[t].name}. ${SEASON_TWISTS[t].summary}`).join(' ')}`,
+    division: team.division,
+    teamIds: [team.id],
+    importance: 3,
+  });
   addNews(state, { category: 'board', headline: `SEASON ${state.season} BEGINS`, body: `${team.name} start the ${DIVISIONS[team.division].name} season. Board objectives: ${team.objectives.map((o) => o.description).join('; ')}.`, teamIds: [team.id], importance: 2 });
   seasonPredictions(state);
   return advanceWeek(state).stoppedFor === 'race' ? { stoppedFor: 'race', message: 'First race weekend!' } : { stoppedFor: 'seasonStart', message: `Season ${state.season} is under way.` };
@@ -118,6 +131,7 @@ function offseasonWeek(state: GameState): AdvanceResult {
     state.week = 0;
     state.phase = 'preseason';
     setSeasonObjectives(state);
+    ensureSeasonChallenges(state);
     refreshSponsorOffers(state, true);
     const issues = lineupIssues(state, playerTeam(state));
     return { stoppedFor: 'preseason', message: issues.length ? `Pre-season. ${issues.join(' ')}` : 'Pre-season: final preparations before the first race.' };
@@ -128,6 +142,7 @@ function offseasonWeek(state: GameState): AdvanceResult {
 /** Everything that happens in the world during one in-season week. */
 export function processWeek(state: GameState): void {
   const player = playerTeam(state);
+  checkAchievements(state);
   for (const team of Object.values(state.teams)) {
     applyWeeklyFinances(state, team);
     const done = progressFacilities(team);

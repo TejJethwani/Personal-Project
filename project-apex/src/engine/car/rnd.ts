@@ -4,6 +4,7 @@ import { ECONOMY_TUNING } from '../config/tuning';
 import { nextId } from '../drivers/generate';
 import { postTransaction } from '../finance/ledger';
 import { addNews, fill, pickTemplate, TEMPLATES } from '../news/news';
+import { twistEffects } from '../season/twists';
 import { Rng, stableNoise } from '../rng';
 import { hasSpecialization, staffRating } from '../staff/staff';
 import type { ComponentKey, GameState, RnDApproach, RnDCompletion, RnDOptions, RnDOutcome, RnDPhase, RnDProject, RnDScale, RnDTimeline, Team } from '../types';
@@ -83,13 +84,14 @@ export function quoteProject(state: GameState, team: Team, component: ComponentK
   const td = staffRating(state, team, 'technicalDirector');
   const philosophy = team.isPlayer ? PHILOSOPHIES[state.player.philosophy] : null;
   const manufacturing = team.facilities.manufacturing.level;
-  const cost = roundMoney(cfg.cost * div.rndCostScale * (1.15 - manufacturing * 0.03) * approach.cost * timeline.cost);
+  const fx = twistEffects(state, team.division);
+  const cost = roundMoney(cfg.cost * div.rndCostScale * (1.15 - manufacturing * 0.03) * approach.cost * timeline.cost * fx.rndCost);
   const weeks = Math.max(1, Math.round(cfg.weeks * (1.18 - manufacturing * 0.025 - td / 450) * (philosophy?.rndDuration ?? 1) * timeline.weeks));
   const efficiency = (0.68 + td / 190) * facilityMultiplier(team, component) * tdSpecBonus(state, team, component) * (philosophy?.rndGain ?? 1);
   const upgradeScale = DIFFICULTIES[state.settings.difficulty].carDevelopment.upgradeScale;
   const rating = team.car.components[component];
   const lead = rating - fieldComponentMean(state, team, component);
-  const expectedGain = Math.round(cfg.gain * approach.gain * upgradeScale * efficiency * diminishing(rating, team.car.developmentLevel[component], lead) * 100) / 100;
+  const expectedGain = Math.round(cfg.gain * approach.gain * upgradeScale * fx.rndGain * efficiency * diminishing(rating, team.car.developmentLevel[component], lead) * 100) / 100;
   const risk = clamp(cfg.risk * (1.3 - manufacturing * 0.04 - td / 320) * approach.risk * timeline.risk, 0.02, 0.75);
   return { component, scale, approach: options.approach, timeline: options.timeline, cost, weeks, expectedGain, risk, capacity: cfg.capacity };
 }

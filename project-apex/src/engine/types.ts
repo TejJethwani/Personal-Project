@@ -951,6 +951,58 @@ export interface PlayerProfile {
   gameOverReason: string | null;
   seasonsPlayed: number;
   bailoutsUsed: number;
+  /** This season's optional challenges (absent in older saves). */
+  challenges?: SeasonChallenge[];
+  /** This season's rival team and head-to-head record (absent in older saves). */
+  rival?: Rivalry | null;
+  /** Achievements unlocked in this career, by id (absent in older saves). */
+  achievements?: Record<string, { season: number; week: number }>;
+}
+
+export type ChallengeKind =
+  | 'win'
+  | 'podium'
+  | 'points'
+  | 'pointsStreak'
+  | 'doublePoints'
+  | 'wetPoints'
+  | 'charge'
+  | 'frontRow'
+  | 'reliable'
+  | 'fastestLap'
+  | 'beatRival';
+
+export interface SeasonChallenge {
+  id: string;
+  season: number;
+  kind: ChallengeKind;
+  title: string;
+  description: string;
+  target: number;
+  progress: number;
+  completed: boolean;
+  failed: boolean;
+  reward: { cash: number; reputation: number; devBoost: number };
+}
+
+export interface Rivalry {
+  teamId: string;
+  season: number;
+  /** Races in which the player's best car finished ahead of / behind the rival's. */
+  ahead: number;
+  behind: number;
+}
+
+/** A one-race daily challenge scenario (game mode 'daily'). */
+export interface DailyChallengeInfo {
+  date: string;
+  eventId: string;
+  division: DivisionId;
+  goalPosition: number;
+  title: string;
+  description: string;
+  /** Best finishing position of the player's cars once the race is done. */
+  bestFinish: number | null;
 }
 
 export interface RegulationNotice {
@@ -990,6 +1042,9 @@ export interface GameState {
   processed: Record<string, true>;
   idCounter: number;
   lastSeasonReview: SeasonReviewSummary | null;
+  /** 'daily' marks a throwaway daily-challenge world (absent = career). */
+  mode?: 'career' | 'daily';
+  daily?: DailyChallengeInfo | null;
 }
 
 export interface SeasonReviewSummary {
@@ -1011,6 +1066,8 @@ export interface SeasonReviewSummary {
   notes: string[];
   /** Season-end car development boost earned by the finishing position (absent in older saves). */
   developmentBoost?: number;
+  /** Season challenges completed out of those set (absent in older saves). */
+  challenges?: { completed: number; total: number };
   /** Finished in a promotion place but held no licence for the series above (absent in older saves). */
   missedPromotion?: { to: DivisionId; failed: string[] } | null;
 }

@@ -1,5 +1,8 @@
 import { motion } from 'framer-motion';
-import { Trophy } from 'lucide-react';
+import { Star, Trophy } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createDailyChallenge, dailyStars } from '@/engine/daily';
+import { loadProfile, recordDaily, type Profile } from '@/lib/profile';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { divisionStandings } from '@/engine/championship/standings';
 import { driverName } from '@/engine/drivers/ratings';
@@ -33,6 +36,7 @@ export function RaceComplete() {
   };
   return (
     <div className="space-y-5">
+      {game.mode === 'daily' && <DailyResultCard />}
       <div className="relative overflow-hidden rounded-xl border border-apex-line bg-apex-panel p-6">
         <div className="pointer-events-none absolute inset-0 bg-apex-grad" />
         <div className="relative flex flex-wrap items-end justify-center gap-4">
@@ -62,7 +66,7 @@ export function RaceComplete() {
           {result.wet && <Badge tone="blue">Wet race</Badge>}
         </div>
       </div>
-      <div className="grid gap-5 xl:grid-cols-3">
+      <div className={game.mode === 'daily' ? 'hidden' : 'grid gap-5 xl:grid-cols-3'}>
         <Panel title="Weekend finances">
           <div className="space-y-1.5 text-sm">
             {raceTx.map((t, i) => (
@@ -105,11 +109,58 @@ export function RaceComplete() {
       <Panel title={`Classification · ${DIVISIONS[event.division].name} round ${event.round}`} actions={<span className="text-xs text-apex-muted">{race.totalLaps} laps</span>}>
         <ResultTable result={result} />
       </Panel>
-      <div className="flex justify-end">
-        <Button variant="primary" size="lg" onClick={cont}>
-          <Trophy size={16} /> Continue
+      {game.mode !== 'daily' && (
+        <div className="flex justify-end">
+          <Button variant="primary" size="lg" onClick={cont}>
+            <Trophy size={16} /> Continue
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Daily challenge outcome: stars, goal, streak; recorded once in the browser profile. */
+function DailyResultCard() {
+  const game = useGame();
+  const loadDaily = useStore((s) => s.loadDaily);
+  const quit = useStore((s) => s.quitToTitle);
+  const daily = game.daily!;
+  const stars = dailyStars(daily.bestFinish, daily.goalPosition);
+  const [profile, setProfile] = useState<Profile>(() => loadProfile());
+  useEffect(() => {
+    if (game.processed['daily:recorded']) return;
+    game.processed['daily:recorded'] = true;
+    setProfile(recordDaily(daily.date, { bestFinish: daily.bestFinish, stars, goal: daily.goalPosition, title: daily.title }));
+  }, [game, daily, stars]);
+  const best = profile.daily.results[daily.date];
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-amber-500/50 bg-amber-500/[0.07] p-6">
+      <div className="flex flex-wrap items-center justify-between gap-6">
+        <div>
+          <div className="label text-amber-300">Daily challenge · {daily.date}</div>
+          <div className="mt-1 font-display text-3xl font-black uppercase">{stars > 0 ? (stars === 3 ? 'Perfect drive!' : 'Goal achieved!') : 'Goal missed'}</div>
+          <p className="mt-1 text-sm text-white/80">
+            Best finish: {daily.bestFinish ? ordinal(daily.bestFinish) : 'no classified finish'} · goal P{daily.goalPosition} or better.
+          </p>
+          <p className="mt-1 text-xs text-apex-muted">
+            Streak: {profile.daily.streak} day{profile.daily.streak === 1 ? '' : 's'} (best {profile.daily.bestStreak}) · Today's best: {best ? `${best.stars} star${best.stars === 1 ? '' : 's'}` : '—'} after {best?.attempts ?? 1} attempt{(best?.attempts ?? 1) === 1 ? '' : 's'}. A new challenge unlocks tomorrow.
+          </p>
+        </div>
+        <div className="flex items-center gap-1" aria-label={`${stars} of 3 stars`}>
+          {[1, 2, 3].map((i) => (
+            <Star key={i} size={40} className={i <= stars ? 'fill-amber-400 text-amber-400' : 'text-white/20'} />
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button variant="primary" onClick={() => loadDaily(createDailyChallenge(daily.date))}>
+          Try again
+        </Button>
+        <Button variant="secondary" onClick={quit}>
+          Back to title
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 }

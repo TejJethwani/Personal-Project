@@ -7,6 +7,7 @@ import type { CalendarEvent, GameState, QualifyingEntry, QualifyingResult, TireC
 import { basePace, divisionBaseLap } from './pace';
 import { compoundPaceOffset, idealCompoundForWetness } from './tires';
 import { generateEventWeather } from './weather';
+import { twistEffects, weatherMods } from '../season/twists';
 
 export type QualiRisk = 'safe' | 'normal' | 'maximum';
 
@@ -22,7 +23,7 @@ const RISK_MISTAKE: Record<QualiRisk, number> = { safe: 0.5, normal: 1, maximum:
 
 export function qualifyingWetness(state: GameState, event: CalendarEvent): number {
   const circuit = state.circuits[event.circuitId];
-  return generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps)).qualiWetness;
+  return generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps), weatherMods(state, event.division)).qualiWetness;
 }
 
 /** Number of cars progressing into each session. */
@@ -152,6 +153,11 @@ export function combineSessions(state: GameState, entrants: QualiEntrant[], sess
   order.forEach((e, i) => (e.position = i + 1));
   // Grid penalties: move the driver back, others close up.
   const grid = [...order];
+  // Season twist: the reverse-grid round flips the top ten.
+  if (twistEffects(state, event.division).reverseGridRound === event.round && sessions.length >= sizes.length) {
+    const top = grid.splice(0, Math.min(10, grid.length)).reverse();
+    grid.unshift(...top);
+  }
   const penalised = order.filter((e) => (state.drivers[e.driverId]?.pendingGridPenalty ?? 0) > 0);
   for (const e of penalised) {
     const pen = state.drivers[e.driverId].pendingGridPenalty;

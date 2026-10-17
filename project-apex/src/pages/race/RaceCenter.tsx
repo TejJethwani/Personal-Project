@@ -1,4 +1,6 @@
-import { Cloud, CloudRain, Sun } from 'lucide-react';
+import { Cloud, CloudRain, FastForward, Sun } from 'lucide-react';
+import { autoplayPlayerWeekend } from '@/engine/game';
+import { askConfirm } from '@/store/confirm';
 import { DIVISIONS, raceLapsFor } from '@/engine/config/divisions';
 import { nextEventFor } from '@/engine/season/calendar';
 import { playerTeam } from '@/engine/selectors';
@@ -14,6 +16,7 @@ import { RaceSetup } from './RaceSetup';
 import { LiveRace } from './LiveRace';
 import { RaceComplete } from './RaceComplete';
 import { ResultTable } from '@/components/RaceResultModal';
+import { EventTwistNotes } from '@/components/SeasonFeatures';
 
 const PHASES = [
   { id: 'practice', label: 'Practice' },
@@ -40,6 +43,7 @@ export function Forecast({ forecast }: { forecast: WeatherForecastEntry[] }) {
 export function RaceCenter() {
   const game = useGame();
   const setPage = useStore((s) => s.setPage);
+  const act = useStore((s) => s.act);
   const team = playerTeam(game);
   const weekend = game.weekend;
   const event = weekendEvent(game);
@@ -97,8 +101,17 @@ export function RaceCenter() {
             {circuit.location} · {circuit.lengthKm.toFixed(2)} km · {raceLapsFor(event.division, circuit.laps)} laps
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Forecast forecast={weekend.forecast} />
+          {(weekend.phase === 'practice' || weekend.phase === 'qualifying' || weekend.phase === 'raceSetup') && (
+            <Button
+              variant="secondary"
+              title="Your engineers run practice and qualifying, the strategist picks the plan and the race is simulated to the flag."
+              onClick={async () => (await askConfirm('Simulate the rest of this weekend? Your team runs every session automatically and you go straight to the result.', 'Simulate')) && act((g) => autoplayPlayerWeekend(g))}
+            >
+              <FastForward size={15} /> Simulate weekend
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex gap-1">
@@ -108,6 +121,13 @@ export function RaceCenter() {
           </div>
         ))}
       </div>
+      {game.mode === 'daily' && game.daily && weekend.phase !== 'complete' && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/[0.07] px-3 py-2 text-sm">
+          <Badge tone="amber">Daily challenge</Badge>
+          <span className="text-white/90">{game.daily.description}</span>
+        </div>
+      )}
+      {weekend.phase !== 'race' && <EventTwistNotes game={game} event={event} />}
       {weekend.phase === 'practice' && <Practice />}
       {weekend.phase === 'qualifying' && <Qualifying />}
       {weekend.phase === 'raceSetup' && <RaceSetup />}

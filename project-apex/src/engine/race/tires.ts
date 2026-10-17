@@ -57,6 +57,8 @@ export interface WearContext {
   pace: PaceMode;
   tireMode: TireMode;
   dirtyAir: boolean;
+  /** Season-twist multiplier on wear (absent = 1). */
+  wearMultiplier?: number;
 }
 
 /** Wear (% of tyre life) per lap. */
@@ -85,13 +87,14 @@ export function wearPerLap(c: TireCompound, ctx: WearContext): number {
     wet *
     t.paceModeWear[ctx.pace] *
     t.tireModeWear[ctx.tireMode] *
-    (ctx.dirtyAir ? 1 + t.dirtyAirWear : 1)
+    (ctx.dirtyAir ? 1 + t.dirtyAirWear : 1) *
+    (ctx.wearMultiplier ?? 1)
   );
 }
 
 /** Expected wear per lap used by strategists (normal modes, clean air). */
-export function expectedWear(c: TireCompound, division: DivisionId, circuit: Circuit, tireManagement: number, carTireEfficiency: number, trackTemp: number, wetness = 0): number {
-  return wearPerLap(c, { division, circuit, tireManagement, carTireEfficiency, trackTemp, wetness, pace: 'balanced', tireMode: 'normal', dirtyAir: false });
+export function expectedWear(c: TireCompound, division: DivisionId, circuit: Circuit, tireManagement: number, carTireEfficiency: number, trackTemp: number, wetness = 0, wearMultiplier = 1): number {
+  return wearPerLap(c, { division, circuit, tireManagement, carTireEfficiency, trackTemp, wetness, pace: 'balanced', tireMode: 'normal', dirtyAir: false, wearMultiplier });
 }
 
 export function allowedCompounds(division: DivisionId): TireCompound[] {

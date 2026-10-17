@@ -56,6 +56,8 @@ Holiday mode (Settings) lets your assistant run the team to the end of the seaso
 - **Finances**: ledger-based accounting, weekly salaries and upkeep, race operations, repairs, entry fees, prize money, driver backing, investors, sponsorship deals with tiers, risk profiles, expectations, satisfaction, renewals and negotiation; forecasts and contract obligations.
 - **Organisation**: eight facilities with ten levels each, seven staff roles with ratings, experience, specialisations and contracts, a youth academy with yearly trialists.
 - **World**: dynamic news (race reports, rumours, transfers, interviews, previews, predictions, title fights, regulation news, principal statements), board objectives and confidence, random opportunities (investors, wind-tunnel time, pay drivers, test days, transfer bids), reputation.
+- **Fresh every season**: season twists change how each series races (Monsoon Season, Tyre War, New Power Units, Overtaking Package, Double-Points Finale, Reverse-Grid Round, Development Race, Bumper TV Deal, Heatwave Summer); three season challenges with cash, reputation and car-development rewards, one of them to beat a named rival team with a live head-to-head; next season's twists previewed in the season review.
+- **Reasons to come back**: 31 career achievements in a trophy cabinet (plus daily trophies kept across careers in the browser), a daily challenge (the same race weekend scenario for everyone on a date, scored in stars, with a day streak), and a one-click *Simulate weekend* for the races you don't want to play in full.
 - **History**: every season's standings and race results, awards, promotions and relegations, team and driver careers, records (titles, wins, poles, podiums, constructors' titles, consecutive titles, youngest champion, greatest comeback) and a Hall of Fame.
 - **Saves**: autosave plus five manual slots in IndexedDB, JSON export/import with version and checksum validation.
 - **Difficulties**: Casual, Standard, Realistic, Hardcore (fragile cars for everyone, ruthless AI market, no rescues, insolvency ends the career).
@@ -108,7 +110,7 @@ project-apex/
 
 ## Testing
 
-`npm test` runs 64 tests across ten files:
+`npm test` runs 74 tests across eleven files:
 
 - **World**: 250+ drivers, ten teams per division, a valid state, a Formula 5 start that is not overpowered, divisions getting progressively stronger.
 - **Race**: determinism with the same seed; identical results at every playback speed (lap-by-lap, key events, straight to the end); identical outcome after a JSON save/resume mid-race; valid classification; a race cannot be recorded twice; strategy changes the result; a much faster car wins most but not all races; better drivers beat worse drivers in equal cars; unreliable cars break down more; knockout qualifying and grid penalties.
@@ -118,6 +120,7 @@ project-apex/
 - **Promotion**: licensing checks; ten teams per division after moves; an ineligible winner is not promoted and is told which licence requirements were missing; a promotion offered at season end stands even if money is spent afterwards; a dominant licensed team climbs F5 → F4 → F3 → F2 → F1 with rebuilt cars and higher costs; declining promotion.
 - **Saves**: exact round trip; a loaded game continues identically; tampered, foreign and invalid files are rejected; IndexedDB slots save, list, load and delete.
 - **Balance**: no car loses rating over the winter below the regulation ceiling; on Casual the player's car never drops even at the speed limit; on Hardcore winter rules take most development away; upgrades are bigger where they do not last; promoted cars keep their advantage (all of it on Casual and Standard, part on Hardcore); the season-end boost rewards the top and helps the bottom; upgrade packages scale up to a big step and the approach and timeline options trade gain for risk, time and money; Formula 1 upgrades are affordable; sponsor deals pay more after promotion; above it every car slows equally and the order holds; staff pay by role and series; the staff pool is topped up; plenty of free-agent drivers; easier difficulties attract bigger sponsors; Formula 1 races have a realistic amount of overtaking and retirements.
+- **Features**: twists are fresh each season and identical for the same world; the double-points finale pays twice and the reverse-grid round flips the top ten; challenges (one against a rival) are drawn every season, pay once and settle at season end; achievements unlock once each and never in a daily challenge; the daily challenge is the same for everyone on a date, starts a valid weekend and records the best finish; stars against the goal.
 - **Long run**: five full seasons with the assistant managing the player, validating every invariant every week, checking AI finances stay sane, every seat filled, the driver pool stable, history complete, winners mostly from the stronger half of the field and backmarker podiums rare.
 
 ## Implementation checklist

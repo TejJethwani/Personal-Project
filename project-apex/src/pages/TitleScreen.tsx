@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
-import { Download, FolderOpen, Play, Plus, Trash2 } from 'lucide-react';
+import { CalendarClock, Download, Flame, FolderOpen, Play, Plus, Star, Trash2, Trophy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { DIVISIONS } from '@/engine/config/divisions';
-import type { DivisionId } from '@/engine/types';
+import { ACHIEVEMENTS } from '@/engine/achievements';
+import { createDailyChallenge, dailyKey } from '@/engine/daily';
+import type { DailyChallengeInfo, DivisionId } from '@/engine/types';
+import { DAILY_TROPHIES, liveStreak, loadProfile } from '@/lib/profile';
 import { CarLivery } from '@/components/common';
 import { Button } from '@/components/ui';
 import { AUTOSAVE_SLOT, deleteSlot, importSave, listSaves, loadFromSlot, type SaveSummary } from '@/store/persistence';
@@ -92,6 +95,7 @@ export function TitleScreen() {
             </Button>
             <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => onImport(e.target.files?.[0])} />
           </div>
+          <DailyCard />
           <div className="mt-6">
             <div className="label mb-2 flex items-center gap-2">
               <FolderOpen size={13} /> Saved careers
@@ -131,6 +135,59 @@ export function TitleScreen() {
           </div>
           <p className="mt-6 text-[11px] leading-relaxed text-apex-dim">Saves are stored in this browser (IndexedDB). Export from Settings to back up or move a career.</p>
         </motion.div>
+      </div>
+    </div>
+  );
+}
+
+/** Today's daily challenge, the day streak and trophies across careers. */
+function DailyCard() {
+  const loadDaily = useStore((s) => s.loadDaily);
+  const key = dailyKey();
+  const [profile] = useState(loadProfile);
+  const [preview, setPreview] = useState<DailyChallengeInfo | null>(null);
+  useEffect(() => {
+    // Build the scenario after first paint; it takes a few tens of milliseconds.
+    const t = setTimeout(() => {
+      try {
+        setPreview(createDailyChallenge(key).daily ?? null);
+      } catch {
+        setPreview(null);
+      }
+    }, 30);
+    return () => clearTimeout(t);
+  }, [key]);
+  const today = profile.daily.results[key];
+  const streak = liveStreak(profile, key);
+  const trophies = Object.keys(profile.achievements).length + DAILY_TROPHIES.filter((t) => t.check(profile)).length;
+  return (
+    <div className="mt-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.06] p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="label flex items-center gap-1.5 text-amber-300">
+          <CalendarClock size={13} /> Daily challenge · {key}
+        </div>
+        <span className="flex items-center gap-1 text-xs text-amber-200" title="Days in a row with a finished daily challenge">
+          <Flame size={13} /> {streak} day streak
+        </span>
+      </div>
+      <div className="mt-2 font-display text-lg font-bold uppercase leading-tight">{preview?.title ?? 'Loading today\'s scenario…'}</div>
+      {preview && <p className="mt-1 text-xs text-white/75">{preview.description}</p>}
+      {today && (
+        <div className="mt-2 flex items-center gap-1 text-xs text-apex-muted">
+          Today:
+          {[1, 2, 3].map((i) => (
+            <Star key={i} size={13} className={i <= today.stars ? 'fill-amber-400 text-amber-400' : 'text-white/25'} />
+          ))}
+          <span>
+            · best {today.bestFinish ? `P${today.bestFinish}` : 'DNF'} · {today.attempts} attempt{today.attempts === 1 ? '' : 's'}
+          </span>
+        </div>
+      )}
+      <Button variant="secondary" size="md" className="mt-3 w-full" disabled={!preview} onClick={() => loadDaily(createDailyChallenge(key))}>
+        <Play size={15} /> {today ? 'Play again' : "Play today's challenge"}
+      </Button>
+      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-apex-muted">
+        <Trophy size={12} /> {trophies} of {ACHIEVEMENTS.length + DAILY_TROPHIES.length} trophies unlocked across your careers
       </div>
     </div>
   );

@@ -48,6 +48,7 @@ import { basePace, divisionBaseLap, lapNoiseSd } from './pace';
 import { compoundForRemaining, pitLossFor } from './strategy';
 import { allowedCompounds, compoundPaceOffset, expectedWear, idealCompoundForWetness, isWetCompound, wearPenalty, wearPerLap } from './tires';
 import { generateEventWeather } from './weather';
+import { twistEffects, weatherMods, type TwistEffects } from '../season/twists';
 
 export interface RaceEntrantInput {
   driverId: string;
@@ -72,7 +73,7 @@ export function createRaceState(state: GameState, event: CalendarEvent, entrants
   const cfg = DIVISIONS[event.division];
   const totalLaps = raceLapsFor(event.division, circuit.laps);
   const baseLapTime = divisionBaseLap(circuit, event.division);
-  const weather = generateEventWeather(state.seed, event.id, circuit, totalLaps);
+  const weather = generateEventWeather(state.seed, event.id, circuit, totalLaps, weatherMods(state, event.division));
   const sorted = [...entrants].sort((a, b) => a.grid - b.grid);
   const cars: CarRaceState[] = sorted.map((e, idx) => {
     const team = state.teams[e.teamId];
@@ -318,6 +319,8 @@ interface LapContext {
   trackTemp: number;
   sc: RaceState['safetyCar']['type'];
   incidents: { severity: 'crash' | 'failure' | 'collision' }[];
+  /** This season's twists for the series. */
+  fx: TwistEffects;
 }
 
 function teamStrategistAccuracy(state: GameState, teamId: string): number {
@@ -333,7 +336,7 @@ function wearRatesFor(ctx: LapContext, car: CarRaceState, driver: Driver): Parti
   const team = ctx.state.teams[car.teamId];
   const out: Partial<Record<TireCompound, number>> = {};
   for (const c of DIVISIONS[ctx.race.division].dryCompounds) {
-    out[c] = expectedWear(c, ctx.race.division, ctx.circuit, driver.attributes.tireManagement, team.car.components.tireEfficiency, ctx.trackTemp);
+    out[c] = expectedWear(c, ctx.race.division, ctx.circuit, driver.attributes.tireManagement, team.car.components.tireEfficiency, ctx.trackTemp, 0, ctx.fx.wear);
   }
   return out;
 }
@@ -479,6 +482,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
     trackTemp: wx.trackTemp,
     sc: race.safetyCar.type,
     incidents: [],
+    fx: twistEffects(state, race.division),
   };
   const t = RACE_TUNING;
   const order = runningOrder(race);
@@ -598,7 +602,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
     // Mechanical reliability.
     const relIdx = reliabilityIndex(team.car, ctx.trackTemp);
     const crew = staffRating(state, team, 'chiefMechanic');
-    const pFail = cfg.failureRate * diff.reliabilityMultiplier * Math.exp((fieldReliability - relIdx) / 28) * failureFactor(ins.pace) * (1.25 - crew / 200);
+    const pFail = cfg.failureRate * ctx.fx.failure * diff.reliabilityMultiplier * Math.exp((fieldReliability - relIdx) / 28) * failureFactor(ins.pace) * (1.25 - crew / 200);
     if (car.latentFailure) {
       car.latentFailure.health -= healthDrain(ins.pace);
       if (car.latentFailure.health <= 0) {
@@ -739,7 +743,8 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
           (attackIndex(dCar) - defenceIndex(dAhead)) * t.overtakeSkillWeight -
           circuit.overtakingDifficulty * t.overtakeDifficultyWeight * (lap === 1 ? 0.55 : 1) +
           t.overtakeBase +
-          cfg.overtakeModifier;
+          cfg.overtakeModifier +
+          ctx.fx.overtake;
         if (race.drsEnabled && interval < 1.0) logit += t.drsBonus;
         if (cfg.ers && car.instructions.ers === 'overtake' && car.ers > 10) logit += t.ersOvertakeBonus;
         if (cfg.ers && ahead.instructions.ers === 'overtake' && ahead.ers > 10) logit -= t.ersOvertakeBonus * 0.6;
@@ -837,6 +842,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
             pace: car.instructions.pace,
             tireMode: car.instructions.tires,
             dirtyAir,
+            wearMultiplier: ctx.fx.wear,
           }) *
             sc,
         0,

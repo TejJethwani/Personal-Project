@@ -15,6 +15,8 @@ export interface StrategyInputs {
   startWetness: number;
   /** 0..1 how accurately the team models tyre wear. */
   accuracy: number;
+  /** Season-twist multiplier on wear (absent = 1). */
+  wearMultiplier?: number;
 }
 
 interface Candidate {
@@ -61,7 +63,7 @@ export function planStrategies(inputs: StrategyInputs, rng: Rng | null, maxOptio
   const wear: Partial<Record<TireCompound, number>> = {};
   for (const c of compounds) {
     const err = rng ? 1 + rng.normal(0, 0.18 * (1 - inputs.accuracy)) : 1;
-    wear[c] = expectedWear(c, inputs.division, inputs.circuit, inputs.tireManagement, inputs.carTireEfficiency, inputs.trackTemp) * Math.max(0.6, err);
+    wear[c] = expectedWear(c, inputs.division, inputs.circuit, inputs.tireManagement, inputs.carTireEfficiency, inputs.trackTemp, 0, inputs.wearMultiplier ?? 1) * Math.max(0.6, err);
   }
   const pitLoss = pitLossFor(inputs.circuit, inputs.baseLap);
   // Prefix sums of stint time per compound make every evaluation O(stints).

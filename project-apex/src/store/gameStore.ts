@@ -2,13 +2,15 @@ import { create } from 'zustand';
 import { createNewGame } from '@/engine/game';
 import type { GameState, NewCareerConfig } from '@/engine/types';
 import { GameRuleError } from '@/engine/util';
+import { ACHIEVEMENT_BY_ID } from '@/engine/achievements';
+import { recordAchievements } from '@/lib/profile';
 import { AUTOSAVE_SLOT, saveToSlot } from './persistence';
 
 export type Page = 'hq' | 'drivers' | 'market' | 'car' | 'race' | 'championship' | 'finances' | 'staff' | 'news' | 'history' | 'settings' | 'seasonReview';
 
 export interface Toast {
   id: number;
-  kind: 'success' | 'error' | 'info';
+  kind: 'success' | 'error' | 'info' | 'achievement';
   text: string;
 }
 
@@ -36,6 +38,8 @@ interface Store {
   openResult: (eventId: string | null) => void;
   newGame: (config: NewCareerConfig) => void;
   loadGame: (state: GameState) => void;
+  /** Start a daily challenge world (never autosaved over the career). */
+  loadDaily: (state: GameState) => void;
   quitToTitle: () => void;
   act: <T>(fn: (g: GameState) => T, opts?: { success?: string | ((r: T) => string | null); silent?: boolean }) => T | undefined;
   toast: (kind: Toast['kind'], text: string) => void;
@@ -74,16 +78,25 @@ export const useStore = create<Store>((set, get) => ({
   loadGame: (game) => {
     set({ game, rev: get().rev + 1, screen: 'game', page: game.phase === 'weekend' ? 'race' : game.phase === 'seasonReview' ? 'seasonReview' : 'hq', driverProfile: null, teamProfile: null, negotiation: null });
   },
+  loadDaily: (game) => {
+    set({ game, rev: get().rev + 1, screen: 'game', page: 'race', driverProfile: null, teamProfile: null, negotiation: null });
+  },
   quitToTitle: () => set({ game: null, screen: 'title', driverProfile: null, teamProfile: null, negotiation: null }),
   act: (fn, opts = {}) => {
     const game = get().game;
     if (!game) return undefined;
+    const unlockedBefore = new Set(Object.keys(game.player.achievements ?? {}));
     try {
       const result = fn(game);
       set({ rev: get().rev + 1 });
       const msg = typeof opts.success === 'function' ? opts.success(result) : opts.success;
       if (msg) get().toast('success', msg);
-      if (game.settings.autosave) {
+      const fresh = Object.keys(game.player.achievements ?? {}).filter((id) => !unlockedBefore.has(id));
+      if (fresh.length) {
+        recordAchievements(fresh);
+        for (const id of fresh) get().toast('achievement', `Achievement unlocked: ${ACHIEVEMENT_BY_ID[id]?.title ?? id}`);
+      }
+      if (game.settings.autosave && game.mode !== 'daily') {
         // During a live race, save only once playback pauses for a while
         // instead of serialising the whole career after every lap.
         const racing = game.phase === 'weekend' && game.weekend?.phase === 'race';
@@ -110,7 +123,7 @@ export const useStore = create<Store>((set, get) => ({
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
   autosaveNow: async () => {
     const game = get().game;
-    if (!game || !game.settings.autosave) return;
+    if (!game || !game.settings.autosave || game.mode === 'daily') return;
     try {
       await saveToSlot(AUTOSAVE_SLOT, game);
       set({ lastSaved: Date.now() });

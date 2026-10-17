@@ -14,11 +14,11 @@ export interface EventWeather {
  * event id, so replaying a weekend always produces the same conditions; only
  * the forecast the teams see is uncertain.
  */
-export function generateEventWeather(seed: number, eventId: string, circuit: Circuit, laps: number): EventWeather {
+export function generateEventWeather(seed: number, eventId: string, circuit: Circuit, laps: number, mods: { rain: number; temp: number } = { rain: 1, temp: 0 }): EventWeather {
   const rng = Rng.from(seed, 'weather', eventId);
   const seasonal = rng.range(0.7, 1.35);
-  const rainChance = clamp(circuit.rainChance * seasonal, 0, 0.75);
-  const baseTemp = circuit.baseTrackTemp + rng.normal(0, 4);
+  const rainChance = clamp(circuit.rainChance * seasonal * mods.rain, 0, mods.rain > 1 ? 0.85 : 0.75);
+  const baseTemp = circuit.baseTrackTemp + rng.normal(0, 4) + mods.temp;
   const cells: { start: number; end: number; intensity: number }[] = [];
   if (rng.chance(rainChance)) {
     const count = rng.chance(0.3) ? 2 : 1;

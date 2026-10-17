@@ -10,9 +10,11 @@ import { DivisionBadge, DriverLink, Flag, TeamLink } from '@/components/common';
 import { Badge, Button, Empty, Panel, SectionTitle, Segmented, Tabs } from '@/components/ui';
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
+import { TrophyCabinet } from '@/components/TrophyCabinet';
 
 export function HistoryPage() {
-  const [tab, setTab] = useState<'seasons' | 'team' | 'records' | 'hof'>('seasons');
+  const game = useGame();
+  const [tab, setTab] = useState<'seasons' | 'team' | 'records' | 'hof' | 'trophies'>('seasons');
   return (
     <div className="space-y-5">
       <SectionTitle sub="Every season, every champion, every record: from Season 1 onward.">History</SectionTitle>
@@ -24,12 +26,14 @@ export function HistoryPage() {
           { id: 'team', label: 'Our story' },
           { id: 'records', label: 'Records' },
           { id: 'hof', label: 'Hall of Fame' },
+          { id: 'trophies', label: 'Trophy cabinet', count: Object.keys(game.player.achievements ?? {}).length },
         ]}
       />
       {tab === 'seasons' && <Seasons />}
       {tab === 'team' && <OurStory />}
       {tab === 'records' && <Records />}
       {tab === 'hof' && <HallOfFame />}
+      {tab === 'trophies' && <TrophyCabinet game={game} />}
     </div>
   );
 }

@@ -34,6 +34,9 @@ import { DEFAULT_SETUP, engineerAdjust, feedbackAccuracy, idealSetup, setupFeedb
 import { planStrategies, type StrategyInputs } from './strategy';
 import { expectedWear } from './tires';
 import { forecastFor, generateEventWeather } from './weather';
+import { checkAchievements } from '../achievements';
+import { updateChallenges } from '../season/challenges';
+import { twistEffects, weatherMods } from '../season/twists';
 
 // ---------------------------------------------------------------------------
 // Line-ups
@@ -107,7 +110,7 @@ export function strategyAccuracy(state: GameState, team: Team, tireKnowledge = 5
 export function strategyInputs(state: GameState, event: CalendarEvent, driverId: string, teamId: string, accuracy: number): StrategyInputs {
   const circuit = state.circuits[event.circuitId];
   const laps = raceLapsFor(event.division, circuit.laps);
-  const weather = generateEventWeather(state.seed, event.id, circuit, laps);
+  const weather = generateEventWeather(state.seed, event.id, circuit, laps, weatherMods(state, event.division));
   const driver = state.drivers[driverId];
   const team = state.teams[teamId];
   return {
@@ -120,6 +123,7 @@ export function strategyInputs(state: GameState, event: CalendarEvent, driverId:
     trackTemp: weather.race[0]?.trackTemp ?? circuit.baseTrackTemp,
     startWetness: weather.race[0]?.wetness ?? 0,
     accuracy,
+    wearMultiplier: twistEffects(state, event.division).wear,
   };
 }
 
@@ -146,7 +150,7 @@ export function startPlayerWeekend(state: GameState, eventId: string): WeekendSt
   assertRule(!event.completed, 'This event has already been completed.');
   const circuit = state.circuits[event.circuitId];
   const cfg = DIVISIONS[event.division];
-  const weather = generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps));
+  const weather = generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps), weatherMods(state, event.division));
   const accuracy = strategyAccuracy(state, team, 30);
   const lineup = eventLineup(state, team).filter((s) => s.driverId);
   const weekend: WeekendState = {
@@ -234,7 +238,7 @@ export function runPractice(state: GameState, driverId: string, program: Practic
   const quality = setupQuality(setup, ideal);
   const accuracy = feedbackAccuracy(driver, staffRating(state, team, 'raceEngineer'), team.facilities.simulator.level) * (program === 'longRun' ? 0.85 : 1);
   const feedback = setupFeedback(rng, setup, ideal, accuracy);
-  const weather = generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps));
+  const weather = generateEventWeather(state.seed, event.id, circuit, raceLapsFor(event.division, circuit.laps), weatherMods(state, event.division));
   const baseLap = divisionBaseLap(circuit, event.division);
   const lapTime =
     basePace(baseLap, trackPerformance(team.car, circuit), racePaceIndex(driver, circuit, weather.practiceWetness), quality) +
@@ -247,7 +251,7 @@ export function runPractice(state: GameState, driverId: string, program: Practic
     const knowledge = weekend.practice.tireKnowledge / 100;
     run.tireNotes = DIVISIONS[event.division].dryCompounds.map((c) => ({
       compound: c,
-      degPerLap: Math.round(expectedWear(c, event.division, circuit, driver.attributes.tireManagement, team.car.components.tireEfficiency, weather.race[0]?.trackTemp ?? circuit.baseTrackTemp) * (1 + rng.normal(0, 0.2 * (1 - knowledge))) * 100) / 100,
+      degPerLap: Math.round(expectedWear(c, event.division, circuit, driver.attributes.tireManagement, team.car.components.tireEfficiency, weather.race[0]?.trackTemp ?? circuit.baseTrackTemp, 0, twistEffects(state, event.division).wear) * (1 + rng.normal(0, 0.2 * (1 - knowledge))) * 100) / 100,
     }));
   }
   if (program === 'qualiSim') driver.confidence = clamp(driver.confidence + 2, 0, 100);
@@ -474,6 +478,8 @@ export function classify(state: GameState, event: CalendarEvent, race: RaceState
   const pole = quali.find((q) => q.position === 1)?.driverId ?? null;
   const preset = state.settings.pointsPreset[event.division];
   assignPoints(entries, preset, pole, race.fastestLap?.driverId ?? null);
+  // Season twist: the finale pays double.
+  if (twistEffects(state, event.division).doublePointsRound === event.round) for (const e of entries) e.points *= 2;
   return {
     eventId: event.id,
     division: event.division,
@@ -598,6 +604,12 @@ export function applyRaceResult(state: GameState, result: RaceResult, race: Race
 
   generateRaceNews(state, result);
   checkTitleClinch(state, result.division);
+  updateChallenges(state, result);
+  checkAchievements(state, result);
+  if (state.mode === 'daily' && state.daily?.eventId === result.eventId) {
+    const mine = result.entries.filter((e) => e.teamId === state.player.teamId && e.status === 'finished');
+    state.daily.bestFinish = mine.length ? Math.min(...mine.map((e) => e.position)) : null;
+  }
 }
 
 function applyRaceFinances(state: GameState, team: Team, entries: RaceResultEntry[], race: RaceState, result: RaceResult): void {
@@ -605,7 +617,7 @@ function applyRaceFinances(state: GameState, team: Team, entries: RaceResultEntr
   const philosophy = team.isPlayer ? PHILOSOPHIES[state.player.philosophy] : null;
   postTransaction(state, team, 'operations', -cfg.raceOperationsCost * (philosophy?.operatingCosts ?? 1), `Race operations: round ${result.round}`);
   let prize = 0;
-  for (const e of entries) if (e.status === 'finished') prize += cfg.racePrize[e.position - 1] ?? 0;
+  for (const e of entries) if (e.status === 'finished') prize += (cfg.racePrize[e.position - 1] ?? 0) * twistEffects(state, result.division).racePrize;
   postTransaction(state, team, 'raceBonus', prize, `Race prize money: round ${result.round}`);
   const damage = race.damageCosts[team.id] ?? 0;
   if (damage > 0) postTransaction(state, team, 'repairs', -damage * (philosophy?.repairCosts ?? 1), 'Crash damage repairs');
