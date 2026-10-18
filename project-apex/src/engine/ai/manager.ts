@@ -1,6 +1,6 @@
 import { AI_PERSONALITIES, type AIPersonalityConfig } from '../config/difficulty';
 import { divisionAbove, DIVISIONS } from '../config/divisions';
-import { COMPONENT_KEYS, PACE_COMPONENTS } from '../car/car';
+import { COMPONENT_KEYS, divisionCarBase, PACE_COMPONENTS } from '../car/car';
 import { canStartProject, capacityUsed, engineeringCapacity, quoteProject, RND_SCALES, startProject } from '../car/rnd';
 import { teamPosition } from '../championship/standings';
 import { postTransaction, seasonTotals } from '../finance/ledger';
@@ -36,7 +36,7 @@ function componentPriority(state: GameState, team: Team, rng: Rng): ComponentKey
     if ((PACE_COMPONENTS as string[]).includes(key)) {
       weight = remaining.length ? remaining.reduce((s, c) => s + c.weights[key as keyof typeof c.weights], 0) / remaining.length : 0.14;
       weight *= 7;
-    } else if (key === 'reliability') weight = team.car.components.reliability < 50 ? 1.1 : 0.55;
+    } else if (key === 'reliability') weight = team.car.components.reliability < divisionCarBase(team.division) ? 1.1 : 0.55;
     else if (key === 'cooling') weight = 0.35;
     else weight = 0.6;
     return { key, score: weight * q.expectedGain * rng.range(0.8, 1.2) };

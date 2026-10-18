@@ -9,7 +9,7 @@ import { Rng, stableNoise } from '../rng';
 import { hasSpecialization, staffRating } from '../staff/staff';
 import type { ComponentKey, GameState, RnDApproach, RnDCompletion, RnDOptions, RnDOutcome, RnDPhase, RnDProject, RnDScale, RnDTimeline, Team } from '../types';
 import { assertRule, clamp, roundMoney } from '../util';
-import { COMPONENT_INFO, COMPONENT_KEYS } from './car';
+import { COMPONENT_INFO, COMPONENT_KEYS, inRaceFrame } from './car';
 import { allTeams } from '../selectors';
 
 export const RND_SCALES: RnDScale[] = ['quick', 'minor', 'major', 'radical'];
@@ -92,7 +92,10 @@ export function quoteProject(state: GameState, team: Team, component: ComponentK
   const upgradeScale = DIFFICULTIES[state.settings.difficulty].carDevelopment.upgradeScale;
   const rating = team.car.components[component];
   const lead = rating - fieldComponentMean(state, team, component);
-  const expectedGain = Math.round(cfg.gain * approach.gain * upgradeScale * fx.rndGain * efficiency * diminishing(rating, team.car.developmentLevel[component], lead) * 100) / 100;
+  // A lower tier on a one-scale ruleset tapers as if its own field were the top
+  // of the scale, so a whole league cannot develop its way into the one above.
+  const taper = Math.max(rating, inRaceFrame(rating, team.division));
+  const expectedGain = Math.round(cfg.gain * approach.gain * upgradeScale * fx.rndGain * efficiency * diminishing(taper, team.car.developmentLevel[component], lead) * 100) / 100;
   const risk = clamp(cfg.risk * (1.3 - manufacturing * 0.04 - td / 320) * approach.risk * timeline.risk, 0.02, 0.75);
   return { component, scale, approach: options.approach, timeline: options.timeline, cost, weeks, expectedGain, risk, capacity: cfg.capacity };
 }

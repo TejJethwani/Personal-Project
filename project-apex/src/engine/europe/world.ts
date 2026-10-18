@@ -9,7 +9,7 @@ import { createBaseState, createPlayerTeam, generateTeamFromIdentity, START_YEAR
 import { generateHeritage } from '../world/heritage';
 import { assumeControl } from '../career/manager';
 import { ASSOCIATIONS, ASSOCIATION_BY_ID, leagueWeekends, type AssociationSeed } from './data';
-import { levelMeanPower, levelPowerSpread, rollDriverSplit } from './power';
+import { DRIVER_WEIGHT, ELITE, eliteFactor, levelMeanPower, levelPowerSpread, rollDriverSplit, teamPower } from './power';
 import { buildEuroCalendars, homeCircuits, isEuropeanCircuit, leagueWeeks } from './schedule';
 
 /**
@@ -145,13 +145,15 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
         if (own) {
           const team = generateTeamFromIdentity(build, division, { name, shortName: club.short, nationality: assoc.nationality, primary, secondary, livery: club.livery }, strengths[i], rng.pick(personalities), {
             driverNationality: (r) => (r.chance(0.45) ? assoc.nationality : undefined),
+            elite: eliteFactor(strengths[i], level),
           });
           team.clubId = club.id;
-          team.heritage = generateHeritage(seed, team, START_YEAR, strengths[i], { current: lvl.name, above: assoc.levels[li - 1]?.name ?? null }, true);
+          team.heritage = generateHeritage(seed, team, START_YEAR, strengths[i], { current: lvl.name, above: assoc.levels[li - 1]?.name ?? null }, true, eliteFactor(strengths[i], level));
           club.teamId = team.id;
           state.teams[team.id] = team;
         } else {
-          club.power = Math.round((levelMeanPower(assoc.id, division) + strengths[i] * levelPowerSpread(division) + crng.normal(0, 1.8)) * 10) / 10;
+          const elite = eliteFactor(strengths[i], level) * (ELITE.car + DRIVER_WEIGHT * ELITE.driver);
+          club.power = Math.round((levelMeanPower(assoc.id, division) + strengths[i] * levelPowerSpread(division) + elite + crng.normal(0, 1.8)) * 10) / 10;
         }
         europe.clubs[club.id] = club;
         league.clubIds.push(club.id);
@@ -188,10 +190,7 @@ export function createEuroWorld(config: NewCareerConfig): GameState {
     const top = europe.leagues[`${assoc.id}-1`];
     const powerOf = (id: string) => {
       const c = europe.clubs[id];
-      if (c.teamId) {
-        const t = state.teams[c.teamId];
-        return levelMeanPower(assoc.id, divisionForLevel(1)) + (t.reputation - DIVISIONS[t.division].typicalReputation) / 6;
-      }
+      if (c.teamId) return teamPower(state, state.teams[c.teamId]);
       return c.power;
     };
     const order = [...top.clubIds].sort((a, b) => powerOf(b) + crng.normal(0, 2.5) - (powerOf(a) + crng.normal(0, 2.5)));

@@ -5,13 +5,14 @@ import { clamp } from '../util';
 /**
  * A team's story before the career begins. Pedigree follows today's strength
  * only loosely, so some famous names have fallen on hard times (giants to
- * rebuild) and some strong teams are newcomers. Drawn from its own random
+ * rebuild) and some strong teams are newcomers. A top flight's elite (`elite`,
+ * 0-1) are established names with silverware. Drawn from its own random
  * stream so it never changes the rest of the world.
  */
-export function generateHeritage(seed: number, team: Pick<Team, 'id'>, startYear: number, strength: number, levels: { current: string; above: string | null }, cups: boolean): TeamHeritage {
+export function generateHeritage(seed: number, team: Pick<Team, 'id'>, startYear: number, strength: number, levels: { current: string; above: string | null }, cups: boolean, elite = 0): TeamHeritage {
   const rng = Rng.from(seed, 'heritage', team.id);
-  const age = rng.int(2, 75);
-  const pedigree = clamp(strength * 0.5 + rng.normal(0, 0.65), -1.6, 1.6);
+  const age = Math.max(rng.int(2, 75), Math.round(elite * 60));
+  const pedigree = clamp(strength * 0.5 + elite * 0.8 + rng.normal(0, 0.65), -1.6, 1.6);
   // Proud old names may have won their titles a level higher than they race today.
   const fallen = !!levels.above && pedigree - strength > 0.7 && age > 25;
   const titlesIn = fallen ? levels.above! : levels.current;

@@ -1,7 +1,8 @@
 import type { CarDevelopmentRules } from '../config/difficulty';
+import { DIVISIONS } from '../config/divisions';
 import { ECONOMY_TUNING } from '../config/tuning';
 import type { Rng } from '../rng';
-import type { Car, Circuit, ComponentKey, PaceComponentKey, RegulationNotice } from '../types';
+import type { Car, Circuit, ComponentKey, DivisionId, PaceComponentKey, RegulationNotice } from '../types';
 import { clamp } from '../util';
 
 export const COMPONENT_KEYS: ComponentKey[] = [
@@ -55,6 +56,20 @@ export function generateCar(rng: Rng, baseRating: number, spread = 5): Car {
   return { components, developmentLevel: emptyDevLevels() };
 }
 
+/** Component rating a division's field is built around (50 unless the ruleset rates tiers on one scale). */
+export function divisionCarBase(division: DivisionId): number {
+  return DIVISIONS[division].carBase ?? 50;
+}
+
+/**
+ * A rating as the races of `division` see it: its field average reads as 50,
+ * the frame the race model is tuned in. A car from a lower tier on the same
+ * scale reads below that, one from a higher tier above it.
+ */
+export function inRaceFrame(rating: number, division: DivisionId): number {
+  return rating - divisionCarBase(division) + 50;
+}
+
 /** Pace performance (0-100) of a car at a specific circuit. */
 export function trackPerformance(car: Car, circuit: Circuit): number {
   let total = 0;
@@ -101,7 +116,7 @@ export function weakestComponent(car: Car, keys: ComponentKey[] = COMPONENT_KEYS
  * pulled back toward the regulation baseline and each car keeps only part of
  * its advantage over the field, less under bigger rule changes.
  */
-export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotice, divisionMean: Record<ComponentKey, number>, engineeringStrength: number, rules: CarDevelopmentRules): void {
+export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotice, divisionMean: Record<ComponentKey, number>, engineeringStrength: number, rules: CarDevelopmentRules, baseline = REGULATION_BASELINE): void {
   const keepsDevelopment = rules.fieldKept >= 1 && rules.carry[notice.magnitude] >= 1;
   const catchUp = notice.magnitude === 'major' ? 0.22 : notice.magnitude === 'minor' ? 0.12 : 0;
   for (const key of COMPONENT_KEYS) {
@@ -116,15 +131,22 @@ export function applyRegulationReset(car: Car, rng: Rng, notice: RegulationNotic
     } else {
       const carry = rules.carry[notice.magnitude] * (notice.focus === key ? 0.6 : 1);
       const adapt = (engineeringStrength - 0.5) * 5 + rng.normal(0, 1.6);
-      next = REGULATION_BASELINE + (mean - REGULATION_BASELINE) * rules.fieldKept + (current - mean) * carry + adapt;
+      next = baseline + (mean - baseline) * rules.fieldKept + (current - mean) * carry + adapt;
     }
     car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
   }
   car.developmentLevel = emptyDevLevels();
 }
 
-/** Component rating a series' average returns toward when rules take development away. */
+/** Component rating a series' average returns toward when rules take development away (its car base). */
 export const REGULATION_BASELINE = 50;
+
+/**
+ * Share of the gap between two tiers' fields a promoted car makes up over the
+ * winter on a one-scale ruleset (more when development is kept), and the share
+ * a relegated car gives away.
+ */
+export const TIER_STEP = { liftMin: 0.2, liftCarry: 0.1, relegationDrop: 0.45 } as const;
 
 /**
  * Promotion/relegation: the car is rebuilt to the new division's regulations.
@@ -133,6 +155,14 @@ export const REGULATION_BASELINE = 50;
  * a fresh start near the new field's average, set by the team's engineering
  * strength. A relegated car starts near its new field's average; with full
  * carry-over the player's relegated car keeps every rating it had.
+ *
+ * When the two divisions are rated on one scale (`tierGap`, the difference in
+ * car base, is not 0), a car keeps its ratings instead: a promoted car makes
+ * up only part of the gap to its new field (TIER_STEP), so it starts the
+ * season in the lower half of a stronger league and has to develop its way
+ * up; a relegated car gives some of its edge away but stays among the
+ * stronger cars of the tier below (with full carry-over the player's keeps
+ * every rating it had).
  */
 export function rebaseCarForDivision(
   car: Car,
@@ -143,7 +173,12 @@ export function rebaseCarForDivision(
   promoted: boolean,
   carry: number,
   keepRelegated = false,
+  tierGap = 0,
 ): void {
+  if (tierGap !== 0) {
+    rebaseAcrossTiers(car, rng, oldFieldMean, newFieldMean, engineeringStrength, promoted, carry, keepRelegated);
+    return;
+  }
   const fieldAvg = COMPONENT_KEYS.reduce((s, k) => s + (newFieldMean[k] ?? 50), 0) / COMPONENT_KEYS.length;
   const carAvg = COMPONENT_KEYS.reduce((s, k) => s + car.components[k], 0) / COMPONENT_KEYS.length;
   for (const key of COMPONENT_KEYS) {
@@ -165,10 +200,42 @@ export function rebaseCarForDivision(
   car.developmentLevel = emptyDevLevels();
 }
 
-/** Development boost at season end for a championship position (1-based). */
-export function finishDevelopmentBoost(position: number): number {
-  const table = ECONOMY_TUNING.finishDevelopmentBoost;
-  return table[Math.min(table.length, Math.max(1, position)) - 1] ?? 0;
+function rebaseAcrossTiers(car: Car, rng: Rng, oldFieldMean: Record<ComponentKey, number>, newFieldMean: Record<ComponentKey, number>, engineeringStrength: number, promoted: boolean, carry: number, keepRelegated: boolean): void {
+  const lift = TIER_STEP.liftMin + TIER_STEP.liftCarry * Math.min(1, carry);
+  for (const key of COMPONENT_KEYS) {
+    const current = car.components[key];
+    const gap = (newFieldMean[key] ?? current) - (oldFieldMean[key] ?? current);
+    const fresh = (engineeringStrength - 0.5) * 2 + rng.normal(0, 1);
+    let next: number;
+    if (promoted) {
+      next = current + Math.max(0, gap) * lift + fresh;
+      // Full carry-over (Casual, Standard) never makes a component worse.
+      if (carry >= 1) next = Math.max(next, current);
+    } else {
+      next = current - Math.max(0, -gap) * TIER_STEP.relegationDrop + fresh;
+      // Full carry-over (Casual, Standard) never makes a component worse, even after relegation.
+      if (carry >= 1 && keepRelegated) next = Math.max(next, current);
+    }
+    car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
+  }
+  car.developmentLevel = emptyDevLevels();
+}
+
+/**
+ * Development boost at season end for a championship position (1-based), the
+ * table spread over the whole field. Classic series reward the top and help the
+ * bottom catch up; a European league rewards the top (prize money and
+ * European football) with little catch-up help.
+ */
+export function finishDevelopmentBoost(position: number, fieldSize?: number, european = false): number {
+  const table = european ? ECONOMY_TUNING.euroDevelopmentBoost : ECONOMY_TUNING.finishDevelopmentBoost;
+  if (position < 1) return 0;
+  const size = fieldSize ?? table.length;
+  if (size <= table.length) return table[Math.min(table.length, position) - 1] ?? 0;
+  const q = ((Math.min(position, size) - 1) / (size - 1)) * (table.length - 1);
+  const lo = Math.floor(q);
+  const hi = Math.min(table.length - 1, lo + 1);
+  return Math.round((table[lo] + (table[hi] - table[lo]) * (q - lo)) * 100) / 100;
 }
 
 /** Add a season-end boost to every component. */

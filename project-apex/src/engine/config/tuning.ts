@@ -158,6 +158,8 @@ export const ECONOMY_TUNING = {
    * teams get catch-up help, the middle gets the least.
    */
   finishDevelopmentBoost: [2.0, 1.6, 1.2, 0.8, 0.5, 0.5, 0.8, 1.1, 1.4, 1.8],
+  /** European leagues: the top of the table earns the most, little catch-up below. */
+  euroDevelopmentBoost: [1.8, 1.6, 1.45, 1.3, 1.15, 1.0, 0.9, 0.85, 0.85, 0.9],
   /** Sponsor value as a share of typical budget for an average team. */
   sponsorShare: { title: 0.2, major: 0.1, minor: 0.035 },
   sponsorSlots: { title: 1, major: 2, minor: 3 },

@@ -1,6 +1,7 @@
 import { ASSOCIATION_BY_ID, leagueWeekends, promotionPlaces } from '../europe/data';
 import type { DivisionId, GameState } from '../types';
 import { DIVISION_ORDER } from '../types';
+import { LEVEL_PACE, TOP_FLIGHT_CAR_BASE } from '../europe/power';
 import { DIVISIONS, type DivisionConfig } from './divisions';
 
 /**
@@ -8,7 +9,7 @@ import { DIVISIONS, type DivisionConfig } from './divisions';
  * DIVISIONS. A European League career races the player's national association
  * instead: its leagues take over the division slots from the top (level 1 is
  * F1, level 2 is F2...) with full grids, one full race per gameweek and Expanded
- * points. The active rules are swapped in place so every system and page reads
+ * points, and every tier's cars are rated on one scale (see LEVEL_PACE). The active rules are swapped in place so every system and page reads
  * the right values from DIVISIONS; switch with applyRuleset whenever a
  * different career becomes active.
  */
@@ -76,6 +77,7 @@ export function europeanDivisionConfigs(assocId: string): Record<DivisionId, Div
       qualifyingSessions: quali.sessions,
       knockoutEliminations: quali.eliminations,
       defaultPoints: 'expanded',
+      carBase: TOP_FLIGHT_CAR_BASE + LEVEL_PACE[d],
       promotionSlots: upper ? promotionPlaces(upper.teams) : 0,
       relegationSlots: level < levels ? promotionPlaces(league.teams) : 0,
     };

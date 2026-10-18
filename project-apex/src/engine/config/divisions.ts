@@ -115,6 +115,12 @@ export interface DivisionConfig {
   staffRatingMean: number;
   facilityRange: [number, number];
   carSpread: number;
+  /**
+   * Component rating the division's field is built around. Classic series are
+   * each rated on their own scale (50). A European League career rates every
+   * tier on one scale, so the top flight sits well above the leagues below.
+   */
+  carBase?: number;
   /** Requirements a team must meet to be promoted INTO this division. */
   licensing: LicensingRequirements;
   promotionSlots: number;

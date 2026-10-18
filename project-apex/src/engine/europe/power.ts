@@ -1,4 +1,4 @@
-import { overallPace } from '../car/car';
+import { divisionCarBase, overallPace } from '../car/car';
 import { DIVISIONS } from '../config/divisions';
 import { overall } from '../drivers/ratings';
 import type { Rng } from '../rng';
@@ -6,17 +6,34 @@ import type { CalendarEvent, DivisionId, EuroClub, GameState, Team } from '../ty
 import { ASSOCIATION_BY_ID } from './data';
 
 /**
- * Continental strength scale, in car-rating points. Car ratings are relative
- * to a team's own league, so racing between leagues needs a common yardstick:
+ * Continental strength scale, in car-rating points. Racing between leagues
+ * needs a common yardstick:
  *
- *   power = car pace + level pace + league pace + 0.65 x (driver overall - 76)
+ *   power = car pace against its league + level pace + league pace + 0.65 x (driver overall - 76)
  *
- * Level pace separates the tiers of one association; league pace separates the
- * associations. Clubs outside the player's association are run by a quick
- * model straight from their power.
+ * Level pace separates the tiers of one association (the biggest step is from
+ * the second tier to the top flight); league pace separates the associations.
+ * Car ratings in the player's association are on the same scale: each tier's
+ * field is built around TOP_FLIGHT_CAR_BASE + its level pace. Clubs outside the
+ * player's association are run by a quick model straight from their power.
  */
 
-export const LEVEL_PACE: Record<DivisionId, number> = { F1: 0, F2: -6, F3: -12, F4: -18, F5: -24 };
+export const LEVEL_PACE: Record<DivisionId, number> = { F1: 0, F2: -14, F3: -26, F4: -36, F5: -45 };
+/** Component rating a top-flight field is built around. */
+export const TOP_FLIGHT_CAR_BASE = 64;
+
+/**
+ * The established elite of a top flight: its strongest five or six clubs
+ * (European regulars) sit clear of mid-table, with better cars, drivers,
+ * staff and money. 0 for everyone else, rising to 1 for the strongest club.
+ */
+export function eliteFactor(strength: number, level: number): number {
+  if (level !== 1) return 0;
+  return Math.max(0, (strength - 0.4) / 0.6);
+}
+
+/** What the elite factor is worth at full strength. */
+export const ELITE = { car: 8, driver: 5, staff: 6, cash: 0.8, reputation: 8, facility: 1 } as const;
 /** Car-rating points one point of driver overall is worth (0.03 s against 0.046 s per point). */
 export const DRIVER_WEIGHT = 0.65;
 export const DRIVER_REFERENCE = 76;
@@ -40,12 +57,13 @@ export function levelMeanPower(assocId: string, division: DivisionId): number {
 
 /**
  * Mean car pace of a division's field. Cars develop through the season, so a
- * team's strength is its car relative to its own league, like every quick-model
- * club's.
+ * team's strength is its car against its own league plus the level's pace,
+ * like every quick-model club's: the tiers stay the same distance apart
+ * however fast a whole league develops.
  */
 export function fieldPaceMean(state: GameState, division: DivisionId): number {
   const teams = Object.values(state.teams).filter((t) => t.division === division && !t.guest);
-  return teams.length ? teams.reduce((s, t) => s + overallPace(t.car), 0) / teams.length : 50;
+  return teams.length ? teams.reduce((s, t) => s + overallPace(t.car), 0) / teams.length : divisionCarBase(division);
 }
 
 /**

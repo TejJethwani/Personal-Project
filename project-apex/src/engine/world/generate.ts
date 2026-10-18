@@ -3,7 +3,8 @@ import { divisionAbove, DIVISIONS } from '../config/divisions';
 import { applyRuleset } from '../config/ruleset';
 import { CIRCUITS } from '../data/circuits';
 import { TEAM_SEEDS } from '../data/teams';
-import { generateCar } from '../car/car';
+import { divisionCarBase, generateCar } from '../car/car';
+import { ELITE } from '../europe/power';
 import { expectedSalary, overall } from '../drivers/ratings';
 import { generateDriver, generateProspect, nextId, raceAgeFor, type GenContext } from '../drivers/generate';
 import { generateStaff, replenishStaffPool, STAFF_ROLES, staffExpectedSalary } from '../staff/staff';
@@ -29,7 +30,7 @@ import { clamp, roundMoney } from '../util';
 import { generateHeritage } from './heritage';
 import { assumeControl } from '../career/manager';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const START_YEAR = 2027;
 
 export function emptyStats(): Team['stats'] {
@@ -156,6 +157,8 @@ export interface TeamIdentity {
 export interface TeamGenOptions {
   /** Nationality for the team's drivers (else drawn at random). */
   driverNationality?: (rng: GenContext['rng']) => string | undefined;
+  /** How far into its league's elite the team is (0 none .. 1 the strongest club; see eliteFactor). */
+  elite?: number;
 }
 
 /** The tenth Formula 5 team, racing in the seat a founded team would otherwise take. */
@@ -189,12 +192,13 @@ function populateTeam(build: WorldBuild, team: Team, seed: TeamIdentity, strengt
   const principalName = generateStaff(build.ctx, 'technicalDirector', 50);
   team.principal = `${principalName.firstName} ${principalName.lastName}`;
   team.aiPersonality = personality;
+  const elite = opts.elite ?? 0;
   const [rMin, rMax] = cfg.reputationRange;
-  team.reputation = Math.round(clamp(rMin + ((strength + 1) / 2) * (rMax - rMin) + rng.normal(0, 3), 1, 99));
-  team.cash = roundMoney(cfg.typicalBudget * rng.range(0.22, 0.42) * (1 + strength * 0.35));
-  team.car = generateCar(rng, 50 + strength * cfg.carSpread * 1.15 + rng.normal(0, 1.2), 3.5);
+  team.reputation = Math.round(clamp(rMin + ((strength + 1) / 2) * (rMax - rMin) + elite * ELITE.reputation + rng.normal(0, 3), 1, 99));
+  team.cash = roundMoney(cfg.typicalBudget * rng.range(0.22, 0.42) * (1 + strength * 0.35) * (1 + elite * ELITE.cash));
+  team.car = generateCar(rng, divisionCarBase(division) + strength * cfg.carSpread * 1.15 + elite * ELITE.car + rng.normal(0, 1.2), 3.5);
   const [fMin, fMax] = cfg.facilityRange;
-  const fBase = fMin + ((strength + 1) / 2) * (fMax - fMin);
+  const fBase = fMin + ((strength + 1) / 2) * (fMax - fMin) + elite * ELITE.facility;
   const levels: Partial<Record<FacilityKey, number>> = {};
   for (const k of FACILITY_KEYS) levels[k] = clamp(Math.round(fBase + rng.normal(0, 0.7)), Math.max(1, fMin - 1), Math.min(10, fMax + 1));
   if (personality === 'youth') levels.trainingAcademy = (levels.trainingAcademy ?? 1) + 1;
@@ -208,11 +212,11 @@ function populateTeam(build: WorldBuild, team: Team, seed: TeamIdentity, strengt
   for (const role of STAFF_ROLES) {
     const vacancyChance = division === 'F5' ? 0.22 : division === 'F4' ? 0.1 : 0;
     if (role !== 'technicalDirector' && role !== 'raceEngineer' && rng.chance(vacancyChance)) continue;
-    hireStaff(build, team, role, cfg.staffRatingMean + strength * 7 + rng.normal(0, 6));
+    hireStaff(build, team, role, cfg.staffRatingMean + strength * 7 + elite * ELITE.staff + rng.normal(0, 6));
   }
 
   // Drivers: two race drivers, usually a reserve, academy for youth-minded teams.
-  const raceTargets = [0, 1].map(() => cfg.driverRatingMean + strength * 4.5 + rng.normal(0, cfg.driverRatingSd * 0.65));
+  const raceTargets = [0, 1].map(() => cfg.driverRatingMean + strength * 4.5 + elite * ELITE.driver + rng.normal(0, cfg.driverRatingSd * 0.65));
   raceTargets.sort((a, b) => b - a);
   const drivers = raceTargets.map((t) => generateDriver(build.ctx, { targetOverall: t, age: raceAgeFor(rng, division), division, nationality: opts.driverNationality?.(rng) }));
   const gap = overall(drivers[0]) - overall(drivers[1]);
@@ -256,7 +260,7 @@ export function createPlayerTeam(build: WorldBuild, config: NewCareerConfig, div
   team.reputation = classic ? Math.round(clamp(6 + fs.reputationBonus, 1, 20)) : Math.round(clamp(cfg.reputationRange[0] + fs.reputationBonus, 1, 60));
   team.cash = roundMoney(cfg.typicalBudget * 0.42 * fs.cashFactor * diff.startingCash);
   // A basic car: lower midfield, not overpowered.
-  team.car = generateCar(rng, 48.5, 2.5);
+  team.car = generateCar(rng, divisionCarBase(division) - 1.5, 2.5);
   if (classic) team.facilities = facilitiesAt({ engineering: 2, manufacturing: 1, simulator: 1, aeroCenter: 1, trainingAcademy: 1, fitness: 1, scouting: 1, strategy: 1 }, 1);
   else {
     const floor = Math.max(1, cfg.facilityRange[0] - 1);

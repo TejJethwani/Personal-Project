@@ -1,6 +1,6 @@
 import { DIVISIONS, eventLaps } from '../config/divisions';
 import { RACE_TUNING } from '../config/tuning';
-import { trackPerformance } from '../car/car';
+import { inRaceFrame, trackPerformance } from '../car/car';
 import { eventCarOffset } from '../europe/power';
 import { qualiPaceIndex } from '../drivers/ratings';
 import { Rng } from '../rng';
@@ -56,7 +56,7 @@ export function runQualifyingSession(state: GameState, event: CalendarEvent, ent
   return entrants.map((e) => {
     const driver = state.drivers[e.driverId];
     const team = state.teams[e.teamId];
-    const carPerf = trackPerformance(team.car, circuit) + eventCarOffset(state, team, event);
+    const carPerf = inRaceFrame(trackPerformance(team.car, circuit), event.division) + eventCarOffset(state, team, event);
     const drvPerf = qualiPaceIndex(driver, circuit, wet);
     let best: number | null = null;
     let bestSectors: [number, number, number] | null = null;

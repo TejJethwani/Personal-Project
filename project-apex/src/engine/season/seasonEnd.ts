@@ -1,6 +1,6 @@
 import { DIFFICULTIES } from '../config/difficulty';
 import { DIVISIONS } from '../config/divisions';
-import { applyDevelopmentBoost, applyRegulationReset, COMPONENT_KEYS, finishDevelopmentBoost, rebaseCarForDivision } from '../car/car';
+import { applyDevelopmentBoost, applyRegulationReset, COMPONENT_KEYS, divisionCarBase, finishDevelopmentBoost, rebaseCarForDivision } from '../car/car';
 import { boardSeasonReview, canBeSacked } from '../board';
 import { divisionStandings } from '../championship/standings';
 import { ageDrivers } from '../drivers/development';
@@ -302,7 +302,7 @@ export function finalizeSeason(state: GameState): SeasonReviewSummary {
     regulation: state.nextRegulations.find((n) => n.division === (promoted?.to ?? relegated?.to ?? player.division)) ?? null,
     notes,
     missedPromotion,
-    developmentBoost: finishDevelopmentBoost(pStand),
+    developmentBoost: finishDevelopmentBoost(pStand, teamsInDivision(state, player.division).length, isEuropean(state)),
     challenges: { completed: challengesDone, total: challengesSet },
     ...(euroReview ? { europe: euroReview } : {}),
   };
@@ -326,8 +326,28 @@ function applyMove(state: GameState, move: DivisionMove, promoted: boolean, oldM
   const team = state.teams[move.teamId];
   const rng = Rng.from(state.seed, 'move', team.id, state.season);
   team.division = move.to;
-  rebaseCarForDivision(team.car, rng, oldMeans[move.from], newMeans[move.to], engineeringStrength(state, team, move.to), promoted, carry, team.isPlayer);
+  const tierGap = divisionCarBase(move.to) - divisionCarBase(move.from);
+  rebaseCarForDivision(team.car, rng, oldMeans[move.from], newMeans[move.to], engineeringStrength(state, team, move.to), promoted, carry, team.isPlayer, tierGap);
   if (team.isPlayer) rescaleSponsorDeals(state, team, move.from, move.to);
+  if (team.isPlayer && tierGap) {
+    const fieldAvg = COMPONENT_KEYS.reduce((s, k) => s + newMeans[move.to][k], 0) / COMPONENT_KEYS.length;
+    const mine = COMPONENT_KEYS.reduce((s, k) => s + team.car.components[k], 0) / COMPONENT_KEYS.length;
+    addNews(state, {
+      category: 'engineering',
+      headline: promoted ? 'A STEP UP IN CLASS' : 'BACK DOWN A LEVEL',
+      body:
+        `The average ${DIVISIONS[move.to].name} car is rated ${fieldAvg.toFixed(1)} across its components; ${team.name}'s is ${mine.toFixed(1)} after the winter rebuild. ` +
+        (promoted
+          ? mine < fieldAvg
+            ? 'Promoted clubs start behind most of the field and have to develop their way up.'
+            : 'Few promoted clubs start a season with a car this good.'
+          : mine > fieldAvg
+            ? 'It should still be one of the quicker cars at this level.'
+            : 'Even at this level there is work to do.'),
+      teamIds: [team.id],
+      importance: 2,
+    });
+  }
   const last = team.history[team.history.length - 1];
   if (promoted) {
     team.stats.promotions += 1;
@@ -375,20 +395,28 @@ export function beginOffseason(state: GameState, acceptPromotion = true): void {
     const staying = teamsInDivision(state, division).filter((t) => !movers.has(t.id));
     const means = fieldMean(teamsInDivision(state, division));
     oldMeans[division] = means;
-    for (const t of staying) applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), devRules);
+    for (const t of staying) applyRegulationReset(t.car, Rng.from(state.seed, 'reset', t.id, state.season), notice, means, engineeringStrength(state, t, division), devRules, divisionCarBase(division));
     newMeans[division] = fieldMean(staying);
   }
   // Season-end positions decide each team's development boost (applied after the moves).
-  const finish = new Map(allTeams(state).map((t) => [t.id, t.history.at(-1)?.season === state.season ? t.history.at(-1)!.position : 0]));
+  const european = isEuropean(state);
+  const fieldSize = Object.fromEntries(DIVISION_ORDER.map((d) => [d, teamsInDivision(state, d).length])) as Record<DivisionId, number>;
+  const boostOf = new Map(
+    allTeams(state).map((t) => {
+      const last = t.history.at(-1);
+      return [t.id, last?.season === state.season ? { pos: last.position, boost: finishDevelopmentBoost(last.position, fieldSize[last.division], european) } : { pos: 0, boost: 0 }];
+    }),
+  );
   for (const m of moves.promotions) applyMove(state, m, true, oldMeans, newMeans, devRules.promotionCarry);
   for (const m of moves.relegations) applyMove(state, m, false, oldMeans, newMeans, devRules.promotionCarry);
   for (const t of allTeams(state)) {
-    const pos = finish.get(t.id) ?? 0;
-    if (pos > 0) applyDevelopmentBoost(t.car, finishDevelopmentBoost(pos));
+    const b = boostOf.get(t.id);
+    if (b && b.pos > 0) applyDevelopmentBoost(t.car, b.boost);
   }
-  const playerBoost = finishDevelopmentBoost(finish.get(player.id) ?? 0);
-  if ((finish.get(player.id) ?? 0) > 0) {
-    addNews(state, { category: 'engineering', headline: `DEVELOPMENT BOOST: +${playerBoost.toFixed(1)}`, body: `Finishing ${ordinal(finish.get(player.id)!)} earns ${player.name} a season-end development boost of +${playerBoost.toFixed(1)} to every area of the car. The top teams are rewarded and the bottom teams get catch-up help; mid-table gets the least.`, teamIds: [player.id], importance: 2 });
+  const mine = boostOf.get(player.id);
+  if (mine && mine.pos > 0) {
+    const how = european ? 'The higher a club finishes, the more it has to spend on next year’s car.' : 'The top teams are rewarded and the bottom teams get catch-up help; mid-table gets the least.';
+    addNews(state, { category: 'engineering', headline: `DEVELOPMENT BOOST: +${mine.boost.toFixed(1)}`, body: `Finishing ${ordinal(mine.pos)} earns ${player.name} a season-end development boost of +${mine.boost.toFixed(1)} to every area of the car. ${how}`, teamIds: [player.id], importance: 2 });
   }
 
   // AI owners take surplus profits out of very cash-rich teams (an economic sink,

@@ -1,7 +1,7 @@
 import { AI_PERSONALITIES, PHILOSOPHIES } from '../config/difficulty';
 import { DIVISIONS, eventLaps, pointsTable } from '../config/divisions';
 import { RACE_TUNING } from '../config/tuning';
-import { trackPerformance } from '../car/car';
+import { inRaceFrame, trackPerformance } from '../car/car';
 import { eventCarOffset } from '../europe/power';
 import { syncGuest } from '../europe/fixtures';
 import { onEuroRaceResult } from '../europe/season';
@@ -128,7 +128,7 @@ export function strategyInputs(state: GameState, event: CalendarEvent, driverId:
     laps,
     baseLap: divisionBaseLap(circuit, event.division),
     tireManagement: driver.attributes.tireManagement,
-    carTireEfficiency: team.car.components.tireEfficiency,
+    carTireEfficiency: inRaceFrame(team.car.components.tireEfficiency, event.division),
     trackTemp: weather.race[0]?.trackTemp ?? circuit.baseTrackTemp,
     startWetness: weather.race[0]?.wetness ?? 0,
     accuracy,
@@ -272,7 +272,7 @@ export function runPractice(state: GameState, driverId: string, program: Practic
   const weather = generateEventWeather(state.seed, event.id, circuit, eventLaps(event, circuit.laps), weatherMods(state, event.division));
   const baseLap = divisionBaseLap(circuit, event.division);
   const lapTime =
-    basePace(baseLap, trackPerformance(team.car, circuit) + eventCarOffset(state, team, event), racePaceIndex(driver, circuit, weather.practiceWetness), quality) +
+    basePace(baseLap, inRaceFrame(trackPerformance(team.car, circuit), event.division) + eventCarOffset(state, team, event), racePaceIndex(driver, circuit, weather.practiceWetness), quality) +
     (program === 'qualiSim' ? -0.6 : 0.9) * (baseLap / RACE_TUNING.referenceLap) +
     weather.practiceWetness * 6 +
     rng.normal(0, 0.2);
@@ -282,7 +282,7 @@ export function runPractice(state: GameState, driverId: string, program: Practic
     const knowledge = weekend.practice.tireKnowledge / 100;
     run.tireNotes = DIVISIONS[event.division].dryCompounds.map((c) => ({
       compound: c,
-      degPerLap: Math.round(expectedWear(c, event.division, circuit, driver.attributes.tireManagement, team.car.components.tireEfficiency, weather.race[0]?.trackTemp ?? circuit.baseTrackTemp, 0, twistEffects(state, event.division).wear) * (1 + rng.normal(0, 0.2 * (1 - knowledge))) * 100) / 100,
+      degPerLap: Math.round(expectedWear(c, event.division, circuit, driver.attributes.tireManagement, inRaceFrame(team.car.components.tireEfficiency, event.division), weather.race[0]?.trackTemp ?? circuit.baseTrackTemp, 0, twistEffects(state, event.division).wear) * (1 + rng.normal(0, 0.2 * (1 - knowledge))) * 100) / 100,
     }));
   }
   if (program === 'qualiSim') driver.confidence = clamp(driver.confidence + 2, 0, 100);

@@ -21,7 +21,7 @@ import { DIFFICULTIES, PHILOSOPHIES } from '../config/difficulty';
 import { AI_PERSONALITIES } from '../config/difficulty';
 import { DIVISIONS, eventLaps } from '../config/divisions';
 import { RACE_TUNING, TIRE_TUNING } from '../config/tuning';
-import { reliabilityIndex, trackPerformance } from '../car/car';
+import { inRaceFrame, reliabilityIndex, trackPerformance } from '../car/car';
 import { eventCarOffset } from '../europe/power';
 import { attackIndex, defenceIndex, driverShortName, racePaceIndex } from '../drivers/ratings';
 import { hashString, Rng } from '../rng';
@@ -124,7 +124,7 @@ export function createRaceState(state: GameState, event: CalendarEvent, entrants
       latentFailure: null,
       lapsLed: 0,
       usedCompounds: [e.plan.startCompound],
-      carPerf: trackPerformance(team.car, circuit) + eventCarOffset(state, team, event),
+      carPerf: inRaceFrame(trackPerformance(team.car, circuit), event.division) + eventCarOffset(state, team, event),
       driverPerf: 0,
       setupQuality: e.setupQuality,
       weatherCallTimer: 0,
@@ -348,7 +348,7 @@ function wearRatesFor(ctx: LapContext, car: CarRaceState, driver: Driver): Parti
   const team = ctx.state.teams[car.teamId];
   const out: Partial<Record<TireCompound, number>> = {};
   for (const c of DIVISIONS[ctx.race.division].dryCompounds) {
-    out[c] = expectedWear(c, ctx.race.division, ctx.circuit, driver.attributes.tireManagement, team.car.components.tireEfficiency, ctx.trackTemp, 0, ctx.fx.wear);
+    out[c] = expectedWear(c, ctx.race.division, ctx.circuit, driver.attributes.tireManagement, inRaceFrame(team.car.components.tireEfficiency, ctx.race.division), ctx.trackTemp, 0, ctx.fx.wear);
   }
   return out;
 }
@@ -863,7 +863,7 @@ export function stepRaceLap(state: GameState, race: RaceState): void {
             division: race.division,
             circuit,
             tireManagement: driver.attributes.tireManagement,
-            carTireEfficiency: team.car.components.tireEfficiency,
+            carTireEfficiency: inRaceFrame(team.car.components.tireEfficiency, race.division),
             trackTemp: ctx.trackTemp,
             wetness: ctx.wetness,
             pace: car.instructions.pace,
