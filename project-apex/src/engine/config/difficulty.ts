@@ -38,7 +38,7 @@ export interface DifficultyConfig {
   sponsorIncome: number;
   /** Driver salary demand multiplier. */
   salaryDemand: number;
-  /** Car development over the winter (applies to every team in the world). */
+  /** Car development over the winter for AI teams (the player's car keeps exactly what it was built to). */
   carDevelopment: CarDevelopmentRules;
 }
 
@@ -80,7 +80,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   realistic: {
     id: 'realistic',
     label: 'Realistic',
-    description: 'Sharper rivals, demanding sponsors and a board that will fire you if results and finances collapse. Winter rule changes take back part of every car\'s development.',
+    description: 'Sharper rivals, demanding sponsors and a board that will fire you if results and finances collapse. Winter rule changes take back part of every rival\'s development; your car keeps every upgrade.',
     startingCash: 0.85,
     reliabilityMultiplier: 1.15,
     aiMarketAggression: 1.2,
@@ -97,7 +97,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
   hardcore: {
     id: 'hardcore',
     label: 'Hardcore',
-    description: 'Fragile cars, ruthless contract competition, no rescues. Insolvency ends your career. Bigger upgrades, but winter rule changes wipe out most of every car\'s development.',
+    description: 'Fragile cars, ruthless contract competition, no rescues. Insolvency ends your career. Rivals upgrade faster, but winter rule changes wipe out most of their development; your car keeps every upgrade.',
     startingCash: 0.7,
     reliabilityMultiplier: 1.4,
     aiMarketAggression: 1.4,

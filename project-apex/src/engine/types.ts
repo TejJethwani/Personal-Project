@@ -265,6 +265,19 @@ export interface RnDProject {
   /** Absent in older saves (balanced, normal). */
   approach?: RnDApproach;
   timeline?: RnDTimeline;
+  /**
+   * A custom upgrade: exact rating points for any set of components, built
+   * together and delivered without risk (`component` is the first of them,
+   * `scale` is unused).
+   */
+  custom?: CustomUpgradeSpec;
+}
+
+export type CustomDelivery = 'standard' | 'express';
+
+export interface CustomUpgradeSpec {
+  gains: Partial<Record<ComponentKey, number>>;
+  delivery: CustomDelivery;
 }
 
 export type RnDOutcome = 'success' | 'underwhelming' | 'breakthrough' | 'reliabilityCompromise';
@@ -279,6 +292,8 @@ export interface RnDCompletion {
   season: number;
   week: number;
   cost: number;
+  /** Gains of a custom upgrade, by component. */
+  custom?: Partial<Record<ComponentKey, number>>;
 }
 
 // ---------------------------------------------------------------------------

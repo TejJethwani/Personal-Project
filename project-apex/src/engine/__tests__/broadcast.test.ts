@@ -35,7 +35,9 @@ describe('Simulate to a checkpoint', () => {
     const s = grid(5151);
     advanceRace(s, 'final5');
     const r = race(s);
-    expect(r.finished || r.totalLaps - r.lap <= 5).toBe(true);
+    const mine = new Set(r.cars.filter((c) => c.isPlayer).map((c) => c.driverId));
+    const urgent = r.log.some((e) => e.lap === r.lap && ((['warning', 'failure', 'crash', 'collision'].includes(e.type) && e.driverIds.some((id) => mine.has(id))) || (e.type === 'weather' && e.key)));
+    expect(r.finished || r.totalLaps - r.lap <= 5 || urgent).toBe(true);
     const t = grid(5152);
     advanceRace(t, 'incident');
     const rt = race(t);

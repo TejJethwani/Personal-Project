@@ -63,24 +63,27 @@ describe('car development by difficulty', () => {
     }
   });
 
-  it('on Hardcore winter rule changes take most development away from every team', () => {
+  it('on Hardcore winter rule changes take most development away from every rival, never from the player', () => {
     const s = makeGame(307, { difficulty: 'hardcore' });
     playSeason(s);
     pushAbove(s, 64);
     const me = playerTeam(s);
     const staying = teamsInDivision(s, 'F5').map((t) => t.id);
+    const boost = finishDevelopmentBoost(s.lastSeasonReview!.position);
     beginOffseason(s, false);
-    const after = staying.map((id) => s.teams[id]).filter((t) => t.division === 'F5');
+    const after = staying.map((id) => s.teams[id]).filter((t) => t.division === 'F5' && !t.isPlayer);
     const mean = after.reduce((x, t) => x + t.car.components.chassis, 0) / after.length;
     expect(mean).toBeLessThan(58);
-    if (me.division === 'F5') expect(me.car.components.chassis).toBeLessThan(64);
+    expect(me.car.components.chassis).toBeCloseTo(64 + boost, 2);
   });
 
-  it('upgrades are bigger on the difficulties where they do not last', () => {
+  it('rivals’ upgrades are bigger on the difficulties where they do not last; the player’s, which always last, are not', () => {
     const casual = makeGame(308, { difficulty: 'casual' });
     const hardcore = makeGame(308, { difficulty: 'hardcore' });
-    const gain = (s: GameState) => quoteProject(s, playerTeam(s), 'aerodynamics', 'major').expectedGain;
-    expect(gain(hardcore)).toBeGreaterThan(gain(casual) * 1.2);
+    const rival = (s: GameState) => teamsInDivision(s, 'F5').find((t) => !t.isPlayer)!;
+    const gain = (s: GameState, t: (g: GameState) => ReturnType<typeof playerTeam>) => quoteProject(s, t(s), 'aerodynamics', 'major').expectedGain;
+    expect(gain(hardcore, rival)).toBeGreaterThan(gain(casual, rival) * 1.2);
+    expect(gain(hardcore, playerTeam)).toBeCloseTo(gain(casual, playerTeam), 5);
   });
 });
 

@@ -63,23 +63,20 @@ describe('One rating scale across the tiers of a European League', () => {
 });
 
 describe('Moving between tiers', () => {
-  it('a promoted car makes up only part of the gap, and never loses rating when development is kept', () => {
+  it('a promoted AI car makes up only part of the gap, and never loses rating when development is kept', () => {
     const car = generateCar(new Rng(1), 57, 0);
-    rebaseCarForDivision(car, new Rng(2), flat(50), flat(64), 0.5, true, 1, true, 14);
+    rebaseCarForDivision(car, new Rng(2), flat(50), flat(64), 0.5, true, 1, 14);
     for (const k of COMPONENT_KEYS) {
       expect(car.components[k]).toBeGreaterThanOrEqual(57);
       expect(car.components[k]).toBeLessThan(64);
     }
   });
 
-  it('a relegated car gives some of its edge away but stays above its new field; the player’s keeps its ratings when development is kept', () => {
+  it('a relegated AI car gives some of its edge away but stays above its new field', () => {
     const ai = generateCar(new Rng(1), 58, 0);
-    const mine = generateCar(new Rng(1), 58, 0);
-    rebaseCarForDivision(ai, new Rng(3), flat(64), flat(50), 0.5, false, 1, false, -14);
-    rebaseCarForDivision(mine, new Rng(3), flat(64), flat(50), 0.5, false, 1, true, -14);
+    rebaseCarForDivision(ai, new Rng(3), flat(64), flat(50), 0.5, false, 1, -14);
     expect(carRating(ai)).toBeLessThan(58);
     expect(carRating(ai)).toBeGreaterThan(50);
-    for (const k of COMPONENT_KEYS) expect(mine.components[k]).toBeGreaterThanOrEqual(58);
   });
 
   it('after a real season, every club promoted into the top flight starts in its bottom half', () => {

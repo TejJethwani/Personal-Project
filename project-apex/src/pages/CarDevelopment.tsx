@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { DIFFICULTIES } from '@/engine/config/difficulty';
 import { DIVISIONS } from '@/engine/config/divisions';
 import { COMPONENT_INFO, COMPONENT_KEYS, carRating, overallPace, PACE_COMPONENTS, trackPerformance } from '@/engine/car/car';
-import { cancelProject, canStartProject, capacityUsed, engineeringCapacity, estimateRivalComponent, projectOptions, projectPhase, quoteProject, RND_APPROACH_LABELS, RND_APPROACHES, RND_SCALE_LABELS, RND_SCALES, RND_TIMELINE_LABELS, RND_TIMELINES, startProject } from '@/engine/car/rnd';
+import { cancelProject, canStartProject, capacityUsed, customSummary, engineeringCapacity, estimateRivalComponent, projectOptions, projectPhase, quoteProject, RND_APPROACH_LABELS, RND_APPROACHES, RND_SCALE_LABELS, RND_SCALES, RND_TIMELINE_LABELS, RND_TIMELINES, startProject } from '@/engine/car/rnd';
+import { isEuropean } from '@/engine/config/ruleset';
 import { playerTeam, teamsInDivision } from '@/engine/selectors';
 import type { ComponentKey, RnDApproach, RnDScale, RnDTimeline, Team } from '@/engine/types';
 import { TeamDot, TeamLink } from '@/components/common';
@@ -11,14 +12,16 @@ import { Badge, Button, cn, Empty, Panel, Progress, RatingBar, SectionTitle, Seg
 import { money } from '@/lib/format';
 import { useGame, useStore } from '@/store/gameStore';
 import { askConfirm } from '@/store/confirm';
+import { CustomUpgradePanel } from './car/CustomUpgrade';
 
 /** What the winter does to car development at this difficulty. */
-function developmentRuleText(difficulty: keyof typeof DIFFICULTIES): string {
+function developmentRuleText(difficulty: keyof typeof DIFFICULTIES, european: boolean): string {
   const rules = DIFFICULTIES[difficulty].carDevelopment;
-  const boost = ' At season end every team gets a development boost by championship position: the top teams are rewarded, the bottom teams get catch-up help, mid-table gets the least.';
-  if (rules.fieldKept >= 1) return `Your car keeps every upgrade season after season: its ratings never drop over the winter, and promotion carries its advantage over the field into the new series.${boost}`;
+  const mine = 'Your car stays exactly as you build it: nothing changes over the winter, on promotion or on relegation. The only gains you do not order yourself are the season-end development boost by championship position and challenge rewards.';
+  const boost = european ? ' The boost rewards the top of the table.' : ' The boost rewards the top teams and helps the bottom; mid-table gets the least.';
+  if (rules.fieldKept >= 1) return `${mine}${boost} Rival cars keep their development too.`;
   const kept = Math.round(rules.carry.stable * 100);
-  return `On ${DIFFICULTIES[difficulty].label} the winter rule changes take development away from every team: the series is pulled back toward the regulation baseline and each car keeps about ${kept}% of its advantage under stable rules (less under bigger changes). Upgrades are ${rules.upgradeScale}× bigger to make up for it.${boost}`;
+  return `${mine}${boost} On ${DIFFICULTIES[difficulty].label} the winter rule changes take development away from rival teams: their series is pulled back toward the regulation baseline and each rival keeps about ${kept}% of its advantage under stable rules (less under bigger changes); their upgrades are ${rules.upgradeScale}× bigger to make up for it.`;
 }
 
 function estimatedPace(game: ReturnType<typeof useGame>, viewer: Team, t: Team): { value: number; unc: number } {
@@ -48,6 +51,7 @@ export function CarPage() {
   const [scale, setScale] = useState<RnDScale>('major');
   const [approach, setApproach] = useState<RnDApproach>('balanced');
   const [timeline, setTimeline] = useState<RnDTimeline>('normal');
+  const [tool, setTool] = useState<'custom' | 'package'>('custom');
   const options = { approach, timeline };
   const quote = quoteProject(game, team, component, scale, options);
   const check = canStartProject(game, team, component, scale, options);
@@ -62,10 +66,22 @@ export function CarPage() {
   const regNext = game.nextRegulations.find((r) => r.division === team.division);
   const avg = (k: ComponentKey) => rivals.reduce((s, t) => s + estimateRivalComponent(game, team, t, k).value, 0) / rivals.length;
   const best = (k: ComponentKey) => Math.max(...rivals.map((t) => estimateRivalComponent(game, team, t, k).value));
+  const switcher = (
+    <Segmented
+      fill
+      className="mb-3"
+      value={tool}
+      onChange={setTool}
+      options={[
+        { value: 'custom', label: 'Custom upgrade' },
+        { value: 'package', label: 'Single-part R&D package' },
+      ]}
+    />
+  );
 
   return (
     <div className="space-y-6">
-      <SectionTitle sub={`${cfg.name} technical regulations. Ratings are relative to the series' cars.`}>Car Development</SectionTitle>
+      <SectionTitle sub={`${cfg.name} technical regulations. ${isEuropean(game) ? 'Every tier of the pyramid is rated on one scale.' : "Ratings are relative to the series' cars."}`}>Car Development</SectionTitle>
       <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
         <Panel title="Car performance" icon={<Gauge size={15} className="text-apex-red" />} actions={<span className="num text-2xl font-bold">{carRating(team.car).toFixed(1)}</span>}>
           <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
@@ -107,64 +123,69 @@ export function CarPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
-        <Panel title="Start an R&D project" icon={<FlaskConical size={15} className="text-apex-red" />} actions={<span className="text-xs text-apex-muted">Capacity {used}/{cap}</span>}>
-          <Progress value={(used / cap) * 100} className="mb-4" />
-          <div className="space-y-4">
-            <div>
-              <div className="label mb-1.5">1. Component</div>
-              <Select<ComponentKey> value={component} onChange={setComponent} className="w-full" options={COMPONENT_KEYS.map((k) => ({ value: k, label: `${COMPONENT_INFO[k].label} (${team.car.components[k].toFixed(0)})` }))} />
-            </div>
-            <div>
-              <div className="label mb-1.5">2. Package</div>
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                {RND_SCALES.map((s) => {
-                  const q = quoteProject(game, team, component, s, options);
-                  const active = s === scale;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => setScale(s)}
-                      className={cn('rounded-lg border p-2.5 text-left transition-colors', active ? 'border-apex-red bg-apex-red/10' : 'border-apex-line bg-apex-bg/40 hover:border-apex-line2')}
-                    >
-                      <div className="text-xs font-semibold">{RND_SCALE_LABELS[s]}</div>
-                      <div className={cn('num text-2xl font-black leading-tight', active ? 'text-apex-red' : 'text-white')}>+{q.expectedGain.toFixed(1)}</div>
-                      <div className="text-[11px] text-apex-muted">
-                        {money(q.cost)} · {q.weeks} wk{q.capacity > 1 ? ` · ${q.capacity} slots` : ''}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+        {tool === 'custom' ? (
+          <CustomUpgradePanel game={game} team={team} switcher={switcher} />
+        ) : (
+          <Panel title="Start an R&D project" icon={<FlaskConical size={15} className="text-apex-red" />} actions={<span className="text-xs text-apex-muted">Capacity {used}/{cap}</span>}>
+            {switcher}
+            <Progress value={(used / cap) * 100} className="mb-4" />
+            <div className="space-y-4">
               <div>
-                <div className="label mb-1.5">3. Approach</div>
-                <Segmented fill value={approach} onChange={setApproach} options={RND_APPROACHES.map((a) => ({ value: a, label: RND_APPROACH_LABELS[a] }))} />
-                <div className="mt-1 text-[11px] text-apex-muted">{APPROACH_HINT[approach]}</div>
+                <div className="label mb-1.5">1. Component</div>
+                <Select<ComponentKey> value={component} onChange={setComponent} className="w-full" options={COMPONENT_KEYS.map((k) => ({ value: k, label: `${COMPONENT_INFO[k].label} (${team.car.components[k].toFixed(0)})` }))} />
               </div>
               <div>
-                <div className="label mb-1.5">4. Timeline</div>
-                <Segmented fill value={timeline} onChange={setTimeline} options={RND_TIMELINES.map((t) => ({ value: t, label: RND_TIMELINE_LABELS[t] }))} />
-                <div className="mt-1 text-[11px] text-apex-muted">{TIMELINE_HINT[timeline]}</div>
+                <div className="label mb-1.5">2. Package</div>
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                  {RND_SCALES.map((s) => {
+                    const q = quoteProject(game, team, component, s, options);
+                    const active = s === scale;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => setScale(s)}
+                        className={cn('rounded-lg border p-2.5 text-left transition-colors', active ? 'border-apex-red bg-apex-red/10' : 'border-apex-line bg-apex-bg/40 hover:border-apex-line2')}
+                      >
+                        <div className="text-xs font-semibold">{RND_SCALE_LABELS[s]}</div>
+                        <div className={cn('num text-2xl font-black leading-tight', active ? 'text-apex-red' : 'text-white')}>+{q.expectedGain.toFixed(1)}</div>
+                        <div className="text-[11px] text-apex-muted">
+                          {money(q.cost)} · {q.weeks} wk{q.capacity > 1 ? ` · ${q.capacity} slots` : ''}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="label mb-1.5">3. Approach</div>
+                  <Segmented fill value={approach} onChange={setApproach} options={RND_APPROACHES.map((a) => ({ value: a, label: RND_APPROACH_LABELS[a] }))} />
+                  <div className="mt-1 text-[11px] text-apex-muted">{APPROACH_HINT[approach]}</div>
+                </div>
+                <div>
+                  <div className="label mb-1.5">4. Timeline</div>
+                  <Segmented fill value={timeline} onChange={setTimeline} options={RND_TIMELINES.map((t) => ({ value: t, label: RND_TIMELINE_LABELS[t] }))} />
+                  <div className="mt-1 text-[11px] text-apex-muted">{TIMELINE_HINT[timeline]}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 rounded-lg border border-apex-line bg-apex-bg/50 p-4 sm:grid-cols-4">
+                <Stat label="Cost" value={money(quote.cost)} />
+                <Stat label="Duration" value={`${quote.weeks} wk`} sub="design → build → test" />
+                <Stat label="Gain" value={`+${quote.expectedGain.toFixed(1)}`} sub={`${COMPONENT_INFO[component].short} ${team.car.components[component].toFixed(0)} → ${Math.min(99, team.car.components[component] + quote.expectedGain).toFixed(0)}`} accent />
+                <Stat label="Risk" value={`${Math.round(quote.risk * 100)}%`} sub={`uses ${quote.capacity} capacity`} />
+              </div>
+              <p className="text-xs text-apex-muted">
+                Risk is the chance testing finds a problem and the gain falls short (your car never loses rating). Breakthroughs can deliver up to twice the expected gain. Catching up with the field is easier than stretching a lead, very strong components return less, and repeated upgrades to the same area this season return less. A better Technical Director and Aero Center, Engineering and Manufacturing facilities improve gains, cost and risk.
+              </p>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-amber-300">{!check.ok && check.reason}</span>
+                <Button variant="primary" disabled={!check.ok} onClick={() => act((g) => startProject(g, team.id, component, scale, options), { success: `${RND_SCALE_LABELS[scale]} started on ${COMPONENT_INFO[component].label}.` })}>
+                  Start project ({money(quote.cost)})
+                </Button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 rounded-lg border border-apex-line bg-apex-bg/50 p-4 sm:grid-cols-4">
-              <Stat label="Cost" value={money(quote.cost)} />
-              <Stat label="Duration" value={`${quote.weeks} wk`} sub="design → build → test" />
-              <Stat label="Gain" value={`+${quote.expectedGain.toFixed(1)}`} sub={`${COMPONENT_INFO[component].short} ${team.car.components[component].toFixed(0)} → ${Math.min(99, team.car.components[component] + quote.expectedGain).toFixed(0)}`} accent />
-              <Stat label="Risk" value={`${Math.round(quote.risk * 100)}%`} sub={`uses ${quote.capacity} capacity`} />
-            </div>
-            <p className="text-xs text-apex-muted">
-              Risk is the chance testing finds a problem: an underwhelming result or a reliability compromise. Breakthroughs can deliver up to twice the expected gain. Catching up with the field is easier than stretching a lead, very strong components return less, and repeated upgrades to the same area this season return less. A better Technical Director and Aero Center, Engineering and Manufacturing facilities improve gains, cost and risk.
-            </p>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-amber-300">{!check.ok && check.reason}</span>
-              <Button variant="primary" disabled={!check.ok} onClick={() => act((g) => startProject(g, team.id, component, scale, options), { success: `${RND_SCALE_LABELS[scale]} started on ${COMPONENT_INFO[component].label}.` })}>
-                Start project ({money(quote.cost)})
-              </Button>
-            </div>
-          </div>
-        </Panel>
+          </Panel>
+        )}
         <Panel title="Active projects">
           {team.rnd.length === 0 ? (
             <Empty>No projects running. Idle engineers are wasted money.</Empty>
@@ -176,13 +197,19 @@ export function CarPage() {
                 return (
                   <div key={p.id} className="rounded-lg border border-apex-line p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-semibold">
-                        {COMPONENT_INFO[p.component].label}{' '}
-                        <span className="text-xs text-apex-muted">
-                          · {RND_SCALE_LABELS[p.scale]} · {RND_APPROACH_LABELS[projectOptions(p).approach]}
-                          {projectOptions(p).timeline === 'rush' ? ' · rushed' : ''}
-                        </span>
-                      </div>
+                      {p.custom ? (
+                        <div className="font-semibold">
+                          Custom upgrade <span className="text-xs text-apex-muted">· {customSummary(p.custom.gains)}{p.custom.delivery === 'express' ? ' · express' : ''}</span>
+                        </div>
+                      ) : (
+                        <div className="font-semibold">
+                          {COMPONENT_INFO[p.component].label}{' '}
+                          <span className="text-xs text-apex-muted">
+                            · {RND_SCALE_LABELS[p.scale]} · {RND_APPROACH_LABELS[projectOptions(p).approach]}
+                            {projectOptions(p).timeline === 'rush' ? ' · rushed' : ''}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <Badge tone={phase === 'testing' ? 'purple' : phase === 'manufacture' ? 'amber' : 'blue'}>{phase}</Badge>
                         {p.delayWeeks > 0 && <Badge tone="red">delayed +{p.delayWeeks}w</Badge>}
@@ -196,7 +223,7 @@ export function CarPage() {
                       <span>
                         Week {p.weeksElapsed}/{total}
                       </span>
-                      <span>Expected +{p.expectedGain.toFixed(1)}</span>
+                      <span>{p.custom ? `Guaranteed +${Object.values(p.custom.gains).reduce((a, b) => a + (b ?? 0), 0).toFixed(1)} in total` : `Expected +${p.expectedGain.toFixed(1)}`}</span>
                     </div>
                   </div>
                 );
@@ -222,8 +249,8 @@ export function CarPage() {
                       <td>
                         S{r.season} W{r.week}
                       </td>
-                      <td>{COMPONENT_INFO[r.component].label}</td>
-                      <td className="capitalize">{r.scale}</td>
+                      <td>{r.custom ? customSummary(r.custom) : COMPONENT_INFO[r.component].label}</td>
+                      <td className="capitalize">{r.custom ? 'custom' : r.scale}</td>
                       <td>
                         <Badge tone={r.outcome === 'breakthrough' ? 'purple' : r.outcome === 'success' ? 'green' : r.outcome === 'underwhelming' ? 'amber' : 'red'}>{r.outcome === 'reliabilityCompromise' ? 'reliability hit' : r.outcome}</Badge>
                       </td>
@@ -286,7 +313,7 @@ export function CarPage() {
               <div className="label">Next season</div>
               <p>{regNext ? regNext.text : 'Changes for next season are announced around week 30.'}</p>
             </div>
-            <p className="text-xs text-apex-muted">{developmentRuleText(game.settings.difficulty)}</p>
+            <p className="text-xs text-apex-muted">{developmentRuleText(game.settings.difficulty, isEuropean(game))}</p>
             <div className="flex items-center gap-2 text-xs text-apex-muted">
               <TeamDot team={team} /> Development this season: {Object.values(team.car.developmentLevel).reduce((a, b) => a + b, 0).toFixed(1)} upgrade units
             </div>

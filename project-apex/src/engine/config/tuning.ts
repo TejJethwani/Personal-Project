@@ -136,11 +136,18 @@ export const ECONOMY_TUNING = {
    * it counts towards this season's diminishing returns on the component).
    */
   rnd: {
-    quick: { cost: 0.005, gain: 2, weeks: 2, capacity: 1, risk: 0.05, load: 0.5 },
-    minor: { cost: 0.01, gain: 4, weeks: 4, capacity: 1, risk: 0.08, load: 1 },
-    major: { cost: 0.022, gain: 7, weeks: 7, capacity: 1, risk: 0.14, load: 1.8 },
-    radical: { cost: 0.04, gain: 10, weeks: 10, capacity: 2, risk: 0.24, load: 3 },
+    quick: { cost: 0.005, gain: 2, weeks: 1, capacity: 1, risk: 0.05, load: 0.5 },
+    minor: { cost: 0.01, gain: 4, weeks: 2, capacity: 1, risk: 0.08, load: 1 },
+    major: { cost: 0.022, gain: 7, weeks: 3, capacity: 1, risk: 0.14, load: 1.8 },
+    radical: { cost: 0.04, gain: 10, weeks: 5, capacity: 2, risk: 0.24, load: 3 },
   },
+  /**
+   * Custom upgrades: the exact points asked for on any set of components in one
+   * project, priced like a run of minor updates with a small premium for the
+   * certainty. Standard delivery takes a week plus one per `pointsPerWeek` of
+   * the biggest gain; express takes one week.
+   */
+  rndCustom: { premium: 1.05, pointsPerWeek: 5, maxGain: 30, expressCost: 1.4 },
   /** Approach: multipliers on gain, risk, cost and breakthrough chance. */
   rndApproach: {
     safe: { gain: 0.85, risk: 0.5, cost: 1, breakthrough: 0.6 },

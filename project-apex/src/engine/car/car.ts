@@ -103,8 +103,9 @@ export function weakestComponent(car: Car, keys: ComponentKey[] = COMPONENT_KEYS
 }
 
 /**
- * Season rollover. What survives the winter depends on the difficulty's
- * development rules, which apply to every team alike.
+ * Season rollover for an AI team's car (the player's car keeps exactly the
+ * ratings it was built to). What survives the winter depends on the
+ * difficulty's development rules.
  *
  * When development is kept (Casual, Standard), no car ever loses rating: each
  * keeps everything its team has developed. New rules let teams behind the
@@ -149,20 +150,19 @@ export const REGULATION_BASELINE = 50;
 export const TIER_STEP = { liftMin: 0.2, liftCarry: 0.1, relegationDrop: 0.45 } as const;
 
 /**
- * Promotion/relegation: the car is rebuilt to the new division's regulations.
- * A promoted car keeps `carry` of its advantage over its old field as an
- * advantage over its new field (all of it on Casual and Standard); the rest is
- * a fresh start near the new field's average, set by the team's engineering
- * strength. A relegated car starts near its new field's average; with full
- * carry-over the player's relegated car keeps every rating it had.
+ * Promotion/relegation of an AI team: the car is rebuilt to the new division's
+ * regulations (the player's car moves exactly as it is). A promoted car keeps
+ * `carry` of its advantage over its old field as an advantage over its new
+ * field (all of it on Casual and Standard); the rest is a fresh start near the
+ * new field's average, set by the team's engineering strength. A relegated car
+ * starts near its new field's average.
  *
  * When the two divisions are rated on one scale (`tierGap`, the difference in
  * car base, is not 0), a car keeps its ratings instead: a promoted car makes
  * up only part of the gap to its new field (TIER_STEP), so it starts the
  * season in the lower half of a stronger league and has to develop its way
  * up; a relegated car gives some of its edge away but stays among the
- * stronger cars of the tier below (with full carry-over the player's keeps
- * every rating it had).
+ * stronger cars of the tier below.
  */
 export function rebaseCarForDivision(
   car: Car,
@@ -172,11 +172,10 @@ export function rebaseCarForDivision(
   engineeringStrength: number,
   promoted: boolean,
   carry: number,
-  keepRelegated = false,
   tierGap = 0,
 ): void {
   if (tierGap !== 0) {
-    rebaseAcrossTiers(car, rng, oldFieldMean, newFieldMean, engineeringStrength, promoted, carry, keepRelegated);
+    rebaseAcrossTiers(car, rng, oldFieldMean, newFieldMean, engineeringStrength, promoted, carry);
     return;
   }
   const fieldAvg = COMPONENT_KEYS.reduce((s, k) => s + (newFieldMean[k] ?? 50), 0) / COMPONENT_KEYS.length;
@@ -192,15 +191,13 @@ export function rebaseCarForDivision(
       if (carry >= 1) next = Math.max(next, car.components[key]);
     } else {
       next = fieldAvg - 1 + engineeringStrength * 3 + (car.components[key] - carAvg) * 0.35 + noise;
-      // Full carry-over (Casual, Standard) never makes a component worse, even after relegation.
-      if (carry >= 1 && keepRelegated) next = Math.max(next, car.components[key]);
     }
     car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
   }
   car.developmentLevel = emptyDevLevels();
 }
 
-function rebaseAcrossTiers(car: Car, rng: Rng, oldFieldMean: Record<ComponentKey, number>, newFieldMean: Record<ComponentKey, number>, engineeringStrength: number, promoted: boolean, carry: number, keepRelegated: boolean): void {
+function rebaseAcrossTiers(car: Car, rng: Rng, oldFieldMean: Record<ComponentKey, number>, newFieldMean: Record<ComponentKey, number>, engineeringStrength: number, promoted: boolean, carry: number): void {
   const lift = TIER_STEP.liftMin + TIER_STEP.liftCarry * Math.min(1, carry);
   for (const key of COMPONENT_KEYS) {
     const current = car.components[key];
@@ -213,8 +210,6 @@ function rebaseAcrossTiers(car: Car, rng: Rng, oldFieldMean: Record<ComponentKey
       if (carry >= 1) next = Math.max(next, current);
     } else {
       next = current - Math.max(0, -gap) * TIER_STEP.relegationDrop + fresh;
-      // Full carry-over (Casual, Standard) never makes a component worse, even after relegation.
-      if (carry >= 1 && keepRelegated) next = Math.max(next, current);
     }
     car.components[key] = Math.round(clamp(next, 1, 99) * 100) / 100;
   }
