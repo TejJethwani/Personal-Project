@@ -286,6 +286,7 @@ export function autoPilot(g: Game, until: (g: Game) => boolean, maxDays = 5000):
     const d0 = g.world.abs;
     const r = step(g);
     if (g.world.abs !== d0) days++;
+    if (until(g)) break;
     if (r === 'match') simUserMatch(g);
     else if (r === 'summary') g.career.flags.nelSummarySeen = 1;
     else if (r === 'club') {

@@ -161,7 +161,7 @@ export function solveToTarget(a: number[], pos: Pos, target: number, locked?: Se
   let cur = ovrAt(a, pos);
   let guard = 0;
   let k = 0;
-  while (Math.round(cur) !== target && guard++ < 6000) {
+  while (Math.abs(cur - target) > 0.44 && guard++ < 6000) {
     const up = cur < target;
     const gap = Math.abs(target - cur);
     let moved = false;
@@ -173,6 +173,7 @@ export function solveToTarget(a: number[], pos: Pos, target: number, locked?: Se
       if (!up && a[i] > 1) { a[i]--; cur -= w[i]; moved = true; k = (k + n + 1) % idx.length; break; }
     }
     if (!moved) break;
+    cur = ovrAt(a, pos); // recompute exactly: no accumulated floating-point drift near .5 boundaries
   }
   return a;
 }

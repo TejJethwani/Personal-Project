@@ -92,6 +92,7 @@ export function valuation(g: Game, p: Player, b: BidState | undefined): Valuatio
   const mw = mainWeapon(p);
   if (mw && rar >= 4) why.push(`Rare weapon: ${mw.name}`);
   if (moments > 0) why.push('High-profile moment on a big stage');
+  if (!why.length) why.push(`Average rating ${avg.toFixed(1)} over ${rl.length} match${rl.length > 1 ? 'es' : ''}`);
   return { value: base * perfMul * cons * prodMul * unique * momentMul, why, played: rl.length, avg };
 }
 

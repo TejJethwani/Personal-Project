@@ -1,0 +1,260 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import 'fake-indexeddb/auto';
+import { defaultConfig, newGame, balancedAttrs, rebalance } from '../src/engine/career';
+import { calcOvr, OUTFIELD, ovr, stylesFor } from '../src/engine/attributes';
+import { compFixtures, tableOf } from '../src/engine/competitions';
+import { createMatch, applyResult, simFixture } from '../src/engine/match/setup';
+import { advance as advMatch } from '../src/engine/match/engine';
+import { S, NSTAT, newLine, addLine, type MatchState } from '../src/engine/match/model';
+import { shotGeo, xgLogit, logistic, PENALTY_XG } from '../src/engine/match/xg';
+import { step, advance, autoPilot, startUserMatch, finishUserMatch, userFixtureToday, nextUserFixture } from '../src/engine/sim';
+import { payWages } from '../src/engine/development';
+import { doTransfer } from '../src/engine/transfers';
+import { cloneGame, exportSave, importSave, validate, migrate } from '../src/engine/save';
+import { saveGame, loadGame, listSaves, deleteSave } from '../src/storage/idb';
+import { SCHEMA_VERSION, type Game } from '../src/engine/types';
+import { WEAPONS, PASSIVES, ULTIMATES, validateCustom, makeHybrid } from '../src/engine/abilities';
+
+function mk(seed: number, over?: (c: ReturnType<typeof defaultConfig>) => void): Game {
+  const cfg = defaultConfig(seed); cfg.name = 'Test Egoist';
+  over?.(cfg);
+  return newGame(cfg);
+}
+
+describe('ratings', () => {
+  it('balanced creation hits the chosen OVR exactly for every position and style', () => {
+    for (const pos of OUTFIELD) for (const target of [1, 20, 45, 62, 78, 86, 93, 99]) for (const style of stylesFor(pos)) {
+      const a = balancedAttrs(pos, target, style, target * 31 + pos.length);
+      expect(calcOvr(a, pos), `${pos} ${style} ${target}`).toBe(target);
+      expect(a.every((v) => Number.isInteger(v) && v >= 1 && v <= 99)).toBe(true);
+    }
+  });
+  it('rebalance keeps the target while honouring locked attributes', () => {
+    const a = balancedAttrs('ST', 80, 'poacher', 5);
+    a[0] = 99; a[14] = 40;
+    const b = rebalance(a, 'ST', 80, [0, 14]);
+    expect(b[0]).toBe(99); expect(b[14]).toBe(40); expect(calcOvr(b, 'ST')).toBe(80);
+  });
+  it('the created player has exactly the configured attributes and OVR', () => {
+    for (const target of [55, 78, 95]) {
+      const g = mk(target, (c) => { c.attrs = balancedAttrs('LW', target, 'dribbler', 9); c.pos = 'LW'; c.pot = 99; });
+      const me = g.world.players[g.career.pid];
+      expect(ovr(me)).toBe(target);
+    }
+  });
+  it('ability catalogue meets the minimum sizes and every ability is fully described', () => {
+    expect(WEAPONS.length).toBeGreaterThanOrEqual(15); expect(PASSIVES.length).toBeGreaterThanOrEqual(10); expect(ULTIMATES.length).toBeGreaterThanOrEqual(8);
+    for (const d of [...WEAPONS, ...PASSIVES, ...ULTIMATES]) { for (const k of ['desc', 'req', 'cost', 'counter', 'limits'] as const) expect(d[k].length, `${d.id}.${k}`).toBeGreaterThan(3); expect(d.lines.length).toBeGreaterThan(0); }
+    expect(ULTIMATES.some((u) => u.name === 'Dead Angle Genesis')).toBe(true);
+    const h = makeHybrid(WEAPONS[0], WEAPONS[1], 'h1');
+    expect(validateCustom(h, true)).toEqual([]);
+    expect(validateCustom({ id: 'x', kind: 'weapon', name: 'Too Much', desc: '', fx: [{ k: 'SH_FIRST', v: 0.65 }, { k: 'SH_LONG', v: 0.6 }, { k: 'DR_TIGHT', v: 0.7 }] }, false).length).toBeGreaterThan(0);
+  });
+});
+
+describe('xG model', () => {
+  it('matches its documented calibration and behaves monotonically', () => {
+    const at = (m: number) => logistic(xgLogit(shotGeo(100 - m / 1.05, 50), { pressure: 0 }));
+    expect(at(6)).toBeGreaterThan(0.4); expect(at(6)).toBeLessThan(0.55);
+    expect(at(11)).toBeGreaterThan(0.17); expect(at(11)).toBeLessThan(0.27);
+    expect(at(25)).toBeLessThan(0.06);
+    expect(at(8)).toBeGreaterThan(at(14)); expect(at(14)).toBeGreaterThan(at(22));
+    const g = shotGeo(90, 50);
+    expect(logistic(xgLogit(g, { pressure: 0.8 }))).toBeLessThan(logistic(xgLogit(g, { pressure: 0 })));
+    expect(logistic(xgLogit(g, { pressure: 0, header: true }))).toBeLessThan(logistic(xgLogit(g, { pressure: 0 })));
+    expect(PENALTY_XG).toBe(0.76);
+  });
+});
+
+describe('Neo Egoist League', () => {
+  let g: Game;
+  beforeAll(() => { g = mk(4242); g.world.keepLines = true; autoPilot(g, (x) => x.world.nel.round >= 5); });
+  it('has exactly ten fixtures, four per club, two matches and one resting team per round', () => {
+    const fs = compFixtures(g.world, 'nel');
+    expect(fs.length).toBe(10);
+    for (const t of g.world.nel.teams) expect(fs.filter((f) => f.h === t || f.a === t).length).toBe(4);
+    for (let rd = 1; rd <= 5; rd++) { const r = fs.filter((f) => f.rd === rd); expect(r.length).toBe(2); expect(new Set(r.flatMap((f) => [f.h, f.a])).size).toBe(4); }
+    const pairs = new Set(fs.map((f) => [f.h, f.a].sort().join('|'))); expect(pairs.size).toBe(10);
+  });
+  it('every match ends exactly when a team reaches three goals — never on the clock', () => {
+    for (const f of compFixtures(g.world, 'nel')) {
+      expect(f.played).toBe(true);
+      expect(Math.max(...f.sc!)).toBe(3); expect(Math.min(...f.sc!)).toBeLessThan(3);
+      expect(f.goals!.length).toBe(f.sc![0] + f.sc![1]);
+      const last = f.goals![f.goals!.length - 1];
+      expect(f.sc![last[1]]).toBe(3);
+    }
+  });
+  it('scores equal recorded goal events and player stats reconcile with match lines', () => {
+    const w = g.world;
+    const sum: Record<string, number[]> = {};
+    for (const f of compFixtures(w, 'nel')) {
+      let h = 0, a = 0;
+      for (const gl of f.goals!) { if (gl[1] === 0) h++; else a++; }
+      expect([h, a]).toEqual(f.sc);
+      let goals = 0, og = 0;
+      for (const pid in f.lines!) { addLine((sum[pid] ??= newLine()), f.lines![pid]); goals += f.lines![pid][S.G]; og += f.lines![pid][S.OG]; }
+      expect(goals + og).toBe(f.sc![0] + f.sc![1]);
+    }
+    for (const pid in sum) { const ss = w.players[pid].ss.nel; for (let i = 0; i < NSTAT; i++) expect(ss[i]).toBeCloseTo(sum[pid][i], 6); }
+  });
+  it('the table reconciles with results', () => {
+    const tab = tableOf(g.world, 'nel');
+    expect(tab.reduce((s, r) => s + r.w, 0)).toBe(10); expect(tab.reduce((s, r) => s + r.l, 0)).toBe(10);
+    expect(tab.reduce((s, r) => s + r.gf, 0)).toBe(tab.reduce((s, r) => s + r.ga, 0));
+    for (const r of tab) { expect(r.p).toBe(4); expect(r.pts).toBe(r.w * 3); expect(r.d).toBe(0); }
+  });
+  it('bids exist per player/club/round and round awards use players who actually played that round', () => {
+    const w = g.world;
+    const bids = Object.values(w.nel.bids).filter((b) => b.top > 0);
+    expect(bids.length).toBeGreaterThan(30);
+    for (const b of bids) { expect(b.hist.length).toBeGreaterThan(0); expect(b.bids[0].amt).toBe(b.top); expect(b.bids[0].why.length).toBeGreaterThan(0); }
+    const deltas = new Set(bids.flatMap((b) => b.hist.map((h) => h.delta)));
+    expect(deltas.size).toBeGreaterThan(20); // not a fixed increment per goal
+    expect(bids.some((b) => b.hist.some((h) => h.delta < 0))).toBe(true); // bids can fall
+    for (let rd = 1; rd <= 5; rd++) {
+      const a = w.awards[`potr:nel:${w.season}:${rd}`];
+      expect(a).toBeTruthy();
+      const played = compFixtures(w, 'nel').filter((f) => f.rd === rd).some((f) => f.lines![a.winner!.pid]?.[S.RATN] > 0);
+      expect(played).toBe(true);
+      const xi = w.awards[`totr:nel:${w.season}:${rd}`];
+      expect(xi.xi!.length).toBe(11); expect(xi.xi!.filter((x) => x.pos === 'GK').length).toBe(1);
+      expect(new Set(xi.xi!.map((x) => x.pid)).size).toBe(11);
+    }
+  });
+});
+
+describe('match rules', () => {
+  const g = mk(99);
+  it('Star Change ends after the permitted playing time', () => {
+    let seen = 0;
+    for (const f of compFixtures(g.world, 'nel')) {
+      const ms = createMatch(g, f, 'sim'); ms.verb = 0; advMatch(ms);
+      for (const T of ms.teams) if (T.starState >= 1) {
+        const star = ms.pl[T.star];
+        seen++;
+        expect(star.s[S.PLAY]).toBeLessThanOrEqual(g.settings.nel.starSec + 12);
+        if (T.starState === 2) expect(star.on).toBe(false);
+      }
+      for (const p of ms.pl) if (p.star && !ms.teams[p.t].starState) expect(p.s[S.PLAY]).toBe(0);
+    }
+    expect(seen).toBeGreaterThan(3);
+  });
+  it('regulation matches run the full ninety minutes plus stoppage and never stop on a goal count', () => {
+    const w = g.world;
+    const clubs = Object.values(w.clubs).filter((c) => c.league === 'eng1').map((c) => c.id);
+    let draws = 0, big = 0;
+    for (let i = 0; i < 60; i++) {
+      const fx = { id: 'r' + i, comp: 'eng1', s: w.season, rd: 1, day: 0, h: clubs[i % 20], a: clubs[(i + 7) % 20], played: false } as any;
+      const ms = createMatch(g, fx, 'sim'); advMatch(ms);
+      expect(ms.done).toBe(true); expect(ms.clock).toBeGreaterThanOrEqual(5400 + 60); expect(ms.period).toBe(2);
+      expect(ms.goals.length).toBe(ms.score[0] + ms.score[1]);
+      if (ms.winner === -1) draws++;
+      if (ms.score[0] + ms.score[1] > 3) big++;
+    }
+    expect(draws).toBeGreaterThan(3); expect(big).toBeGreaterThan(3);
+  });
+  it('knockout ties always produce a winner (extra time / penalties)', () => {
+    const w = g.world;
+    const clubs = Object.values(w.clubs).filter((c) => c.league === 'eng2').map((c) => c.id);
+    let et = 0;
+    for (let i = 0; i < 40; i++) {
+      const fx = { id: 'k' + i, comp: 'eng2', s: w.season, rd: 1, day: 0, h: clubs[i % 24], a: clubs[(i + 5) % 24], played: false, ko: true } as any;
+      const ms = createMatch(g, fx, 'sim'); advMatch(ms);
+      expect(ms.winner).toBeGreaterThanOrEqual(0);
+      if (ms.period >= 3) { et++; expect(ms.clock).toBeGreaterThanOrEqual(7200); }
+      if (ms.pens) expect(ms.score[0]).toBe(ms.score[1]);
+    }
+    expect(et).toBeGreaterThan(2);
+  });
+  it('interactive matches are deterministic and resume identically from a saved decision point', () => {
+    const g1 = mk(31337, (c) => { c.attrs = balancedAttrs('ST', 90, 'poacher', 1); c.pot = 96; });
+    autoPilot(g1, () => !!userFixtureToday(g1) && g1.world.stage === 1);
+    const g2 = cloneGame(g1);
+    const play = (g: Game, saveAt: number): MatchState => {
+      let ms = startUserMatch(g, 'full')!;
+      advMatch(ms);
+      let n = 0;
+      while (!ms.done) {
+        expect(ms.pending).toBeTruthy();
+        if (++n === saveAt) ms = JSON.parse(JSON.stringify(ms));
+        advMatch(ms, ms.pending!.options[n % ms.pending!.options.length].id);
+      }
+      return ms;
+    };
+    const a = play(g1, -1), b = play(g2, 5);
+    expect(a.uc!.decisions).toBeGreaterThan(5);
+    expect(b.score).toEqual(a.score); expect(b.goals).toEqual(a.goals); expect(b.pl[b.uc!.idx].s).toEqual(a.pl[a.uc!.idx].s);
+  });
+  it('a high starting OVR genuinely makes the player stronger', () => {
+    const run = (o: number) => { let r = 0, n = 0, gl = 0; for (const seed of [1, 2, 3]) { const g = mk(seed, (c) => { c.attrs = balancedAttrs('ST', o, 'poacher', 3); c.pot = 99; }); autoPilot(g, (x) => x.world.nel.round >= 5); const l = g.world.players[g.career.pid].ss.nel; if (l) { r += l[S.RAT]; n += l[S.RATN]; gl += l[S.G]; } } return { avg: n ? r / n : 0, n, gl }; };
+    const hi = run(96), lo = run(58);
+    expect(hi.n).toBeGreaterThan(lo.n); // the star plays, the raw prospect mostly watches
+    expect(hi.avg).toBeGreaterThan(6.6); expect(hi.gl).toBeGreaterThan(lo.gl + 3);
+  });
+});
+
+describe('idempotency and persistence', () => {
+  it('processing a match or a day twice never duplicates anything', () => {
+    const g = mk(555);
+    autoPilot(g, () => !!userFixtureToday(g) && g.world.stage === 1);
+    const before = JSON.stringify({ n: g.world.newsId, w: g.career.wages, a: g.world.awardIds.length, t: g.world.transfers.length, abs: g.world.abs });
+    for (let i = 0; i < 5; i++) expect(step(g)).toBe('match');
+    payWages(g); payWages(g);
+    expect(JSON.stringify({ n: g.world.newsId, w: g.career.wages, a: g.world.awardIds.length, t: g.world.transfers.length, abs: g.world.abs })).toBe(before);
+    const ms = startUserMatch(g, 'sim')!; advMatch(ms);
+    const fx = g.world.fixtures[ms.fid];
+    finishUserMatch(g, ms);
+    const goals = g.world.players[g.career.pid].ss.nel?.[S.G] ?? 0, apps = g.career.matches.length;
+    expect(applyResult(g, fx, ms)).toBe(false);
+    expect(finishUserMatch(g, ms)).toEqual([]);
+    expect(simFixture(g, fx)).toBeNull();
+    expect(g.world.players[g.career.pid].ss.nel?.[S.G] ?? 0).toBe(goals); expect(g.career.matches.length).toBe(apps);
+  });
+  it('a reloaded save continues exactly like the original (no rerolls)', () => {
+    const g = mk(808);
+    autoPilot(g, (x) => x.world.day >= 9);
+    const copy = importSave(exportSave(g));
+    autoPilot(g, (x) => x.world.day >= 30); autoPilot(copy, (x) => x.world.day >= 30);
+    expect(copy.world.rng).toEqual(g.world.rng);
+    expect(compFixtures(copy.world, 'nel').map((f) => f.sc)).toEqual(compFixtures(g.world, 'nel').map((f) => f.sc));
+    expect(copy.world.news.map((n) => n.title)).toEqual(g.world.news.map((n) => n.title));
+    expect(copy.world.nel.bids).toEqual(g.world.nel.bids);
+  });
+  it('saves, lists, loads and deletes through IndexedDB', async () => {
+    const g = mk(909);
+    autoPilot(g, (x) => x.world.day >= 6);
+    const meta = await saveGame(g, 'manual', 'slot A');
+    expect((await listSaves()).some((s) => s.slot === meta.slot && s.summary.name === 'Test Egoist')).toBe(true);
+    const back = await loadGame(meta.slot);
+    expect(JSON.stringify(back)).toBe(JSON.stringify(g));
+    await deleteSave(meta.slot);
+    await expect(loadGame(meta.slot)).rejects.toThrow();
+  });
+  it('rejects corrupt or foreign files and migrates older schemas', () => {
+    const g = mk(1010);
+    expect(validate(g)).toEqual([]);
+    expect(() => importSave('{not json')).toThrow(/not valid JSON/);
+    expect(() => importSave('{"hello":1}')).toThrow(/not an EGO/);
+    const bad = JSON.parse(exportSave(g)); delete bad.game.world.players[g.career.pid];
+    expect(() => importSave(JSON.stringify(bad))).toThrow(/damaged/);
+    const bad2 = JSON.parse(exportSave(g)); bad2.game.world.rng = [1, 2];
+    expect(() => importSave(JSON.stringify(bad2))).toThrow(/damaged/);
+    const old = JSON.parse(JSON.stringify(g)); old.schema = 1; delete old.career.custom; delete old.world.events;
+    const m = migrate(old);
+    expect(m.schema).toBe(SCHEMA_VERSION); expect(m.career.custom).toEqual([]); expect(m.world.events).toEqual([]);
+    const future = JSON.parse(JSON.stringify(g)); future.schema = 999;
+    expect(() => migrate(future)).toThrow(/newer version/);
+  });
+  it('transfers keep the same player identity, history and relationships', () => {
+    const g = mk(1111);
+    const w = g.world;
+    const p = Object.values(w.players).find((x) => x.club === 'eng1_ars' && x.origin === 'real')!;
+    p.hist.push({ s: 2024, club: 'x', clubName: 'X', comp: 'c', compName: 'C', ap: 1, st: 1, min: 90, g: 1, a: 0, rt: 700, mom: 0, cs: 0, yc: 0, rc: 0, ovr: 80 });
+    const id = p.id, attrs = p.a.slice();
+    const t = doTransfer(g, p, w.clubs.esp1_rma, 50e6, 'transfer');
+    expect(w.players[id]).toBe(p); expect(p.a).toEqual(attrs); expect(p.hist.length).toBe(1);
+    expect(p.club).toBe('esp1_rma'); expect(w.clubs.esp1_rma.squad).toContain(id); expect(w.clubs.eng1_ars.squad).not.toContain(id);
+    expect(t.pid).toBe(id); expect(t.from).toBe('eng1_ars'); expect(p.con!.club).toBe('esp1_rma');
+  });
+});
