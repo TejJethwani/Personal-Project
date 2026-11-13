@@ -7,7 +7,7 @@ import { ATTRS, ATTR_GROUPS, N_OUT, calcOvr } from '../engine/attributes';
 import { sandboxEdit, retire } from '../engine/actions';
 import { SUPPORTED } from '../engine/season';
 import { act, nav, setGame, toast } from '../store/game';
-import { Card, Chip, Ovr } from '../ui/kit';
+import { Card, Chip, Ovr, ConfirmButton } from '../ui/kit';
 
 export function Settings({ g }: { g: Game }) {
   const s = g.settings;
@@ -17,11 +17,15 @@ export function Settings({ g }: { g: Game }) {
   const [pot, setPot] = useState(me.pot);
   const set = (p: Partial<Game['settings']>) => act((x) => { Object.assign(x.settings, p); });
   const doExport = () => {
-    const blob = new Blob([exportSave(g)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `ego-${summarize(g).name.replace(/\W+/g, '-').toLowerCase()}-${g.world.season}.json`; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    toast('Save exported.');
+    const text = exportSave(g);
+    try {
+      const blob = new Blob([text], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `ego-${summarize(g).name.replace(/\W+/g, '-').toLowerCase()}-${g.world.season}.json`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch { /* downloads can be blocked in embedded views */ }
+    // embedded viewers block downloads, so the save is also copied to the clipboard
+    navigator.clipboard?.writeText(text).then(() => toast('Save exported (also copied to the clipboard — paste it into a .json file if no download started).'), () => toast('Save exported as a download. If nothing downloaded, this viewer blocks downloads: open the game in a normal browser tab to export.'));
   };
   return (
     <>
@@ -55,7 +59,7 @@ export function Settings({ g }: { g: Game }) {
         <Card title="About this world">
           <p className="small">{g.world.baseline}</p><p className="small"><b>Simulated:</b> {SUPPORTED}</p>
           <p className="small muted">Not simulated: other countries' leagues, lower tiers outside England, reserve leagues and international qualifying. Clubs relegated out of the simulated pyramid are replaced by clubs from the division below and can return. World seed {g.world.seed}; {Object.keys(g.world.players).length} players tracked.</p>
-          <button className="btn danger mt" disabled={me.retired != null} onClick={() => { if (confirm('Retire your player? This ends the playable career (history stays browsable).')) { act((x) => retire(x)); nav('history'); } }}>Retire from football</button>
+          <div className="mt"><ConfirmButton className="btn danger" label="Retire from football" confirm="Confirm retirement (ends the playable career)" disabled={me.retired != null} onConfirm={() => { act((x) => retire(x)); nav('history'); }} /></div>
         </Card>
       </div>
       <Card title="Sandbox editor" className="mt" right={<Chip k="w">Marks the save as edited</Chip>}>

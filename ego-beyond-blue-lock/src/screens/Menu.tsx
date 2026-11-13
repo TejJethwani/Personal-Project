@@ -3,7 +3,7 @@ import { listSaves, loadGame, deleteSave, saveGame, storageMode, type SlotMeta }
 import { importSave } from '../engine/save';
 import { SUPPORTED } from '../engine/season';
 import { nav, setGame, toast, useStore } from '../store/game';
-import { Ovr, Chip } from '../ui/kit';
+import { Ovr, Chip, ConfirmButton } from '../ui/kit';
 
 export function Menu() {
   const { g } = useStore();
@@ -44,7 +44,7 @@ export function Menu() {
                 <Chip k={s.kind === 'auto' ? 'b' : ''}>{s.kind === 'auto' ? 'Autosave' : 'Manual'}</Chip>
                 {s.summary.edited && <Chip k="w">Edited</Chip>}
                 <button className="btn sm pri" onClick={() => load(s.slot)}>Load</button>
-                <button className="btn sm danger" onClick={async () => { if (confirm(`Delete "${s.summary.name}" (${s.label})?`)) { await deleteSave(s.slot); reload(); } }}>Delete</button>
+                <ConfirmButton label="Delete" confirm="Really delete?" onConfirm={async () => { await deleteSave(s.slot); reload(); }} />
               </div>
             ))}</div>
           )}

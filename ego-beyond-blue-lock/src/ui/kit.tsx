@@ -130,3 +130,11 @@ export function posColor(pos: string): string { return pos === 'GK' ? '#ffb020' 
 export function Pos({ p }: { p: string }) { return <span className="num" style={{ color: posColor(p), fontSize: 14 }}>{p}</span>; }
 export function playerOvr(p: Player): number { return ovr(p); }
 export function seedOf(s: string): number { return hashStr(s); }
+
+/** Two-step confirmation button (browser confirm() dialogs are unavailable in sandboxed frames). */
+export function ConfirmButton({ label, confirm, onConfirm, className = 'btn sm danger', disabled }: { label: string; confirm: string; onConfirm: () => void; className?: string; disabled?: boolean }) {
+  const [armed, setArmed] = useState(false);
+  return armed
+    ? <span className="row gap6"><button className={className} onClick={() => { setArmed(false); onConfirm(); }}>{confirm}</button><button className="btn sm ghost" onClick={() => setArmed(false)}>Cancel</button></span>
+    : <button className={className} disabled={disabled} onClick={() => setArmed(true)}>{label}</button>;
+}

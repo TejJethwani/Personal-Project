@@ -37,20 +37,12 @@ export function act<T>(fn: (g: Game) => T, save = true): T | undefined {
 }
 export function refresh(): void { emit(); }
 
-function parseHash(): Route {
-  const h = location.hash.replace(/^#\/?/, '');
-  const [name, id, tab] = h.split('/');
-  return { name: name || 'menu', id: id ? decodeURIComponent(id) : undefined, tab };
-}
+/** Navigation is kept in memory (no URL paths), so the game also works inside sandboxed frames. */
 export function nav(name: string, id?: string, tab?: string): void {
-  const h = '#/' + name + (id ? '/' + encodeURIComponent(id) : '') + (tab ? '/' + tab : '');
   ui.navOpen = false;
-  if (location.hash !== h) location.hash = h; else { ui.route = { name, id, tab }; emit(); }
-  document.querySelector('.main')?.scrollTo(0, 0);
-}
-if (typeof window !== 'undefined') {
-  window.addEventListener('hashchange', () => { ui.route = parseHash(); emit(); });
-  ui.route = parseHash();
+  ui.route = { name, id, tab };
+  emit();
+  if (typeof document !== 'undefined') document.querySelector('.main')?.scrollTo(0, 0);
 }
 let tid = 1;
 export function toast(text: string, bad = false): void {

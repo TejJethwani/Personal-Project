@@ -35,5 +35,5 @@ export async function continueGame(maxDays = 7): Promise<void> {
   if (stop === 'match') nav('match');
   else if (stop === 'summary') nav('nelsummary');
   else if (stop === 'club') { toast('You must choose a club to continue.'); nav('transfers'); }
-  else if (getGame() && location.hash.replace('#/', '').split('/')[0] !== 'hub') nav('hub');
+  else if (getGame()) nav('hub');
 }
