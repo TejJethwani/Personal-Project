@@ -411,6 +411,7 @@ export function aiTransferDay(g: Game, intensity = 1): number {
       if (val * 1.15 > c.budget) continue;
       if (sc.rep > c.rep + 4 && (q.con?.role === 'star' || q.con?.role === 'key')) continue;
       if (sc.squad.length <= 19) continue;
+      if (q.pos === 'GK' && sc.squad.filter((x) => w.players[x]?.pos === 'GK').length <= 2) continue;
       const s = qo + Math.max(0, q.pot - qo) * (w.season - q.born <= 23 ? 0.5 : 0) - (w.season - q.born > 30 ? 3 : 0) + rng.normal() * 2;
       if (s > bs) { bs = s; best = q; }
     }
@@ -442,7 +443,7 @@ export function aiLoans(g: Game): void {
     const lvl = levelOf(c);
     for (const id of [...c.squad]) {
       const p = w.players[id];
-      if (!p || id === g.career.pid || p.con?.loanFrom || w.season - p.born > 21 || ovr(p) > lvl - 7 || rng.next() > 0.3 || c.squad.length <= 22) continue;
+      if (!p || id === g.career.pid || p.pos === 'GK' || p.con?.loanFrom || w.season - p.born > 21 || ovr(p) > lvl - 7 || rng.next() > 0.3 || c.squad.length <= 22) continue;
       const dest = rng.pick(clubs.filter((x) => x.id !== c.id && x.squad.length < 27 && Math.abs(levelOf(x) - ovr(p)) <= 3));
       if (dest) doTransfer(g, p, dest, 0, 'loan', { role: 'rotation', loanFrom: c.id });
     }

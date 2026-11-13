@@ -31,7 +31,7 @@ function Pitch({ ms }: { ms: MatchState }) {
           {p.flEnd > ms.play && <circle r="3.6" fill="none" stroke="#b47bff" strokeWidth=".35" strokeDasharray="1 .8" />}
           {i === ms.car && <circle r="2.6" fill="none" stroke="#fff" strokeWidth=".3" />}
           <circle r="1.9" fill={ms.teams[p.t].col} stroke={p.star ? '#ffd166' : ms.teams[p.t].col2} strokeWidth={p.star ? 0.6 : 0.4} />
-          <text y=".75" textAnchor="middle" fontSize="1.9" fontWeight="700" fill={p.t === 0 ? ms.teams[0].col2 : ms.teams[1].col2} style={{ paintOrder: 'stroke', stroke: ms.teams[p.t].col, strokeWidth: 0.3 }}>{p.num || ''}</text>
+          <text y=".75" textAnchor="middle" fontSize="1.9" fontWeight="700" fill="#fff" style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 0.45 }}>{p.num || ''}</text>
           {(i === u || i === ms.car) && <text y="-2.9" textAnchor="middle" fontSize="2" fill="#fff" style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 0.5 }}>{p.nm}</text>}
         </g>) : null))}
       <g className="ball" style={{ transform: `translate(${ms.bx * 1.05}px, ${ms.by * 0.68}px)` }}><circle r="1" fill="#fff" stroke="#111" strokeWidth=".25" /></g>

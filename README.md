@@ -83,3 +83,7 @@ To add, rename or reorder a section, change the HTML and the navigation updates 
 ## Publishing
 
 The site is plain HTML, CSS and JavaScript, so it works on GitHub Pages: in the repository settings, open **Pages** and deploy from this branch's root folder.
+
+## Also in this repository: EGO: Beyond Blue Lock
+
+The `ego-beyond-blue-lock/` folder contains a separate project: a single-player football career game (React, TypeScript, Vite). It does not affect the portfolio site above. See [`ego-beyond-blue-lock/README.md`](ego-beyond-blue-lock/README.md) for how to run and play it.

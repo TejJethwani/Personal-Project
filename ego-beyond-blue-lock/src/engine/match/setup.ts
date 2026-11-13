@@ -33,6 +33,7 @@ export interface Sheet { xi: { pid: string; pos: Pos; x: number; y: number }[]; 
 /** Manager's selection score for a player in a slot (ability, condition, form, role, trust). */
 export function selScore(g: Game | null, p: Player, pos: Pos, rotate: number): number {
   let s = fitAt(p, pos) * (0.9 + 0.1 * (p.fit / 100)) + (p.form - 6.6) * 0.9;
+  if (rotate > 0 && p.con) s += p.con.role === 'star' || p.con.role === 'key' ? -rotate * 9 : p.con.role === 'prospect' || p.con.role === 'development' ? rotate * 5 : rotate * 3;
   if (p.fit < 62) s -= 7 + rotate * 4;
   else if (p.fit < 75) s -= rotate * 5;
   if (p.con) s += p.con.role === 'star' ? 1.5 : p.con.role === 'key' ? 0.8 : p.con.role === 'development' ? -1.5 : 0;
@@ -155,7 +156,8 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
   const scale = REALISM[g.settings.realism]?.scale ?? 1;
   const pl: MPlayer[] = [];
   const teams: MTeam[] = [];
-  const rotate = comp?.kind === 'cup' && !fx.stg ? 0.6 : comp?.kind === 'friendly' ? 1 : 0;
+  const early = comp?.kind === 'cup' && !['Final', 'Semi-final', 'Quarter-final'].includes(fx.stg ?? '');
+  const rotate = early ? 0.6 : comp?.kind === 'friendly' ? 1 : 0;
   let sel: Sheet['userScore'];
   for (let t = 0; t < 2; t++) {
     const info = infos[t];
@@ -180,7 +182,7 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
       id: info.id, name: info.name, abbr: info.abbr, col: info.col, col2: info.col2, on, bench, subs: 0, form: sheet.form, tac: { ...info.tac, form: sheet.form },
       star, starState: 0, starEnd: 0, starFor: -1, tau: userTeam >= 0 && userTeam !== t ? diff.oppTau : 1,
       fam: userTeam >= 0 && userTeam !== t ? clamp(Number(g.career.flags['fam:' + info.id] ?? 0) * 0.25, 0, 1) : 0,
-      nextSub: rules.kind === 'nel' ? 2000 : 3500, red: 0,
+      nextSub: rules.kind === 'nel' ? 1300 : 3500, red: 0,
     });
   }
   let uc: UserCtl | null = null;

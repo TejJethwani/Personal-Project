@@ -144,7 +144,7 @@ function pressure(ms: MatchState): void {
   let pr = clamp((12 - e1) / 12, 0, 1) * (0.55 + 0.45 * D.tac.press) + 0.25 * clamp((10 - d2) / 10, 0, 1);
   // crowding: space disappears as play approaches the penalty area (unless the carrier was played clean through)
   const cax = ax(ms.poss, ms.bx);
-  if (cax > 58) pr += ((cax - 58) / 42) * 0.5 * (ms.arr === ARR.THROUGH ? 0.3 : 1) * (1.25 - D.tac.line * 0.5);
+  if (cax > 58) pr += ((cax - 58) / 42) * 0.6 * (ms.arr === ARR.THROUGH ? 0.6 : 1) * (1.25 - D.tac.line * 0.5);
   if (ms.hold > 0) pr *= 0.6;
   if (nd.focus === 1) pr += 0.2;
   ms.press = pr > 1 ? 1 : pr;
@@ -529,15 +529,15 @@ function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number;
     return { xg: PENALTY_XG, p: clamp(p, 0.4, 0.95), d: g.d, theta: g.theta };
   }
   let press = v === 'fk' ? 0.35 : ms.press;
-  if (v !== 'fk') press = Math.min(1, press + Math.min(0.36, c.s[S.SH] * 0.045));
+  if (v !== 'fk') press = Math.min(1, press + Math.min(0.5, c.s[S.SH] * 0.04 + c.s[S.XG] * 0.3));
   if (v === 'first' || v === 'header' || v === 'volley') press *= 0.8; // defenders have less time to close a first-time strike
   if (v === 'placed' && ms.arr !== ARR.SET) press = Math.min(1, press + 0.12); // taking a touch invites pressure
   const header = v === 'header', volley = v === 'volley';
-  const one = ms.arr === ARR.THROUGH && press < 0.35 && cax > 78;
+  const one = ms.arr === ARR.THROUGH && press < 0.42 && cax > 78;
   const xl = xgLogit(g, { header, volley, pressure: press, oneOnOne: one, rebound: ms.arr === ARR.REBOUND, cutback: v === 'first' && ms.arr === ARR.GROUND });
   const xg = logistic(xl);
   const gk = gkOf(ms, 1 - t);
-  let l = xl - 0.3 + cz(shotSk(ms, c, v) - gkSk(gk)) / 30 + c.m[GB] + ms.esc;
+  let l = xl - 0.06 + cz(shotSk(ms, c, v) - gkSk(gk)) / 42 + c.m[GB] + ms.esc;
   // composure wins back part of the pressure penalty
   const comp = clamp((at(ms, c, A.COM) - DQ[1 - c.t] - 6) / 110, -0.15, 0.32) + c.m[M.COMPOSURE] + c.m[M.SH_PRESS] + actBonus(act, M.SH_PRESS);
   l += 1.2 * press * clamp(comp, -0.15, 0.85);
@@ -607,7 +607,7 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   if (tax < cax0 - 3) l += 0.6;
   else if (tax > cax0 + 8) l -= (tax - cax0 - 8) * 0.03; // the further forward, the harder the pass
   if (tax > 66 && !mate.open && kind !== 'cutback') l -= ((tax - 66) / 34) * 1.5; // congestion around the box
-  if (tax > 74) l -= Math.min(1.6, mate.s[S.SH] * 0.22); // defences double up on whoever keeps shooting
+  if (tax > 74) l -= Math.min(2.4, mate.s[S.SH] * 0.18 + mate.s[S.XG] * 1.1); // defences double up on whoever keeps shooting
   if (c.user && ms.uc) { l += ms.uc.forgive + (mate.chem - 50) / 100 * 0.6 + (ms.uc.dominion > ms.play ? 0.5 : 0); }
   else if (mate.user) l += (mate.chem - 50) / 100 * 0.4;
   return { p: clamp(sig(l), 0.03, 0.985), lane: lr.i };
@@ -646,7 +646,7 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       const add = (v: string, id: string, label: string, detail: string, ab = '') => {
         const act = ab ? actFor(ms, c, ab as ActCtx) : null;
         const s = shotCalc(ms, c, v, act, '');
-        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 22 ? 0.62 : 1) - 0.02 - c.s[S.SH] * 0.012, -1, v);
+        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 22 ? 0.62 : 1) - 0.012 - c.s[S.SH] * 0.014 - c.s[S.XG] * 0.04, -1, v);
         if (act) { o.ab = act.id; o.sta = act.sta; o.hot = true; }
         if (full) { o.label = label; o.detail = detail + ` (${Math.round(g.d)} m, xG ${s.xg.toFixed(2)})`; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, s.p * 2.4)); }
         return o;
@@ -713,7 +713,7 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
     const d = dist(ms.bx, ms.by, m.x, m.y);
     if (d < 3 || d > 58) continue;
     const max = ax(t, m.x);
-    let raw = ev(max, m.y) - m.s[S.SH] * 0.006 - (d > 34 ? 0.006 : 0) + (m.open ? 0.03 : 0) + (m.req > 0 ? 0.015 * (1.25 - c.ego / 100) * (0.6 + m.trust / 120) : 0);
+    let raw = ev(max, m.y) - m.s[S.SH] * 0.005 - m.s[S.XG] * 0.03 - (d > 34 ? 0.006 : 0) + (m.open ? 0.03 : 0) + (m.req > 0 ? 0.015 * (1.25 - c.ego / 100) * (0.6 + m.trust / 120) : 0);
     if (m.user && !c.user) raw *= 0.82 + m.trust / 300;
     if (ms.uc && c.user && ms.uc.combo === mi) raw += 0.01;
     if (isGk) raw = (d < 30 ? 0.02 : 0.012) + ev(max, m.y) * 0.4;
@@ -1217,7 +1217,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
         if (ms.uc) { if (c.user) memo(ms, ni).dw++; else if (nd.user) { memo(ms, ci).dl++; } }
         if (ms.verb > 1 || cax > 60) emit(ms, 'dribble', t, ci, ni, 0, say(ms, skill ? 'skill_ok' : 'dribble_ok', c.nm, nd.nm), cax > 66 ? 1 : 0);
       } else {
-        const fp = clamp(0.28 + (nd.agg - 50) / 260 - (at(ms, nd, A.TAC) - 62) / 260 - nd.m[M.TACKLE] * 0.15 + (skill ? 0.04 : 0), 0.05, 0.42) * (cax > 83 ? 0.12 : 1);
+        const fp = clamp(0.28 + (nd.agg - 50) / 260 - (at(ms, nd, A.TAC) - 62) / 260 - nd.m[M.TACKLE] * 0.15 + (skill ? 0.04 : 0), 0.05, 0.42) * (cax > 83 ? 0.07 : 1);
         nd.s[S.TKA]++;
         if (rng.next() < fp) { foul(ms, rng, nd, c, cax > 80 ? 0.5 : 0); break; }
         nd.s[S.TKW]++; c.s[S.LOST]++;
@@ -1356,7 +1356,7 @@ function defPhase(ms: MatchState, rng: Rng): number {
   // AI tackle attempt
   const pAtt = clamp(ms.press * (0.008 + 0.02 * D.tac.press) * (nd.agg / 70) * (nd.user && u ? 0.5 + u.instr.press * 0.5 : 1), 0, 0.42);
   if (rng.next() < pAtt) return doTackle(ms, rng, nd, c, tackleP(), false);
-  if (rng.next() < ms.press * 0.022 * (nd.agg / 60) * (cax > 83 ? 0.15 : 1)) { foul(ms, rng, nd, c, 0); return 2; }
+  if (rng.next() < ms.press * 0.022 * (nd.agg / 60) * (cax > 83 ? 0.08 : 1)) { foul(ms, rng, nd, c, 0); return 2; }
   return 0;
 }
 
@@ -1374,7 +1374,7 @@ function doTackle(ms: MatchState, rng: Rng, nd: MPlayer, c: MPlayer, p: number, 
     turnoverTo(ms, ni, ms.bx, ms.by);
     return 2;
   }
-  const fp = noFoul ? 0 : clamp(0.3 + (nd.agg - 50) / 240 - (at(ms, nd, A.TAC) - 62) / 240 - nd.m[M.TACKLE] * 0.2, 0.06, 0.5) * (cax > 83 ? 0.12 : 1);
+  const fp = noFoul ? 0 : clamp(0.3 + (nd.agg - 50) / 240 - (at(ms, nd, A.TAC) - 62) / 240 - nd.m[M.TACKLE] * 0.2, 0.06, 0.5) * (cax > 83 ? 0.07 : 1);
   if (rng.next() < fp) { foul(ms, rng, nd, c, cax > 80 ? 0.5 : 0.1); return 2; }
   nd.beat = 2;
   if (ms.uc) { if (nd.user) memo(ms, ci).dl++; else if (c.user) memo(ms, ni).dw++; }
