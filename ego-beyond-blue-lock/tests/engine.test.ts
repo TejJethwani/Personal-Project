@@ -7,7 +7,9 @@ import { createMatch, applyResult, simFixture } from '../src/engine/match/setup'
 import { advance as advMatch } from '../src/engine/match/engine';
 import { S, NSTAT, newLine, addLine, type MatchState } from '../src/engine/match/model';
 import { shotGeo, xgLogit, logistic, PENALTY_XG } from '../src/engine/match/xg';
-import { step, advance, autoPilot, startUserMatch, finishUserMatch, userFixtureToday, nextUserFixture } from '../src/engine/sim';
+import { step, advance, autoPilot, startUserMatch, finishUserMatch, userFixtureToday, nextUserFixture, skipNel } from '../src/engine/sim';
+import { weaponSlots, ultimateStatus, tryLearn, startDeveloping } from '../src/engine/development';
+import { abilityDef, SLOTS } from '../src/engine/abilities';
 import { payWages } from '../src/engine/development';
 import { doTransfer } from '../src/engine/transfers';
 import { cloneGame, exportSave, importSave, validate, migrate } from '../src/engine/save';
@@ -256,5 +258,60 @@ describe('idempotency and persistence', () => {
     expect(w.players[id]).toBe(p); expect(p.a).toEqual(attrs); expect(p.hist.length).toBe(1);
     expect(p.club).toBe('esp1_rma'); expect(w.clubs.esp1_rma.squad).toContain(id); expect(w.clubs.eng1_ars.squad).not.toContain(id);
     expect(t.pid).toBe(id); expect(t.from).toBe('eng1_ars'); expect(p.con!.club).toBe('esp1_rma');
+  });
+});
+
+describe('weapons, ultimate and career start', () => {
+  it('starts with one weapon, a dormant ultimate, and unlocks further weapons through progression (max four)', () => {
+    const g = mk(4040, (c) => { c.weapons = ['direct_shot', 'blindside']; c.ultimate = 'dead_angle_genesis'; c.attrs = balancedAttrs('ST', 90, 'poacher', 2); c.pot = 96; });
+    const me = g.world.players[g.career.pid];
+    const kinds = (k: string) => me.ab.filter((r) => abilityDef(r.id)?.kind === k);
+    expect(kinds('weapon').length).toBe(1); expect(kinds('ultimate').length).toBe(0);
+    expect(SLOTS.weapon).toBe(4); expect(weaponSlots(g).open).toBe(1);
+    expect(ultimateStatus(g)).toMatchObject({ id: 'dead_angle_genesis', awake: false, ready: false });
+    // cannot learn without an open slot, even with full practice
+    startDeveloping(g, 'blindside'); g.career.learning.blindside.practice = 100;
+    expect(tryLearn(g, 'blindside')).toBe(false);
+    kinds('weapon')[0].lv = 2;
+    expect(weaponSlots(g).open).toBe(2); expect(tryLearn(g, 'blindside')).toBe(true); expect(kinds('weapon').length).toBe(2);
+    // ultimates can never be copied from another player
+    g.career.learning.zero_frame = { exposure: 100, practice: 100 };
+    expect(tryLearn(g, 'zero_frame')).toBe(false);
+    // the ultimate awakens only once every requirement is met, after a match
+    kinds('weapon')[0].lv = 3; g.career.flags.flowCount = 5;
+    autoPilot(g, () => g.career.matches.filter((m) => m.line).length >= 3);
+    expect(ultimateStatus(g).awake).toBe(false);
+    for (let i = 0; i < 12; i++) g.career.matches.push({ ...g.career.matches[0], fid: 'x' + i, line: g.career.matches.find((m) => m.line)!.line });
+    autoPilot(g, () => kinds('ultimate').length > 0 || g.world.phase === 'pro');
+    expect(kinds('ultimate').map((r) => r.id)).toEqual(['dead_angle_genesis']);
+  });
+  it('can skip the NEL and start directly in regulation football at a chosen club', () => {
+    const g = mk(5050, (c) => { c.skipNel = true; c.proClub = 'eng2_cov'; });
+    skipNel(g, 'eng2_cov');
+    const w = g.world, me = w.players[g.career.pid];
+    expect(w.phase).toBe('pro'); expect(me.club).toBe('eng2_cov'); expect(me.con).toBeTruthy();
+    expect(w.nel.done).toBe(true); expect(Object.keys(w.nel.bids).includes(me.id)).toBe(false);
+    expect(g.career.matches.length).toBe(0);
+    const fx = nextUserFixture(g)!; expect(w.comps[fx.comp].rules).toBe('reg');
+    expect(validate(g)).toEqual([]);
+  });
+  it('bids follow performance as well as ability', () => {
+    const g = mk(6060); autoPilot(g, (x) => x.world.nel.round >= 5);
+    const w = g.world;
+    const rows = Object.values(w.nel.bids).filter((b) => b.top > 0).map((b) => { const p = w.players[b.pid]; const r = b.perf.filter((x) => x > 0); return { o: ovr(p), avg: r.reduce((s, x) => s + x, 0) / r.length, top: b.top }; });
+    // among players of similar ability, the better performers are valued higher
+    let better = 0, pairs = 0;
+    for (const a of rows) for (const b of rows) if (Math.abs(a.o - b.o) <= 1 && a.avg > b.avg + 0.7) { pairs++; if (a.top > b.top) better++; }
+    expect(pairs).toBeGreaterThan(10); expect(better / pairs).toBeGreaterThan(0.8);
+    // and a lower-rated player in form can out-value a higher-rated one out of form
+    expect(rows.some((a) => rows.some((b) => a.o <= b.o - 3 && a.top > b.top))).toBe(true);
+  });
+  it('offers lofted and driven passes as well as ground passes', () => {
+    const g = mk(7070, (c) => { c.attrs = balancedAttrs('CM', 92, 'playmaker', 2); c.pos = 'CM'; c.pot = 96; c.settings.freq = 2; });
+    autoPilot(g, () => !!userFixtureToday(g) && g.world.stage === 1);
+    const ms = startUserMatch(g, 'full')!; advMatch(ms);
+    const seen = new Set<string>(); let n = 0, lobDone = false;
+    while (!ms.done && n++ < 400) { const o = ms.pending!.options; for (const x of o) { if (x.id.endsWith(':lob')) seen.add('lob'); if (x.id.endsWith(':driven')) seen.add('driven'); expect(x.p).toBeGreaterThan(0); expect(x.p).toBeLessThanOrEqual(1); } const lob = o.find((x) => x.id.endsWith(':lob')); if (lob && !lobDone) { lobDone = true; advMatch(ms, lob.id); } else advMatch(ms, o[0].id); }
+    expect(seen.has('lob')).toBe(true); expect(seen.has('driven')).toBe(true); expect(lobDone).toBe(true);
   });
 });

@@ -118,7 +118,7 @@ export function runTraining(g: Game, isMatchDay: boolean): void {
     if (target && !p.ab.some((r) => r.id === target) && c.learning[target]) {
       const L = c.learning[target];
       const d = abilityDef(target);
-      if (d && meetsReq(p.a, d).ok) { L.practice = Math.min(100, L.practice + 13 * it.xp * learnMul * Math.max(0.3, L.exposure / 100)); tryLearn(g, target); }
+      if (d && d.kind !== 'ultimate' && meetsReq(p.a, d).ok) { L.practice = Math.min(100, L.practice + 9 * it.xp * learnMul * (0.5 + L.exposure / 100)); tryLearn(g, target); }
     } else if (ref) {
       if (addXp(ref, 11 * it.xp)) abilityLevelUp(g, ref.id, ref.lv);
     }
@@ -142,15 +142,64 @@ export function runTraining(g: Game, isMatchDay: boolean): void {
 }
 const learnMulOf = (p: Player) => 1 + buildMods(p.ab, 1)[M.LEARN];
 
+export function careerApps(g: Game): number { return g.career.matches.filter((m) => m.line).length; }
+/**
+ * Weapon slots are earned, up to four in a career. Slot 2: any weapon at level 2. Slot 3: a level-3
+ * weapon and 20 appearances. Slot 4: a level-4 weapon and 60 appearances.
+ */
+export function weaponSlots(g: Game): { open: number; next: string } {
+  const p = g.world.players[g.career.pid];
+  const lv = Math.max(0, ...p.ab.filter((r) => abilityDef(r.id)?.kind === 'weapon').map((r) => r.lv));
+  const apps = careerApps(g);
+  let open = 1;
+  if (lv >= 2) open = 2;
+  if (lv >= 3 && apps >= 20) open = 3;
+  if (lv >= 4 && apps >= 60) open = 4;
+  const next = open === 1 ? 'Slot 2 opens when a weapon reaches level 2.' : open === 2 ? `Slot 3 opens with a level-3 weapon and 20 appearances (you have ${apps}).` : open === 3 ? `Slot 4 opens with a level-4 weapon and 60 appearances (you have ${apps}).` : 'All four weapon slots are open.';
+  return { open, next };
+}
+export const ULT_NEED = { weaponLv: 3, flows: 5, apps: 12 };
+/** The ultimate chosen at creation is dormant. It awakens only after real match experience. */
+export function ultimateStatus(g: Game): { id: string; awake: boolean; weaponLv: number; flows: number; apps: number; ready: boolean } {
+  const p = g.world.players[g.career.pid];
+  const id = String(g.career.flags.ultPath ?? '');
+  const awake = p.ab.some((r) => abilityDef(r.id)?.kind === 'ultimate');
+  const weaponLv = Math.max(0, ...p.ab.filter((r) => abilityDef(r.id)?.kind === 'weapon').map((r) => r.lv));
+  const flows = Number(g.career.flags.flowCount ?? 0), apps = careerApps(g);
+  return { id, awake, weaponLv, flows, apps, ready: weaponLv >= ULT_NEED.weaponLv && flows >= ULT_NEED.flows && apps >= ULT_NEED.apps };
+}
+function checkUltimate(g: Game): string | null {
+  const st = ultimateStatus(g);
+  const d = abilityDef(st.id);
+  if (st.awake || !d || !st.ready) return null;
+  g.world.players[g.career.pid].ab.push({ id: st.id, lv: 1, xp: 0 });
+  g.career.flags.ultAwake = 1;
+  milestone(g, 'ability', `Awakened the ultimate: ${d.name}.`);
+  addNews(g, 'career', `ULTIMATE AWAKENED: ${d.name}`, `${d.desc} It can only be used inside Flow.`, { imp: 3, me: true });
+  return `Your ultimate has awakened: ${d.name}.`;
+}
+/** Start developing a new weapon yourself (no teacher needed, but studying someone who has it is faster). */
+export function startDeveloping(g: Game, id: string): string {
+  const p = g.world.players[g.career.pid];
+  const d = abilityDef(id);
+  if (!d || d.kind !== 'weapon') return 'Not a weapon.';
+  if (p.ab.some((r) => r.id === id)) return 'You already have it.';
+  g.career.learning[id] ??= { exposure: 0, practice: 0 };
+  const i = g.career.plan.findIndex((s) => s.type === 'weapon');
+  g.career.plan[i >= 0 ? i : 2] = { type: 'weapon', ability: id };
+  return `You are now developing ${d.name}. Weapon Practice sessions are aimed at it.`;
+}
+
 export function tryLearn(g: Game, id: string): boolean {
   const c = g.career;
   const p = g.world.players[c.pid];
   const L = c.learning[id];
   const d = abilityDef(id);
   if (!L || !d || p.ab.some((r) => r.id === id)) return false;
-  if (L.exposure < 100 || L.practice < 100 || !meetsReq(p.a, d).ok) return false;
+  if (d.kind === 'ultimate') return false; // ultimates are awakened, never copied
+  if (L.practice < 100 || (d.kind === 'passive' && L.exposure < 100) || !meetsReq(p.a, d).ok) return false;
   const have = p.ab.filter((r) => abilityDef(r.id)?.kind === d.kind).length;
-  if (have >= SLOTS[d.kind]) return false;
+  if (have >= (d.kind === 'weapon' ? weaponSlots(g).open : SLOTS[d.kind])) return false;
   p.ab.push({ id, lv: 1, xp: 0 });
   delete c.learning[id];
   milestone(g, 'ability', `Learned a new ${d.kind}: ${d.name}.`);
@@ -191,7 +240,9 @@ export function applyMatchDevelopment(g: Game, ms: MatchState): string[] {
     const xp = d.kind === 'passive' ? 2.5 * share + (rat >= 7.5 ? 2 : 0) : n * (d.kind === 'ultimate' ? 16 : 8) + (n > 0 && s[S.G] > 0 ? 6 : 0) + (d.kind === 'weapon' ? 1.5 * share : 0);
     if (xp > 0 && addXp(r, xp)) { abilityLevelUp(g, r.id, r.lv); notes.push(`${d.name} levelled up to ${r.lv}.`); }
   }
-  if (mp.flN > 0) notes.push(`You entered Flow ${mp.flN} time${mp.flN > 1 ? 's' : ''}.`);
+  if (mp.flN > 0) { notes.push(`You entered Flow ${mp.flN} time${mp.flN > 1 ? 's' : ''}.`); g.career.flags.flowCount = Number(g.career.flags.flowCount ?? 0) + mp.flN; }
+  const ult = checkUltimate(g);
+  if (ult) notes.push(ult);
   return notes;
 }
 

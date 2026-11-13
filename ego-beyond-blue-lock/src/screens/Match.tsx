@@ -14,10 +14,36 @@ import { Bar, Card, Chip, ClubBadge, Empty, PlayerLink, Rating, Tabs, Ovr } from
 
 let lastDone: { ms: MatchState; notes: string[] } | null = null;
 
-function Pitch({ ms }: { ms: MatchState }) {
-  const u = ms.uc?.idx ?? -1;
+/** Goal scorers with minutes, grouped by player, for one side. */
+export function Scorers({ g, goals, side, align }: { g: Game; goals: [number, number, string, string, number, ...number[]][]; side: number; align: 'left' | 'right' }) {
+  const by = new Map<string, string[]>();
+  for (const gl of goals) { if (gl[1] !== side) continue; const k = gl[2]; const l = by.get(k) ?? []; l.push(`${gl[0]}'${gl[4] === 1 ? ' (pen)' : gl[4] === 2 ? ' (og)' : ''}`); by.set(k, l); }
+  return <div className="small" style={{ textAlign: align, minHeight: 18 }}>{[...by.entries()].map(([pid, mins]) => <div key={pid}>{align === 'right' ? <>{g.world.players[pid]?.sn ?? 'Unknown'} <span className="muted">{mins.join(', ')}</span> ⚽</> : <>⚽ {g.world.players[pid]?.sn ?? 'Unknown'} <span className="muted">{mins.join(', ')}</span></>}</div>)}</div>;
+}
+
+function Scoreboard({ g, ms, live }: { g: Game; ms: MatchState; live: boolean }) {
+  const nel = ms.rules.kind === 'nel';
   return (
-    <div className="pitchwrap"><svg className="pitch" viewBox="-2 -2 109 72" role="img" aria-label={`Pitch view. ${ms.teams[0].name} attack right, ${ms.teams[1].name} attack left.`}>
+    <div className="score" style={{ alignItems: 'start' }}>
+      <div><div className="row" style={{ justifyContent: 'flex-end' }}><span className="tn">{ms.teams[0].name}</span><ClubBadge g={g} id={ms.teams[0].id} lg /></div><Scorers g={g} goals={ms.goals} side={0} align="right" /></div>
+      <div className="center">
+        {!live && <div className="tiny up blue">Full time · {ms.compName}</div>}
+        <div className="sc">{ms.score[0]} – {ms.score[1]}</div>
+        {ms.pens && <div className="num gold">{ms.pens[0]}–{ms.pens[1]} on penalties</div>}
+        <div className="num blue" style={{ fontSize: 19 }}>{live ? (nel ? `PLAYING TIME ${clockLabel('nel', ms.clock, 1)}` : clockLabel('reg', ms.clock, ms.period)) : nel ? `${clockLabel('nel', ms.play, 1)} of playing time` : `${Math.round(ms.clock / 60)} minutes`} {live && <span className="muted" style={{ fontSize: 13 }}>{ms.phase}</span>}</div>
+        {nel && <div className="row" style={{ justifyContent: 'center', gap: 14, marginTop: 4 }}>{[0, 1].map((t) => <div key={t} className="pips" aria-label={`${ms.teams[t].name}: ${ms.score[t]} of ${ms.rules.goalTarget} goals`}>{Array.from({ length: ms.rules.goalTarget }, (_, i) => <i key={i} className={i < ms.score[t] ? 'on' : ''} />)}</div>)}</div>}
+      </div>
+      <div><div className="row"><ClubBadge g={g} id={ms.teams[1].id} lg /><span className="tn">{ms.teams[1].name}</span></div><Scorers g={g} goals={ms.goals} side={1} align="left" /></div>
+    </div>
+  );
+}
+
+interface Trail { x1: number; y1: number; x2: number; y2: number; k: number }
+function Pitch({ ms, hover, tick, trail, banner }: { ms: MatchState; hover: number; tick: number; trail: Trail | null; banner: { x: string; i: number } | null }) {
+  const u = ms.uc?.idx ?? -1;
+  const ht = hover >= 0 ? ms.pl[hover] : null;
+  return (
+    <div className="pitchwrap" style={{ ['--tick' as string]: `${tick}ms` }}><svg className="pitch" viewBox="-2 -2 109 72" role="img" aria-label={`Pitch view. ${ms.teams[0].name} attack right, ${ms.teams[1].name} attack left.`}>
       <defs><pattern id="grass" width="10.5" height="68" patternUnits="userSpaceOnUse"><rect width="5.25" height="68" fill="#0b3a1c" /><rect x="5.25" width="5.25" height="68" fill="#0d4421" /></pattern></defs>
       <rect x="0" y="0" width="105" height="68" fill="url(#grass)" />
       <g fill="none" stroke="#cfe9d6" strokeOpacity=".55" strokeWidth=".35">
@@ -25,6 +51,8 @@ function Pitch({ ms }: { ms: MatchState }) {
         <rect x="0" y="13.84" width="16.5" height="40.32" /><rect x="88.5" y="13.84" width="16.5" height="40.32" /><rect x="0" y="24.84" width="5.5" height="18.32" /><rect x="99.5" y="24.84" width="5.5" height="18.32" />
         <rect x="-1.6" y="30.34" width="1.6" height="7.32" /><rect x="105" y="30.34" width="1.6" height="7.32" />
       </g>
+      {trail && <line key={trail.k} className="trail" x1={trail.x1 * 1.05} y1={trail.y1 * 0.68} x2={trail.x2 * 1.05} y2={trail.y2 * 0.68} stroke="#fff" strokeWidth=".5" strokeDasharray="1.4 1" />}
+      {ht && ht.on && <><line x1={ms.bx * 1.05} y1={ms.by * 0.68} x2={ht.x * 1.05} y2={ht.y * 0.68} stroke="#3df2ff" strokeWidth=".6" strokeDasharray="1.6 1" /><circle cx={ht.x * 1.05} cy={ht.y * 0.68} r="3.4" fill="none" stroke="#3df2ff" strokeWidth=".6" /></>}
       {ms.pl.map((p, i) => (p.on ? (
         <g key={p.id} className="pl" style={{ transform: `translate(${p.x * 1.05}px, ${p.y * 0.68}px)` }}>
           {i === u && <circle r="3.1" fill="none" stroke="#3df2ff" strokeWidth=".5" />}
@@ -32,57 +60,74 @@ function Pitch({ ms }: { ms: MatchState }) {
           {i === ms.car && <circle r="2.6" fill="none" stroke="#fff" strokeWidth=".3" />}
           <circle r="1.9" fill={ms.teams[p.t].col} stroke={p.star ? '#ffd166' : ms.teams[p.t].col2} strokeWidth={p.star ? 0.6 : 0.4} />
           <text y=".75" textAnchor="middle" fontSize="1.9" fontWeight="700" fill="#fff" style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 0.45 }}>{p.num || ''}</text>
-          {(i === u || i === ms.car) && <text y="-2.9" textAnchor="middle" fontSize="2" fill="#fff" style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 0.5 }}>{p.nm}</text>}
+          {(i === u || i === ms.car || i === hover) && <text y="-2.9" textAnchor="middle" fontSize="2" fill="#fff" style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 0.5 }}>{p.nm}</text>}
         </g>) : null))}
-      <g className="ball" style={{ transform: `translate(${ms.bx * 1.05}px, ${ms.by * 0.68}px)` }}><circle r="1" fill="#fff" stroke="#111" strokeWidth=".25" /></g>
-    </svg></div>
+      <g className="ball" style={{ transform: `translate(${ms.bx * 1.05}px, ${ms.by * 0.68}px)` }}><circle r={ms.bh > 0 ? 1.35 : 1} fill="#fff" stroke="#111" strokeWidth=".25" />{ms.bh > 0 && <circle r="2" fill="none" stroke="#fff" strokeOpacity=".5" strokeWidth=".2" />}</g>
+    </svg>
+      {banner && <div className={`pbanner i${banner.i}`} aria-live="polite">{banner.x}</div>}
+    </div>
   );
 }
 
-function Hud({ ms }: { ms: MatchState }) {
+function Hud({ ms, live, delta, hist }: { ms: MatchState; live: number; delta: number; hist: number[] }) {
   const u = ms.uc!;
   const me = ms.pl[u.idx];
   const inFlow = me.flEnd > ms.play;
-  const live = me.used ? ratingOf(me, ms.score[me.t], ms.score[1 - me.t], 0) : 0;
+  const h = hist.slice(-40);
+  const lo = Math.min(5.5, ...h), hi = Math.max(7.5, ...h);
   return (
-    <div className={`card ${inFlow ? 'flowon' : ''}`}>
-      <div className="row between"><b className="num" style={{ fontSize: 20 }}>{me.nm} <span className="muted" style={{ fontSize: 14 }}>{me.pos}</span></b>{me.on ? <span className="row gap6">{inFlow && <Chip k="e">FLOW {Math.max(0, Math.ceil(me.flEnd - ms.play))}s</Chip>}<span className="small muted">Rating</span><Rating v={live} /></span> : <Chip k="w">{me.used ? 'Off the pitch' : 'On the bench'}</Chip>}</div>
-      <div className="row small mt" style={{ marginTop: 6 }}><span style={{ width: 62 }}>Stamina</span><div className="grow"><Bar v={me.st} kind={me.st < 40 ? 'r' : me.st < 65 ? 'w' : 'g'} /></div><b style={{ width: 30 }} className="right">{Math.round(me.st)}</b></div>
-      <div className="row small"><span style={{ width: 62 }}>Flow</span><div className="grow"><Bar v={inFlow ? ((me.flEnd - ms.play) / FLOW.baseDuration) * 100 : me.fl} kind="f" /></div><b style={{ width: 30 }} className="right">{inFlow ? 'ON' : Math.round(me.fl)}</b></div>
+    <div className={`card ${inFlow ? 'flowon' : ''}`} style={{ padding: '10px 14px' }}>
+      <div className="row wrap">
+        <div style={{ minWidth: 120 }}><b className="num" style={{ fontSize: 19 }}>{me.nm} <span className="muted" style={{ fontSize: 13 }}>{me.pos}</span></b>{!me.on && <div><Chip k="w">{me.used ? 'Off the pitch' : 'On the bench'}</Chip></div>}</div>
+        <div className="row gap6" title="Live match rating — it moves with every action you take"><span className={`ovr ${live >= 8 ? 't1' : live >= 7 ? 't2' : live >= 6 ? 't3' : 't5'}`} style={{ width: 54, fontSize: 24 }}>{me.used ? live.toFixed(1) : '—'}</span>
+          <div><div className="tiny up muted">Live rating</div><b className={`num ${delta > 0 ? 'good' : delta < 0 ? 'bad' : 'dim'}`} style={{ fontSize: 15 }}>{delta > 0 ? `▲ +${delta.toFixed(1)}` : delta < 0 ? `▼ ${delta.toFixed(1)}` : '— steady'}</b></div>
+          {h.length > 2 && <svg width="90" height="30" viewBox="0 0 90 30" aria-hidden="true"><polyline fill="none" stroke="#1ea7ff" strokeWidth="1.6" points={h.map((v, i) => `${(i / (h.length - 1)) * 88 + 1},${28 - ((v - lo) / (hi - lo)) * 26}`).join(' ')} /></svg>}</div>
+        <div className="grow" style={{ minWidth: 170 }}>
+          <div className="row small"><span style={{ width: 56 }}>Stamina</span><div className="grow"><Bar v={me.st} kind={me.st < 40 ? 'r' : me.st < 65 ? 'w' : 'g'} /></div><b style={{ width: 30 }} className="right">{Math.round(me.st)}</b></div>
+          <div className="row small"><span style={{ width: 56 }}>Flow</span><div className="grow"><Bar v={inFlow ? ((me.flEnd - ms.play) / FLOW.baseDuration) * 100 : me.fl} kind="f" /></div><b style={{ width: 30 }} className="right">{inFlow ? 'ON' : Math.round(me.fl)}</b></div>
+        </div>
+      </div>
       <div className="row wrap gap4" style={{ marginTop: 6 }}>
         <Chip>{me.s[S.G]}G {me.s[S.A]}A</Chip><Chip>{me.s[S.SH]} shots · xG {me.s[S.XG].toFixed(2)}</Chip><Chip>{me.s[S.PC]}/{me.s[S.PA]} passes</Chip><Chip>{me.s[S.DC]}/{me.s[S.DA]} dribbles</Chip><Chip>{me.s[S.TKW] + me.s[S.INT]} def</Chip>
-        {me.yc > 0 && <Chip k="y">Booked</Chip>}{u.dominion > ms.play && <Chip k="e">Field Dominion</Chip>}{u.combo >= 0 && ms.pl[u.combo]?.on && <Chip k="b">Combo: {ms.pl[u.combo].nm}</Chip>}{me.rival || ms.pl.some((p) => p.rival && p.on) ? <Chip k="e">Rival on the pitch</Chip> : null}
+        {inFlow && <Chip k="e">FLOW {Math.max(0, Math.ceil(me.flEnd - ms.play))}s</Chip>}{me.yc > 0 && <Chip k="y">Booked</Chip>}{u.dominion > ms.play && <Chip k="e">Field Dominion</Chip>}{u.combo >= 0 && ms.pl[u.combo]?.on && <Chip k="b">Combo: {ms.pl[u.combo].nm}</Chip>}{ms.pl.some((p) => p.rival && p.on) ? <Chip k="e">Rival on the pitch</Chip> : null}
       </div>
     </div>
   );
 }
 
-function Decision({ ms, onPick }: { ms: MatchState; onPick: (id: string) => void }) {
+const GROUPS: [string, string[]][] = [['Special', ['meta']], ['Shoot', ['shoot']], ['Pass', ['pass', 'through', 'cross', 'cutback', 'onetwo']], ['On the ball', ['dribble', 'carry', 'hold']], ['Movement', ['run']], ['Defend', ['tackle', 'press', 'contain', 'cut']]];
+function orderOptions(opts: Option[]): { group: string; list: Option[] }[] {
+  const out: { group: string; list: Option[] }[] = [];
+  for (const [name, kinds] of GROUPS) { const list = opts.filter((o) => kinds.includes(o.kind)); if (list.length) out.push({ group: name, list: name === 'Pass' || name === 'Shoot' ? [...list].sort((a, b) => b.p - a.p) : list }); }
+  const rest = opts.filter((o) => !GROUPS.some(([, k]) => k.includes(o.kind)));
+  if (rest.length) out.push({ group: 'Other', list: rest });
+  return out;
+}
+function Decision({ ms, onPick, onHover }: { ms: MatchState; onPick: (id: string) => void; onHover: (i: number) => void }) {
   const d = ms.pending!;
-  const showP = !!ms.uc?.showP || (ms.uc?.dominion ?? 0) > ms.play;
+  const groups = orderOptions(d.options);
+  const flat = groups.flatMap((x) => x.list);
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { const n = +e.key; if (n >= 1 && n <= d.options.length) { e.preventDefault(); onPick(d.options[n - 1].id); } };
+    const h = (e: KeyboardEvent) => { const n = +e.key; if (n >= 1 && n <= Math.min(9, flat.length)) { e.preventDefault(); onPick(flat[n - 1].id); } };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   });
-  const riskCls = (r: string) => (r === 'Safe' ? 'g' : r === 'Moderate' ? 'b' : r === 'Risky' ? 'w' : 'r');
+  const col = (p: number) => (p >= 0.75 ? 'var(--good)' : p >= 0.5 ? 'var(--blue2)' : p >= 0.28 ? 'var(--warn)' : 'var(--bad)');
+  let n = 0;
   return (
-    <div className="card hot" aria-live="polite">
+    <div className="card hot decision" aria-live="polite">
       <div className="row between wrap"><h3 style={{ margin: 0 }}>{d.title}</h3><span className="small muted">{d.ctx}</span></div>
-      <div className="grid g2 mt" style={{ gap: 8, marginTop: 10 }}>
-        {d.options.slice(0, 12).map((o: Option, i) => (
-          <button key={o.id} className={`opt ${o.hot ? 'hot' : ''}`} onClick={() => onPick(o.id)}>
-            {i < 9 && <kbd>{i + 1}</kbd>}
-            <b>{o.label}</b>
-            <span className="small muted">{o.detail}</span>
-            <span className="row wrap gap4" style={{ marginTop: 4 }}>
-              <span className={`chip ${riskCls(o.risk)}`}>{o.risk}</span><span className="chip">{o.intent}</span>
-              {o.ab && <span className="chip e">{abilityDef(o.ab)?.name ?? 'Ability'}{o.sta ? ` · −${o.sta} sta` : ''}</span>}
-              {showP && o.kind !== 'meta' && <span className="chip b">{Math.round(o.p * 100)}%</span>}
-            </span>
-          </button>
-        ))}
+      <div className="dlist">
+        {groups.map((gr) => <div key={gr.group}><div className="tiny up muted" style={{ margin: '8px 0 4px' }}>{gr.group}</div>
+          <div className="col" style={{ gap: 5 }}>{gr.list.map((o) => { const k = ++n; const pct = Math.round(o.p * 100); const shot = o.kind === 'shoot'; return (
+            <button key={o.id} className={`opt2 ${o.hot ? 'hot' : ''}`} onClick={() => onPick(o.id)} onMouseEnter={() => onHover(o.tgt)} onMouseLeave={() => onHover(-1)} onFocus={() => onHover(o.tgt)} onBlur={() => onHover(-1)}>
+              <span className="k">{k <= 9 ? k : ''}</span>
+              <span className="grow" style={{ minWidth: 0 }}><b>{o.label}</b><span className="small muted">{o.detail}</span>
+                <span className="row wrap gap4" style={{ marginTop: 3 }}><span className="chip">{o.intent}</span><span className="chip">{o.risk}</span>{o.ab && <span className="chip e">{abilityDef(o.ab)?.name ?? 'Ability'}{o.sta ? ` · −${o.sta} stamina` : ''}</span>}</span></span>
+              {o.kind !== 'meta' && <span className="pct" style={{ color: col(shot ? Math.min(1, o.p * 2.4) : o.p) }}><b>{pct}%</b><span>{shot ? 'to score' : 'success'}</span><i style={{ width: `${pct}%`, background: 'currentColor' }} /></span>}
+            </button>); })}</div></div>)}
       </div>
+      <div className="tiny dim" style={{ marginTop: 6 }}>Hover a choice to see it on the pitch · press 1–9 to choose</div>
     </div>
   );
 }
@@ -158,81 +203,91 @@ function PreMatch({ g }: { g: Game }) {
 function Live({ g, ms }: { g: Game; ms: MatchState }) {
   const [paused, setPaused] = useState(false);
   const [tab, setTab] = useState('feed');
+  const [hover, setHover] = useState(-1);
   const [, force] = useState(0);
   const seen = useRef(ms.ev.length);
   const dec = useRef(0);
+  const trail = useRef<Trail | null>(null);
+  const banner = useRef<{ x: string; i: number; at: number } | null>(null);
+  const rat = useRef<{ last: number; delta: number; at: number; hist: number[] }>({ last: 6, delta: 0, at: -99, hist: [] });
+  const ticks = useRef(0);
   const u = ms.uc!;
   const speed = g.settings.matchSpeed;
   const me = ms.pl[u.idx];
-  const tick = () => {
-    // look for moments among the new events
+  const key = u.mode === 'key' || !me.on;
+  const delay = key ? 150 : speed >= 4 ? 120 : speed >= 2 ? 300 : 560;
+  const liveRating = me.used ? ratingOf(me, ms.score[me.t], ms.score[1 - me.t], 0) : 6;
+  const run = (fn: () => void) => {
+    const bx = ms.bx, by = ms.by;
+    fn();
+    ticks.current++;
+    if (Math.abs(ms.bx - bx) + Math.abs(ms.by - by) > 4) trail.current = { x1: bx, y1: by, x2: ms.bx, y2: ms.by, k: ticks.current };
     for (let i = seen.current; i < ms.ev.length; i++) {
       const e = ms.ev[i];
       if (e.k === 'goal') moment('GOAL', `${ms.teams[0].abbr} ${ms.score[0]}–${ms.score[1]} ${ms.teams[1].abbr}`);
       else if (e.k === 'flow' && e.p === u.idx) moment('FLOW', 'You are in the zone', 'flow');
       else if (e.k === 'star_on') moment('STAR CHANGE', ms.pl[e.p]?.nm);
+      if (e.x && (e.i >= 1 || e.p === u.idx || e.q === u.idx)) banner.current = { x: e.x, i: e.p === u.idx || e.q === u.idx ? Math.max(2, e.i) : e.i, at: ticks.current };
     }
     seen.current = ms.ev.length;
+    if (me.used) {
+      const r = ratingOf(me, ms.score[me.t], ms.score[1 - me.t], 0);
+      const R = rat.current;
+      if (Math.abs(r - R.last) >= 0.05) { R.delta = Math.round((r - R.last) * 10) / 10; R.at = ticks.current; R.last = r; }
+      else if (ticks.current - R.at > 8) R.delta = 0;
+      if (ticks.current % 3 === 0 || R.at === ticks.current) R.hist.push(r);
+    }
     force((x) => x + 1);
   };
   const finish = () => { const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; autosave(true); refresh(); };
   useEffect(() => {
     if (ms.done) { finish(); return; }
     if (paused || ms.pending) return;
-    const key = u.mode === 'key' || !me.on;
-    const delay = key ? 140 : speed >= 4 ? 90 : speed >= 2 ? 260 : 620;
-    const t = setTimeout(() => {
+    const t = setTimeout(() => run(() => {
       const before = ms.ev.length;
       if (key) { for (let k = 0; k < 40 && !ms.done && !ms.pending; k++) { advMatch(ms, undefined, 1); if (ms.ev.slice(before).some((e) => e.i >= 2)) break; } }
       else advMatch(ms, undefined, 1);
-      tick();
-    }, delay);
+    }), delay);
     return () => clearTimeout(t);
   });
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.code === 'Space' && !ms.pending) { e.preventDefault(); setPaused((p) => !p); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [ms]);
-  const pick = (id: string) => { advMatch(ms, id, 1); if (++dec.current % 4 === 0) autosave(); tick(); };
-  const simEnd = () => { u.mode = 'sim'; if (ms.pending) advMatch(ms, ms.pending.options[0].id); else advMatch(ms); tick(); };
-  const nel = ms.rules.kind === 'nel';
+  const pick = (id: string) => { setHover(-1); run(() => advMatch(ms, id, 1)); if (++dec.current % 4 === 0) autosave(); };
+  const simEnd = () => { u.mode = 'sim'; run(() => { if (ms.pending) advMatch(ms, ms.pending.options[0].id); else advMatch(ms); }); };
   const events = ms.ev.filter((e) => e.x && (u.mode === 'key' ? e.i >= 1 : true)).slice(-70).reverse();
+  const b = banner.current && ticks.current - banner.current.at < 6 ? banner.current : null;
+  const poss = [0, 1].map((t) => ms.pl.filter((p) => p.t === t && p.used).reduce((s2, p) => s2 + p.s[S.PA], 0));
+  const pp = poss[0] + poss[1] ? (poss[0] / (poss[0] + poss[1])) * 100 : 50;
   return (
     <>
-      <div className="card mb"><div className="score">
-        <div className="row" style={{ justifyContent: 'flex-end' }}><span className="tn">{ms.teams[0].name}</span><ClubBadge g={g} id={ms.teams[0].id} lg /></div>
-        <div className="center"><div className="sc">{ms.score[0]} – {ms.score[1]}</div>
-          <div className="num blue" style={{ fontSize: 20 }}>{nel ? `PLAYING TIME ${clockLabel('nel', ms.clock, 1)}` : clockLabel('reg', ms.clock, ms.period)} <span className="muted" style={{ fontSize: 13 }}>{ms.phase}</span></div>
-          {nel && <div className="row" style={{ justifyContent: 'center', gap: 14, marginTop: 4 }}>{[0, 1].map((t) => <div key={t} className="pips" aria-label={`${ms.teams[t].name}: ${ms.score[t]} of ${ms.rules.goalTarget} goals`}>{Array.from({ length: ms.rules.goalTarget }, (_, i) => <i key={i} className={i < ms.score[t] ? 'on' : ''} />)}</div>)}</div>}
-        </div>
-        <div className="row"><ClubBadge g={g} id={ms.teams[1].id} lg /><span className="tn">{ms.teams[1].name}</span></div>
-      </div>
-        <div className="row wrap between mt small">
+      <div className="card mb" style={{ padding: '10px 16px' }}>
+        <Scoreboard g={g} ms={ms} live />
+        <div className="row small" style={{ marginTop: 6 }}><span className="muted" style={{ width: 34 }}>{Math.round(pp)}%</span><div className="grow bar" title="Possession (by passes)"><i style={{ width: `${pp}%`, background: ms.teams[0].col }} /></div><span className="muted right" style={{ width: 34 }}>{100 - Math.round(pp)}%</span></div>
+        <div className="row wrap between small" style={{ marginTop: 8 }}>
           <span className="muted">{ms.poss === 0 ? ms.teams[0].name : ms.teams[1].name} in possession · {ms.restart ? 'dead ball' : ms.car >= 0 ? `${ms.pl[ms.car].nm} on the ball` : 'loose ball'}{ms.teams.map((T, t) => (T.starState === 1 ? <Chip key={t} k="y"> ★ {ms.pl[T.star].nm} {Math.max(0, Math.ceil(T.starEnd - ms.play))}s left</Chip> : null))}</span>
           <span className="row wrap gap6">
             <button className="btn sm" onClick={() => setPaused((p) => !p)} disabled={!!ms.pending}>{paused ? '▶ Resume' : '❚❚ Pause'}</button>
-            {[1, 2, 4].map((s) => <button key={s} className={`btn sm ${speed === s ? 'pri' : ''}`} onClick={() => act((x) => { x.settings.matchSpeed = s; }, false)}>{s}×</button>)}
+            {[1, 2, 4].map((sp) => <button key={sp} className={`btn sm ${speed === sp ? 'pri' : ''}`} onClick={() => act((x) => { x.settings.matchSpeed = sp; }, false)}>{sp}×</button>)}
             <button className={`btn sm ${u.mode === 'full' ? 'pri' : ''}`} onClick={() => { u.mode = 'full'; refresh(); }}>Full</button>
             <button className={`btn sm ${u.mode === 'key' ? 'pri' : ''}`} onClick={() => { u.mode = 'key'; refresh(); }}>Highlights</button>
             <button className="btn sm" onClick={simEnd}>Sim to end</button>
           </span>
         </div>
       </div>
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)' }}>
-        <div className="col">
-          <Pitch ms={ms} />
-          {ms.pending ? <Decision ms={ms} onPick={pick} /> : <div className="card small muted">{me.on ? (u.mode === 'key' ? 'Highlights mode: skipping to the next key moment…' : 'Play continues. You will be asked when you are involved. (Space = pause, 1–9 = choose)') : me.used ? 'You have been substituted. Watching from the touchline — use "Sim to end" to skip.' : 'You are on the bench. The coach may bring you on — or use "Sim to end".'}</div>}
+      <div className="matchgrid">
+        <div className="col" style={{ gap: 10 }}>
+          <Pitch ms={ms} hover={hover} tick={delay} trail={trail.current} banner={b} />
+          <Hud ms={ms} live={liveRating} delta={rat.current.delta} hist={rat.current.hist} />
         </div>
-        <div className="col">
-          <Hud ms={ms} />
-          <div className="card">
-            <h4>Your instructions</h4>
-            <div className="grid g3 mt" style={{ gap: 8, marginTop: 6 }}>
-              {([['stance', 'Positioning', ['Deep', 'Balanced', 'Advanced']], ['press', 'Pressing', ['Conserve', 'Normal', 'Aggressive']], ['risk', 'Frequency', ['Low', 'Standard', 'High']]] as const).map(([k, label, opts]) => (
-                <label key={k} className="f">{label}<select value={k === 'risk' ? (u.thr >= 70 ? 0 : u.thr >= 45 ? 1 : 2) : u.instr[k]} onChange={(e) => { const v = +e.target.value; if (k === 'risk') u.thr = [72, 50, 30][v]; else u.instr[k] = v; refresh(); }}>{opts.map((o, i) => <option key={o} value={i}>{o}</option>)}</select></label>
-              ))}
-            </div>
-            <p className="tiny dim" style={{ marginTop: 6 }}>Coach: {ms.teams[me.t].form}, press {Math.round(ms.teams[me.t].tac.press * 100)}%, line {Math.round(ms.teams[me.t].tac.line * 100)}%, {ms.teams[me.t].tac.direct > 0.6 ? 'direct' : 'patient'} build-up. Following the plan raises coach trust.</p>
-          </div>
-          <div className="card"><Tabs tabs={[['feed', 'Commentary'], ['stats', 'Match stats']]} value={tab} onChange={setTab} />
-            {tab === 'feed' ? <div className="evlist" aria-live="off">{events.map((e, i) => <div key={ms.ev.length - i} className={`ev i${e.i}`}><span className="t">{clockLabel(ms.rules.kind, e.c, e.h ?? 1)}</span><span>{e.x}</span></div>)}</div> : <StatTable ms={ms} />}
+        <div className="col" style={{ gap: 10 }}>
+          {ms.pending ? <Decision ms={ms} onPick={pick} onHover={setHover} /> : <div className="card small muted">{me.on ? (u.mode === 'key' ? 'Highlights mode: skipping to the next key moment…' : 'Play continues — you will be asked the moment you are involved. Space pauses.') : me.used ? 'You have been substituted. Watching from the touchline — use "Sim to end" to skip.' : 'You are on the bench. The coach may bring you on — or use "Sim to end".'}</div>}
+          <div className="card"><Tabs tabs={[['feed', 'Commentary'], ['stats', 'Match stats'], ['instr', 'Instructions']]} value={tab} onChange={setTab} />
+            {tab === 'feed' ? <div className="evlist" style={{ height: ms.pending ? 150 : 330 }} aria-live="off">{events.map((e, i) => <div key={ms.ev.length - i} className={`ev i${e.i}`}><span className="t">{clockLabel(ms.rules.kind, e.c, e.h ?? 1)}</span><span>{e.x}</span></div>)}</div> : tab === 'stats' ? <StatTable ms={ms} /> : <>
+              <div className="grid g3" style={{ gap: 8 }}>
+                {([['stance', 'Positioning', ['Deep', 'Balanced', 'Advanced']], ['press', 'Pressing', ['Conserve', 'Normal', 'Aggressive']], ['risk', 'Decision frequency', ['Low', 'Standard', 'High']]] as const).map(([k, label, opts]) => (
+                  <label key={k} className="f">{label}<select value={k === 'risk' ? (u.thr >= 70 ? 0 : u.thr >= 45 ? 1 : 2) : u.instr[k]} onChange={(e) => { const v = +e.target.value; if (k === 'risk') u.thr = [72, 50, 30][v]; else u.instr[k] = v; refresh(); }}>{opts.map((o, i) => <option key={o} value={i}>{o}</option>)}</select></label>
+                ))}
+              </div>
+              <p className="tiny dim" style={{ marginTop: 6 }}>Coach: {ms.teams[me.t].form}, press {Math.round(ms.teams[me.t].tac.press * 100)}%, line {Math.round(ms.teams[me.t].tac.line * 100)}%, {ms.teams[me.t].tac.direct > 0.6 ? 'direct' : 'patient'} build-up. Following the plan raises coach trust.</p></>}
           </div>
         </div>
       </div>
@@ -246,13 +301,7 @@ function Post({ g, ms, notes }: { g: Game; ms: MatchState; notes: string[] }) {
   const [tab, setTab] = useState('rat');
   return (
     <>
-      <div className="hero mb"><div className="score">
-        <div className="row" style={{ justifyContent: 'flex-end' }}><span className="tn">{ms.teams[0].name}</span><ClubBadge g={g} id={ms.teams[0].id} lg /></div>
-        <div className="center"><div className="tiny up blue">Full time · {ms.compName}</div><div className="sc">{ms.score[0]} – {ms.score[1]}</div>{ms.pens && <div className="num gold">{ms.pens[0]}–{ms.pens[1]} on penalties</div>}<div className="small muted">{ms.rules.kind === 'nel' ? `${clockLabel('nel', ms.play, 1)} of playing time` : `${Math.round(ms.clock / 60)} minutes`}</div></div>
-        <div className="row"><ClubBadge g={g} id={ms.teams[1].id} lg /><span className="tn">{ms.teams[1].name}</span></div>
-      </div>
-        <div className="center small mt">{ms.goals.map((gl, i) => <span key={i} className="chip" style={{ margin: 2 }}>{gl[0]}' {g.world.players[gl[2]]?.sn}{gl[4] === 1 ? ' (pen)' : ''} · {gl[1] === 0 ? ms.teams[0].abbr : ms.teams[1].abbr}</span>)}</div>
-      </div>
+      <div className="hero mb"><Scoreboard g={g} ms={ms} live={false} /></div>
       <div className="grid g3 mb">
         <Card title="Your match" className="hot">{me?.used ? <>
           <div className="row"><span className={`ovr lg ${me.s[S.RAT] >= 8 ? 't1' : me.s[S.RAT] >= 7 ? 't2' : me.s[S.RAT] >= 6 ? 't3' : 't5'}`}>{me.s[S.RATN] ? me.s[S.RAT].toFixed(1) : '—'}</span><div><b>{me.s[S.POTM] ? '⭐ Player of the Match' : me.s[S.RATN] ? 'Match rating' : 'Too brief to rate'}</b><div className="small muted">{Math.round((ms.rules.kind === 'nel' ? me.s[S.PLAY] : me.s[S.SEC]) / 60)} minutes{me.started ? ', started' : ', from the bench'}</div></div></div>

@@ -500,10 +500,10 @@ export function ratingOf(p: MPlayer, gf: number, ga: number, win: number): numbe
   let r = 6.0;
   const line = p.line;
   r += s[S.G] * (line === 3 ? 1.05 : line === 2 ? 1.2 : 1.35) + s[S.A] * 0.75;
-  r += Math.min(1.2, s[S.KP] * 0.22) + Math.min(0.6, (s[S.SOT] - s[S.G]) * 0.12) - s[S.BCM] * 0.3;
+  r += Math.min(1.2, s[S.KP] * 0.22) + Math.min(0.6, (s[S.SOT] - s[S.G]) * 0.12) - s[S.BCM] * 0.3 - Math.min(0.4, (s[S.SH] - s[S.SOT]) * 0.04) + Math.min(0.3, s[S.TCH] / 260);
   r += Math.min(0.9, s[S.DC] * 0.16) - Math.min(0.5, (s[S.DA] - s[S.DC]) * 0.06);
   const pa = s[S.PA];
-  if (pa >= 8) r += (s[S.PC] / pa - 0.78) * (line === 2 ? 2.2 : 1.5) + Math.min(0.35, pa / 160);
+  if (pa > 0) r += clamp((s[S.PC] - (pa - s[S.PC]) * 3.2) * 0.013, -0.7, 0.8) * (line === 2 ? 1.25 : 1);
   const defW = line === 1 ? 0.2 : line === 2 ? 0.16 : 0.1;
   r += Math.min(1.5, (s[S.TKW] + s[S.INT] + s[S.BLK] * 1.2) * defW + s[S.CLR] * 0.07) - (s[S.TKA] - s[S.TKW]) * 0.04;
   r += Math.min(0.5, s[S.AW] * 0.07) - Math.min(0.3, s[S.AL] * 0.04);
@@ -584,9 +584,10 @@ function opt(kind: string, id: string, p: number, u: number, tgt: number, v: str
   return o;
 }
 
-function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: number, ty: number, act: { fx: { k: number; v: number }[] } | null): { p: number; lane: number } {
+function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: number, ty: number, act: { fx: { k: number; v: number }[] } | null, v = ''): { p: number; lane: number } {
   const d = dist(ms.bx, ms.by, tx, ty);
-  const long = d > 30 || kind === 'cross';
+  const lob = v === 'lob';
+  const long = d > 30 || kind === 'cross' || lob;
   const sk = passSk(ms, c, long);
   const no = nearestOpp(ms, c.t, tx, ty);
   let open = clamp((no.d - 1.5) / 9, 0, 1);
@@ -602,7 +603,10 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   } else if (kind === 'cutback') l = 0.9 + c.m[M.PA_CROSS] * 0.6 + actBonus(act, M.PA_CROSS) * 0.6 + c.m[M.PA_SHORT];
   else if (long) l = 1.2 + c.m[M.PA_LONG] + actBonus(act, M.PA_LONG);
   else l = (d < 18 ? 3.5 : 2.9) + c.m[M.PA_SHORT] + actBonus(act, M.PA_SHORT);
-  l += cz(sk - DQ[1 - c.t] - 11) / 17 - pres * 1.05 + (open - 0.5) * 1.2 - lr.r * (kind === 'cross' || long ? 0.5 : 1.0) * (1 - disg) + c.m[GB] + actBonus(act, M.VISION) * 0.5;
+  l += cz(sk - DQ[1 - c.t] - 11) / 17 - pres * 1.05 + (open - 0.5) * 1.2 - lr.r * (lob ? 0.2 : v === 'driven' ? 0.5 : kind === 'cross' || long ? 0.5 : 1.0) * (1 - disg) + c.m[GB] + actBonus(act, M.VISION) * 0.5;
+  // lofted balls clear the lane but are harder to weight; driven balls beat the lane but are harder to take
+  if (lob) l += (kind === 'through' ? -0.25 + c.m[M.PA_LONG] * 0.6 + actBonus(act, M.PA_LONG) * 0.6 : 0) - (d < 14 ? 0.5 : 0.1);
+  else if (v === 'driven') l -= 0.3;
   const tax = ax(c.t, tx), cax0 = ax(c.t, ms.bx);
   if (tax < cax0 - 3) l += 0.6;
   else if (tax > cax0 + 8) l -= (tax - cax0 - 8) * 0.03; // the further forward, the harder the pass
@@ -770,6 +774,30 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
           o2.ab = act.id; o2.sta = act.sta; o2.hot = true;
           o2.label = `${act.name} → ${m.nm}`; o2.detail = `Weapon-assisted ${kind === 'pass' ? 'pass' : kind}.`; o2.intent = o.intent; o2.risk = riskLabel(pc2.p);
         }
+      }
+      // other ways to play the same ball: over the top, driven, or the other kind of cross
+      const dd = dist(ms.bx, ms.by, m.x, m.y);
+      if (kind === 'pass' || kind === 'through') {
+        if (dd > 10 && tax > cax - 6 && k < 3) {
+          const lp = passCalc(ms, c, m, kind, tx, ty, null, 'lob');
+          const o3 = opt(kind, `${kind}:${mi}:lob`, lp.p, u, mi, 'lob');
+          o3.label = kind === 'through' ? `Lob over the top for ${m.nm}` : dd > 30 ? `Switch play to ${m.nm}` : `Lofted pass to ${m.nm}`;
+          o3.detail = 'In the air: clears defenders in the lane, but harder to weight and to control.'; o3.intent = kind === 'through' ? 'Create a chance' : prog > 8 ? 'Progress play' : 'Change the angle'; o3.risk = riskLabel(lp.p);
+        }
+        if (dd > 8 && dd < 34 && k < 2) {
+          const dp = passCalc(ms, c, m, kind, tx, ty, null, 'driven');
+          const o4 = opt(kind, `${kind}:${mi}:driven`, dp.p, u, mi, 'driven');
+          o4.label = kind === 'through' ? `Driven through ball to ${m.nm}` : `Driven pass to ${m.nm}`;
+          o4.detail = 'Hit hard along the ground: quicker through the lane, tougher first touch.'; o4.intent = o.intent; o4.risk = riskLabel(dp.p);
+        }
+      } else if (kind === 'cross') {
+        const lc = passCalc(ms, c, m, 'cutback', tx, ty, null);
+        const o3 = opt('cutback', `cutback:${mi}:low`, lc.p, u, mi, 'low');
+        o3.label = `Low cross to ${m.nm}`; o3.detail = 'Drilled along the ground across the box for a first-time finish.'; o3.intent = 'Create a chance'; o3.risk = riskLabel(lc.p);
+      } else if (kind === 'cutback') {
+        const hc = passCalc(ms, c, m, 'cross', tx, ty, null);
+        const o3 = opt('cross', `cross:${mi}:high`, hc.p, u, mi, 'high');
+        o3.label = `Chip it up for ${m.nm}`; o3.detail = 'A lifted ball to attack in the air.'; o3.intent = 'Create a chance'; o3.risk = riskLabel(hc.p);
       }
     }
   }
@@ -1110,7 +1138,8 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       if (act) { useAbility(ms, c, act.id, act.sta, false); if (!user) p = passCalc(ms, c, m, kind, tx, ty, act).p; }
       if (ult === 'puppet') { const u = ultOf(c, 'puppet')!; spendUlt(ms, c, u.id, 5); kind = 'through'; tx = m.x + (t === 0 ? 8 : -8); m.open = true; m.run = RUN.BEHIND; m.runT = 2; }
       const d = dist(ms.bx, ms.by, tx, ty);
-      const long = d > 30;
+      const lob = o.v === 'lob';
+      const long = d > 30 || lob;
       c.s[S.PA]++; touch(c);
       M2.time(ms, (long ? 5.2 : d > 16 ? 3.8 : 3) * tempo + rng.next() * 1.6, 0, 0);
       const wasFk = ms.note === 'fkc';
@@ -1137,7 +1166,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
           m.s[S.AW]++; if (no.i >= 0) ms.pl[no.i].s[S.AL]++;
         }
         give(ms, mi, tx, ty, arr);
-        ms.bh = kind === 'cross' ? (wasFk || rng.chance(0.7) ? 2 : 1) : long ? (rng.chance(0.5) ? 1 : 0) : 0;
+        ms.bh = kind === 'cross' ? (wasFk || rng.chance(0.7) ? 2 : 1) : lob ? 1 : long ? (rng.chance(0.5) ? 1 : 0) : 0;
         if (kind === 'through') { m.open = true; }
         m.req = 0;
         if (ms.uc) {
@@ -1145,7 +1174,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
           else if (m.user) { memo(ms, ci).pf++; }
         }
         if (ms.verb > 1 || kind === 'through' || kind === 'cross' || kind === 'cutback') {
-          const key = kind === 'through' ? 'through' : kind === 'cross' ? 'cross_ok' : kind === 'cutback' ? 'cutback' : long ? 'pass_long' : 'pass';
+          const key = lob ? (kind === 'through' ? 'lob_through' : 'lob') : kind === 'through' ? 'through' : kind === 'cross' ? 'cross_ok' : kind === 'cutback' ? 'cutback' : long ? 'pass_long' : 'pass';
           emit(ms, 'pass', t, ci, mi, 0, say(ms, key, c.nm, m.nm), kind === 'pass' ? 0 : 1);
         }
         if (kind === 'through' || kind === 'cutback') flowGain(ms, c, 5, 'key');

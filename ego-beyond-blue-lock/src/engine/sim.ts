@@ -14,7 +14,7 @@ import { clockLabel } from './match/rules';
 import { afterNelRound, concludeNel, canonWinner, NEL_END_DAY, PROLOGUE_END_DAY } from './nel';
 import { onCompFinished, endSeason, rollover, startPro } from './season';
 import { weeklyAwards, monthlyAwards } from './awards';
-import { aiTransferDay, generateUserOffers, renewalCheck, expireOffers, ensureUserHasOptions, openOffers, acceptOffer, managerChanges } from './transfers';
+import { aiTransferDay, generateUserOffers, renewalCheck, expireOffers, ensureUserHasOptions, openOffers, acceptOffer, managerChanges, buildOffer } from './transfers';
 import { runTraining, dailyRecovery, worldDevTick, userAgeing, payWages, applyMatchDevelopment } from './development';
 import { applyMatchRelations } from './relationships';
 import { spawnWeekly, spawnPreMatch, spawnPostMatch, expireInteractions } from './interactions';
@@ -302,4 +302,28 @@ export function autoPilot(g: Game, until: (g: Game) => boolean, maxDays = 5000):
     if (days >= maxDays) break;
   }
   return days;
+}
+
+/**
+ * Skip the Neo Egoist League: the league is still simulated in full for the rest of the world
+ * (results, bids, selections, signings), then the user joins the chosen professional club.
+ */
+export function skipNel(g: Game, clubId: string): void {
+  const w = g.world;
+  const me = w.players[g.career.pid];
+  for (let guard = 0; guard < 400 && w.phase === 'nel'; guard++) {
+    const r = step(g);
+    if (r === 'summary') g.career.flags.nelSummarySeen = 1;
+    else if (r === 'club') {
+      const o = ovr(me);
+      const pool = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league);
+      const club = w.clubs[clubId] && !w.clubs[clubId].nel ? w.clubs[clubId] : pool.sort((a, b) => Math.abs(38 + a.rep * 0.5 - o) - Math.abs(38 + b.rep * 0.5 - o))[0];
+      for (const of of g.career.offers) if (of.status === 'open') of.status = 'expired';
+      const of = buildOffer(g, club, 'nel', 60, { route: 'Direct to professional football', deadline: w.abs + 5 });
+      g.career.offers.push(of);
+      acceptOffer(g, of.id);
+    }
+  }
+  g.career.flags.nelSummarySeen = 1;
+  g.career.digest = [];
 }

@@ -21,6 +21,10 @@ export interface CareerConfig {
   weapons: string[]; passives: string[]; ultimate: string;
   custom: CustomAbility[];
   nelTeam: string;
+  /** skip the NEL chapter and begin directly in professional football */
+  skipNel?: boolean;
+  /** club id to join when skipping ('' = let the game pick a club at your level) */
+  proClub?: string;
   settings: Settings;
 }
 
@@ -41,7 +45,7 @@ export const PRESETS = [
 
 export function defaultLook(seed: number): Appearance {
   const r = Rng.seeded(seed);
-  return { skin: r.int(6), face: r.int(3), hair: r.int(10), hairCol: r.int(10), eyes: r.int(5), eyeCol: r.int(6), brows: r.int(3), mouth: r.int(4), acc: 0 };
+  return { skin: r.int(8), face: r.int(5), hair: r.int(16), hairCol: r.int(12), eyes: r.int(7), eyeCol: r.int(8), brows: r.int(5), mouth: r.int(6), acc: 0, beard: r.chance(0.2) ? 1 + r.int(4) : 0, mark: 0, hair2: 0, nose: r.int(4), ears: r.int(3), bg: 0 };
 }
 export function lookFor(id: string): Appearance { return defaultLook(hashStr(id)); }
 
@@ -50,7 +54,7 @@ export function defaultConfig(seed = Math.floor(Math.random() * 2 ** 31)): Caree
   return {
     seed, name: '', nick: '', nat: 'JPN', nat2: [], age: 17, h: 178, w: 70, foot: 'R', num: 11, pos: 'ST', pos2: ['SS'],
     look: defaultLook(seed), personality: 'calm', egoType: 'devourer', philosophy: 'egoist', backstory: 'unknown', rep: 22,
-    attrs, pot: 93, weapons: ['direct_shot'], passives: ['spatial', 'ice_veins'], ultimate: 'dead_angle_genesis', custom: [], nelTeam: 'nel_bastard', settings: defaultSettings(),
+    attrs, pot: 93, weapons: ['direct_shot'], passives: ['spatial', 'ice_veins'], ultimate: 'dead_angle_genesis', custom: [], nelTeam: 'nel_bastard', skipNel: false, proClub: '', settings: defaultSettings(),
   };
 }
 
@@ -80,9 +84,9 @@ export function newGame(cfg: CareerConfig): Game {
   const rng = rngOf(w);
   registerCustom(cfg.custom);
   const ab: AbilityRef[] = [];
-  for (const id of cfg.weapons.slice(0, 3)) ab.push({ id, lv: 1, xp: 0 });
+  // one starting weapon; further weapons are unlocked in play and the ultimate starts dormant
+  for (const id of cfg.weapons.slice(0, 1)) ab.push({ id, lv: 1, xp: 0 });
   for (const id of cfg.passives.slice(0, 3)) ab.push({ id, lv: 1, xp: 0 });
-  if (cfg.ultimate) ab.push({ id: cfg.ultimate, lv: 1, xp: 0 });
   const o = calcOvr(cfg.attrs, cfg.pos);
   const p = newPlayer(w, rng, { name: cfg.name.trim() || 'Player One', nat: cfg.nat, pos: cfg.pos, pos2: cfg.pos2.filter((x) => x !== cfg.pos), age: cfg.age, ovr: o, pot: cfg.pot, origin: 'user', ab, foot: cfg.foot });
   p.a = cfg.attrs.slice();
@@ -95,9 +99,7 @@ export function newGame(cfg: CareerConfig): Game {
   const pers = PERSONALITIES.find((x) => x.id === cfg.personality) ?? PERSONALITIES[0];
   p.pers = { ...pers.pers };
   const club = w.clubs[cfg.nelTeam] ?? w.clubs[w.nel.teams[0]];
-  addToClub(w, p, club);
-  p.nelTeam = club.id;
-  assignNumbers(w, club, p.id);
+  if (!cfg.skipNel) { addToClub(w, p, club); p.nelTeam = club.id; assignNumbers(w, club, p.id); }
   const career: Career = {
     pid: p.id, look: cfg.look, egoType: cfg.egoType, philosophy: cfg.philosophy, personality: cfg.personality, backstory: cfg.backstory,
     mgrTrust: 50, discipline: 65, image: cfg.personality === 'fiery' || cfg.personality === 'lonewolf' ? 20 : 0,
@@ -112,10 +114,11 @@ export function newGame(cfg: CareerConfig): Game {
     inbox: [], nextInteraction: 1, social: { week: -1, used: 0 }, offers: [], nextOffer: 1, matches: [], statHist: [], timeline: [], flags: {},
     instr: { stance: 1, press: 1, risk: 1 }, rivals: [], wages: 0, lastWageWeek: -1, digest: [],
   };
+  if (cfg.ultimate) career.flags.ultPath = cfg.ultimate;
   const g: Game = { schema: SCHEMA_VERSION, id: 'c' + Date.now().toString(36) + (cfg.seed % 1000), created: new Date().toISOString(), name: p.name, edited: cfg.settings.mode === 'unrestricted' && false, settings: { ...cfg.settings, nel: { ...cfg.settings.nel } }, world: w, career, live: null };
-  for (const id of club.squad) if (id !== p.id) relOf(g, id);
-  relOf(g, club.mgr.id);
+  if (!cfg.skipNel) { for (const id of club.squad) if (id !== p.id) relOf(g, id); relOf(g, club.mgr.id); }
   initNel(g);
+  if (cfg.skipNel) { g.career.flags.skippedNel = 1; milestone(g, 'start', `Turned professional directly as a ${o}-rated ${cfg.pos}, skipping the Neo Egoist League.`); return g; }
   milestone(g, 'start', `Arrived at ${club.name} for the Neo Egoist League as a ${o}-rated ${cfg.pos}.`);
   addNews(g, 'nel', 'The Neo Egoist League begins', `Five clubs, ten matches, one ranking. Every performance will be valued in yen by the world's clubs — and only the top ${g.settings.nel.topN} of the Blue Lock ranking go to the U-20 World Cup. ${p.name} starts at ${club.name}.`, { imp: 3, me: true });
   return g;

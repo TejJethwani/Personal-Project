@@ -389,6 +389,116 @@ export const WEAPONS: AbilityDef[] = [
     ],
     lines: ['{n} is away on the counter!', 'Look at {n} go!', '{n} breaks at pace!'],
   },
+  {
+    id: 'lob_master', kind: 'weapon', name: 'Chip & Lob Artist', tags: ['pass', 'shoot'], rarity: 3,
+    desc: 'You see the space above the defence. Lofted passes and chipped finishes drop exactly where you want them.',
+    req: 'A lofted pass over a defensive line, or a keeper off his line.', reqAttr: [[A.LPA, 70], [A.VIS, 68]],
+    fx: [f('PA_LONG', 0.3, 0.07), f('SH_1V1', 0.15, 0.04)],
+    act: { name: 'Feather Lob', ctx: 'pass_any', fx: [f('PA_LONG', 0.35, 0.06)], sta: 2, desc: 'Drop it over the top with perfect weight.' },
+    cost: 'Triggered: 2 stamina.', counter: 'Deep defensive lines and sweeper keepers who claim anything over the top.', limits: 'Lofted balls arrive slowly and are harder for the receiver to control.',
+    evo: [{ id: 'rainmaker', name: 'Rainmaker', desc: 'Lobbed through balls are harder to defend.', fx: [f('PA_THROUGH', 0.25, 0.05)] }, { id: 'panenka', name: 'Audacity', desc: 'Chipped finishes when clean through.', fx: [f('SH_1V1', 0.3, 0.05)] }],
+    lines: ['{n} lifts it over everyone — inch perfect!', 'What vision from {n}, dropping it over the top!'],
+  },
+  {
+    id: 'dead_ball', kind: 'weapon', name: 'Dead-Ball Sniper', tags: ['shoot', 'pass'], rarity: 3,
+    desc: 'Free kicks, corners and strikes from a standing ball are your territory.',
+    req: 'A free kick in range, a set-piece delivery or a long-range strike.', reqAttr: [[A.LSH, 72], [A.CRO, 68]],
+    fx: [f('SH_LONG', 0.25, 0.06), f('PA_CROSS', 0.25, 0.06)],
+    act: { name: 'Whipped Free Kick', ctx: 'shot_long', fx: [f('SH_LONG', 0.38, 0.07)], sta: 3, desc: 'Up and over the wall.' },
+    cost: 'Triggered: 3 stamina.', counter: 'Not conceding fouls around the box.', limits: 'Depends on winning set pieces.',
+    evo: [{ id: 'knuckleball', name: 'Knuckleball', desc: 'More power from range.', fx: [f('SH_POWER', 0.25, 0.05)] }, { id: 'corner_king', name: 'Corner King', desc: 'Deliveries find heads.', fx: [f('PA_CROSS', 0.25, 0.05)] }],
+    lines: ['{n} stands over it… and bends it beautifully!', 'That is a specialist at work — {n}!'],
+  },
+  {
+    id: 'acro_volley', kind: 'weapon', name: 'Acrobatic Volley', tags: ['shoot'], rarity: 4,
+    desc: 'Any ball in the air is a shooting chance: side volleys, hooks and overhead strikes.',
+    req: 'An airborne ball arriving in or around the box.', reqAttr: [[A.VOL, 74], [A.AGI, 70]],
+    fx: [f('SH_VOLLEY', 0.4, 0.09)],
+    act: { name: 'Flying Volley', ctx: 'shot_air', fx: [f('SH_VOLLEY', 0.4, 0.07)], sta: 5, desc: 'Meet it in mid-air.' },
+    cost: 'Triggered: 5 stamina.', counter: 'Contact in the air; keeping deliveries on the ground.', limits: 'Only on airborne balls.',
+    evo: [{ id: 'bicycle', name: 'Bicycle Specialist', desc: 'High balls become overhead kicks.', fx: [f('SH_VOLLEY', 0.2, 0.04), f('AERIAL', 0.15, 0.03)] }, { id: 'half_volley', name: 'Half-Volley Hammer', desc: 'Bouncing balls from distance.', fx: [f('SH_LONG', 0.25, 0.05)] }],
+    lines: ['{n} throws himself at it — what a volley!', 'Out of the air from {n}!'],
+  },
+  {
+    id: 'cut_inside', kind: 'weapon', name: 'Cut-Inside Curler', tags: ['dribble', 'shoot'], rarity: 3,
+    desc: 'Receive wide, drive inside onto your stronger foot and curl for the far corner.',
+    req: 'Carrying the ball from a wide area toward the box.', reqAttr: [[A.DRI, 72], [A.FIN, 68]],
+    fx: [f('SH_ANGLE', 0.25, 0.06), f('DR_OPEN', 0.2, 0.05)],
+    act: { name: 'Inside Cut', ctx: 'dribble_open', fx: [f('DR_OPEN', 0.35, 0.06)], sta: 4, desc: 'Chop inside the full-back.' },
+    cost: 'Triggered: 4 stamina.', counter: 'Full-backs who show you down the line.', limits: 'Predictable when it is your only move.',
+    evo: [{ id: 'far_post', name: 'Far-Post Finder', desc: 'The curler itself gets sharper.', fx: [f('SH_ANGLE', 0.2, 0.04), f('SH_PLACED', 0.15, 0.03)] }, { id: 'inverted_creator', name: 'Inverted Creator', desc: 'Cut inside and slide a pass instead.', fx: [f('PA_THROUGH', 0.25, 0.05)] }],
+    lines: ['{n} cuts inside… you know what is coming!', 'Onto the stronger foot goes {n}!'],
+  },
+  {
+    id: 'shadow_mark', kind: 'weapon', name: 'Shadow Marking', tags: ['defend'], rarity: 3,
+    desc: 'You become your opponent\'s shadow. He cannot lose you and cannot turn.',
+    req: 'Marking a runner or a player receiving the ball.', reqAttr: [[A.MAR, 74], [A.DAW, 70]],
+    fx: [f('READ', 0.4, 0.08), f('TACKLE', 0.12, 0.03)],
+    act: { name: 'Lockdown', ctx: 'tackle', fx: [f('TACKLE', 0.3, 0.06)], sta: 4, desc: 'Step in the moment he receives.' },
+    cost: 'Triggered: 4 stamina.', counter: 'Pure pace and one-touch combinations.', limits: 'Marks one opponent, not a zone.',
+    evo: [{ id: 'eraser', name: 'Eraser', desc: 'Your man disappears from the game.', fx: [f('READ', 0.25, 0.05)] }, { id: 'front_foot', name: 'Front-Foot Defender', desc: 'Nick the ball before it arrives.', fx: [f('INTERCEPT', 0.1, 0.02)] }],
+    lines: ['{n} has not given him a yard all night.', '{n} is living in his pocket.'],
+  },
+  {
+    id: 'overlap_engine', kind: 'weapon', name: 'Overlap Engine', tags: ['pace', 'pass'], rarity: 2,
+    desc: 'Relentless runs around the outside, ending in a delivery.',
+    req: 'A wide position with a teammate inside you.', reqAttr: [[A.STA, 76], [A.CRO, 68]],
+    fx: [f('RUN_BEHIND', 0.2, 0.05), f('PA_CROSS', 0.25, 0.06), f('STA_SAVE', 0.08, 0.02)],
+    act: { name: 'Overlap & Deliver', ctx: 'cross', fx: [f('PA_CROSS', 0.35, 0.06)], sta: 4, desc: 'Arrive at speed and cross first time.' },
+    cost: 'Triggered: 4 stamina.', counter: 'Wingers who track back.', limits: 'Leaves space behind you.',
+    evo: [{ id: 'underlap', name: 'Underlap', desc: 'Arrive in the half-space instead.', fx: [f('BOX_POS', 0.2, 0.04)] }, { id: 'marathon', name: 'Marathon Lungs', desc: 'You can do it all match.', fx: [f('STA_SAVE', 0.12, 0.03), f('LATE_STA', 0.2, 0.04)] }],
+    lines: ['{n} comes flying around the outside!', 'Another overlapping run from {n} — he never stops.'],
+  },
+  {
+    id: 'half_turn', kind: 'weapon', name: 'Half-Turn Receiver', tags: ['mind', 'dribble'], rarity: 3,
+    desc: 'You receive between the lines already facing forward, turning pressure into progress.',
+    req: 'Receiving a pass with an opponent close behind.', reqAttr: [[A.FTO, 74], [A.AGI, 66]],
+    fx: [f('PRESS_RES', 0.25, 0.05), f('DR_TIGHT', 0.15, 0.04), f('PA_THROUGH', 0.12, 0.03)],
+    act: { name: 'Turn Out', ctx: 'dribble_tight', fx: [f('DR_TIGHT', 0.35, 0.06)], sta: 3, desc: 'Let it run across your body and go.' },
+    cost: 'Triggered: 3 stamina.', counter: 'Defenders who foul early or stay touch-tight.', limits: 'Needs the pass into feet.',
+    evo: [{ id: 'between_lines', name: 'Between the Lines', desc: 'Turn and release runners.', fx: [f('PA_THROUGH', 0.25, 0.05)] }, { id: 'drive_on', name: 'Drive On', desc: 'Turn and carry at the back line.', fx: [f('DR_OPEN', 0.25, 0.05)] }],
+    lines: ['{n} takes it on the half-turn and he is away!', 'One touch and {n} has turned the whole midfield.'],
+  },
+  {
+    id: 'quarterback', kind: 'weapon', name: 'Quarterback Passing', tags: ['pass', 'mind'], rarity: 3,
+    desc: 'Sixty-metre diagonals and raking switches that change the point of attack in one action.',
+    req: 'Time on the ball in your own half or midfield.', reqAttr: [[A.LPA, 76], [A.VIS, 72]],
+    fx: [f('PA_LONG', 0.45, 0.09), f('VISION', 0.12, 0.03)],
+    act: { name: 'Diagonal Switch', ctx: 'pass_any', fx: [f('PA_LONG', 0.4, 0.07)], sta: 2, desc: 'Hit the far side first time.' },
+    cost: 'Triggered: 2 stamina.', counter: 'Pressing the passer; wide players who win headers.', limits: 'Needs time and space to set.',
+    evo: [{ id: 'launch_code', name: 'Launch Code', desc: 'Long balls in behind are deadlier.', fx: [f('PA_THROUGH', 0.25, 0.05)] }, { id: 'tempo_setter', name: 'Tempo Setter', desc: 'Short game sharpens too.', fx: [f('PA_SHORT', 0.2, 0.04), f('PRESS_RES', 0.1, 0.02)] }],
+    lines: ['{n} sprays it sixty metres onto a team-mate\'s chest!', 'What a range of passing from {n}.'],
+  },
+  {
+    id: 'ice_finisher', kind: 'weapon', name: 'One-on-One Assassin', tags: ['shoot'], rarity: 3,
+    desc: 'Clean through on goal, you never rush. Keepers go down first.',
+    req: 'Through on goal or a clear sight of it inside the box.', reqAttr: [[A.COM, 74], [A.FIN, 72]],
+    fx: [f('SH_1V1', 0.45, 0.09), f('SH_PRESS', 0.15, 0.04)],
+    act: { name: 'Cold Finish', ctx: 'shot_box', fx: [f('SH_PLACED', 0.25, 0.05), f('SH_1V1', 0.2, 0.04)], sta: 2, desc: 'Wait for him to commit, then roll it past.' },
+    cost: 'Triggered: 2 stamina.', counter: 'Recovering defenders who force a rushed shot.', limits: 'Does little for crowded-box finishing.',
+    evo: [{ id: 'round_keeper', name: 'Round the Keeper', desc: 'Take it past him.', fx: [f('DR_SKILL', 0.2, 0.04), f('SH_1V1', 0.15, 0.03)] }, { id: 'near_post', name: 'Near-Post Snap', desc: 'Early finishes catch keepers unset.', fx: [f('SH_FIRST', 0.25, 0.05)] }],
+    lines: ['{n} waits… waits… and slots it. Ice cold.', 'One-on-one — and {n} never looked like missing.'],
+  },
+  {
+    id: 'press_predator', kind: 'weapon', name: 'Pressing Predator', tags: ['defend', 'pace'], rarity: 3,
+    desc: 'You hunt the first bad touch. Opponents feel you before they see you.',
+    req: 'An opponent receiving or carrying in midfield or their own half.', reqAttr: [[A.ACC, 74], [A.STA, 74], [A.INT, 64]],
+    fx: [f('INTERCEPT', 0.07, 0.02), f('TACKLE', 0.2, 0.05), f('PACE', 0.12, 0.03)],
+    act: { name: 'Pressing Trap', ctx: 'intercept', fx: [f('INTERCEPT', 0.11, 0.025)], sta: 4, desc: 'Bait the pass, then pounce.' },
+    cost: 'Triggered: 4 stamina.', counter: 'Press-resistant midfielders and long balls over the press.', limits: 'Expensive over ninety minutes.',
+    evo: [{ id: 'counter_press', name: 'Counter-Press', desc: 'Win it back seconds after losing it.', fx: [f('TACKLE', 0.2, 0.04), f('FLOW_GAIN', 0.1, 0.03)] }, { id: 'steal_score', name: 'Steal & Score', desc: 'Turnovers high up become shots.', fx: [f('SH_FIRST', 0.2, 0.04), f('SH_1V1', 0.15, 0.03)] }],
+    lines: ['{n} smells the heavy touch and pounces!', 'Hunted down by {n}!'],
+  },
+  {
+    id: 'chaos_dribble', kind: 'weapon', name: 'Chaos Dribble', tags: ['dribble', 'mind'], rarity: 5,
+    desc: 'No pattern, no tell. Even you do not know what comes next, so defenders cannot either.',
+    req: 'One-on-one against any defender.', reqAttr: [[A.SKL, 78], [A.AGI, 74], [A.BAL, 70]],
+    fx: [f('DR_SKILL', 0.3, 0.07), f('ADAPT', 0.12, 0.03), f('FLOW_GAIN', 0.1, 0.03)],
+    act: { name: 'Improvise', ctx: 'dribble_skill', fx: [f('DR_SKILL', 0.42, 0.07)], sta: 6, desc: 'Make it up as you go.' },
+    cost: 'Triggered: 6 stamina.', counter: 'Covering defenders: the first man may be beaten but the second is waiting.', limits: 'High variance and tiring.',
+    evo: [{ id: 'joy', name: 'Pure Joy', desc: 'Every beaten man feeds Flow.', fx: [f('FLOW_GAIN', 0.2, 0.04)] }, { id: 'unreadable', name: 'Unreadable', desc: 'Repeated use is much harder to read.', fx: [f('ADAPT', 0.15, 0.03), f('DR_TIGHT', 0.15, 0.03)] }],
+    lines: ['Nobody knows what {n} will do next — including {n}!', 'Chaos! {n} dances through on instinct alone!'],
+  },
 ];
 
 export const PASSIVES: AbilityDef[] = [
@@ -545,7 +655,8 @@ export function actValue(r: AbilityRef, d: AbilityDef, scale: number): { k: numb
   return d.act.fx.map((e) => ({ k: M[e.k], v: (e.v + e.per * (r.lv - 1)) * scale }));
 }
 
-export const SLOTS = { weapon: 3, passive: 3, ultimate: 1 };
+/** A player can hold at most four weapons in a career; slots beyond the first are unlocked through progression. */
+export const SLOTS = { weapon: 4, passive: 3, ultimate: 1 };
 
 export function addXp(r: AbilityRef, amount: number): boolean {
   if (r.lv >= MAX_LEVEL) return false;

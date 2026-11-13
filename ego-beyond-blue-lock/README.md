@@ -30,16 +30,17 @@ npm run build
 npm run preview
 ```
 
-`npm test` runs 28 automated tests, including a full NEL plus two professional seasons (about 2–3 minutes).
+`npm test` runs 32 automated tests, including a full NEL plus two professional seasons (about 2–3 minutes).
 
 ## How to play
 
 - **Main menu** – New Career, load a save slot, or import a `.json` save.
-- **Career creator** – nine tabs: identity, body and position, appearance, ego, rating (any OVR 1–99), attributes, abilities, NEL team, rules. *Balanced* mode distributes attributes to hit your chosen OVR exactly; *Unrestricted* lets you type every attribute and shows the calculated OVR.
+- **Career creator** – nine tabs: identity, team and start (pick your NEL club, or skip the NEL and join a professional club directly), body and position, appearance, ego, rating (any OVR 1–99), attributes, abilities, rules. *Balanced* mode distributes attributes to hit your chosen OVR exactly; *Unrestricted* lets you type every attribute and shows the calculated OVR.
 - **Continue** (top-right, always visible) – advances time to the next thing that needs you: a match, a decision, an important event. The career hub shows what that is.
 - **Match Centre** – choose *Full interactive*, *Key highlights* or *Quick simulation*; you can switch during the match.
   - Click a choice or press **1–9**. **Space** pauses. Speed 1×/2×/4×.
-  - On the ball: shoot (several finishes), pass, through ball, cross/cut-back, one-two, take-on, skill move, carry, hold, weapons, ultimates.
+  - Every choice shows its percentage chance. Hover a choice to see it drawn on the pitch.
+  - On the ball: shoot (several finishes), ground, driven and lofted passes, through balls and lobs over the top, high and low crosses, one-two, take-on, skill move, carry, hold, weapons, ultimates.
   - Off the ball: run in behind, blindside run, near/far post, overlap, come short, hold position.
   - Defending: tackle, press, jockey, cut the passing lane.
   - Each choice shows a qualitative risk and intent; turn on numeric probabilities in Settings.
@@ -56,7 +57,7 @@ npm run preview
 - 31 outfield + 5 goalkeeper attributes on one 1–99 scale; OVR is always computed from position-specific weights.
 - One possession engine for every match and mode, with two separate rule state machines: **NEL** (first to three, playing-time clock, no 90-minute ending, Star Change, substitutions) and **regulation** (halves, stoppage time, extra time, penalties, offsides).
 - A documented xG model (`src/engine/match/xg.ts`); xA is the xG of the shot a pass creates.
-- 21 weapons, 12 passives, 10 ultimates (including Dead Angle Genesis), each with description, activation, effects, costs, counterplay, limits, five levels and commentary; evolutions, hybrids, chemical reactions, learning from other players, a custom ability builder, and Flow that builds, boosts, drains and gets harder to re-enter.
+- 32 weapons, 12 passives, 10 ultimates (including Dead Angle Genesis). You start with one weapon and can hold four in a career; the other slots are earned and weapons are permanent once learned. The ultimate chosen at creation is dormant until you have a level-3 weapon, five Flow entries and twelve appearances. Each ability comes each with description, activation, effects, costs, counterplay, limits, five levels and commentary; evolutions, hybrids, chemical reactions, learning from other players, a custom ability builder, and Flow that builds, boosts, drains and gets harder to re-enter.
 
 **NEL** – five clubs, ten fixtures, five rounds with a resting team; bids per player, club and round (annual salary in yen) with reasons and history; Blue Lock ranking and top-23 selection; Player/Team of the Round; a full conclusion screen; a U-20 World Cup between the NEL and the first professional season.
 

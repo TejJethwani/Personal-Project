@@ -12,10 +12,13 @@ function FixtureRow({ g, f }: { g: Game; f: Fixture }) {
   const w = g.world;
   const me = w.players[g.career.pid];
   const mine = f.h === me.club || f.a === me.club;
-  return <div className="row small" style={{ padding: '4px 0', borderBottom: '1px solid var(--line)', background: mine ? 'rgba(30,167,255,.1)' : undefined }}>
-    <span className="dim" style={{ width: 52 }}>{fmtDate(w, f.day)}</span><span className="grow right">{teamName(w, f.h)}</span>
-    <b className="num center" style={{ width: 64 }}>{f.played ? `${f.sc![0]}–${f.sc![1]}` : 'v'}{f.pens ? '*' : ''}</b><span className="grow">{teamName(w, f.a)}</span>
-    <span className="tiny dim hide-s" style={{ width: 150 }}>{f.pens ? `pens ${f.pens[0]}–${f.pens[1]}` : f.aet ? 'aet' : f.potm && w.players[f.potm] ? `⭐ ${w.players[f.potm].sn}` : ''}</span></div>;
+  const sc = (side: number) => { const by = new Map<string, string[]>(); for (const gl of f.goals ?? []) { if (gl[1] !== side) continue; const l = by.get(gl[2]) ?? []; l.push(`${gl[0]}'${gl[4] === 1 ? ' (pen)' : ''}`); by.set(gl[2], l); } return [...by.entries()].map(([pid, m]) => `${w.players[pid]?.sn ?? 'Unknown'} ${m.join(', ')}`).join(' · '); };
+  return <div style={{ padding: '4px 0', borderBottom: '1px solid var(--line)', background: mine ? 'rgba(30,167,255,.1)' : undefined }}>
+    <div className="row small"><span className="dim" style={{ width: 52 }}>{fmtDate(w, f.day)}</span><span className="grow right">{teamName(w, f.h)}</span>
+      <b className="num center" style={{ width: 64 }}>{f.played ? `${f.sc![0]}–${f.sc![1]}` : 'v'}{f.pens ? '*' : ''}</b><span className="grow">{teamName(w, f.a)}</span>
+      <span className="tiny dim hide-s" style={{ width: 130 }}>{f.pens ? `pens ${f.pens[0]}–${f.pens[1]}` : f.aet ? 'aet' : f.potm && w.players[f.potm] ? `⭐ ${w.players[f.potm].sn}` : ''}</span></div>
+    {f.played && (f.goals?.length ?? 0) > 0 && <div className="row tiny muted"><span style={{ width: 52 }} /><span className="grow right">{sc(0)}</span><span className="center" style={{ width: 64 }}>⚽</span><span className="grow">{sc(1)}</span><span className="hide-s" style={{ width: 130 }} /></div>}
+  </div>;
 }
 
 export function Competitions({ g, id }: { g: Game; id?: string }) {

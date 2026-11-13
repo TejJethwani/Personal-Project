@@ -9,9 +9,12 @@ import { NEL_BLUELOCK, NEL_YOUTH, NEL_MASTERS } from '../engine/data/nel';
 import { DIFFICULTY, REALISM } from '../engine/match/setup';
 import { saveGame } from '../storage/idb';
 import { nav, setGame, toast } from '../store/game';
-import { Avatar, HAIR_COLS, Bar, Chip, Ovr, Tabs, Modal } from '../ui/kit';
+import { Avatar, HAIR_COLS, LOOK_OPTIONS, Bar, Chip, Ovr, Tabs, Modal } from '../ui/kit';
+import { LEAGUES } from '../engine/data/clubs';
+import { skipNel } from '../engine/sim';
+import { defaultLook } from '../engine/career';
 
-const STEPS: [string, string][] = [['id', '1 Identity'], ['body', '2 Body & Position'], ['look', '3 Appearance'], ['mind', '4 Ego'], ['ovr', '5 Rating'], ['attr', '6 Attributes'], ['ab', '7 Abilities'], ['team', '8 NEL Team'], ['rules', '9 Rules']];
+const STEPS: [string, string][] = [['id', '1 Identity'], ['team', '2 Team & Start'], ['body', '3 Body & Position'], ['look', '4 Appearance'], ['mind', '5 Ego'], ['ovr', '6 Rating'], ['attr', '7 Attributes'], ['ab', '8 Abilities'], ['rules', '9 Rules']];
 const natList = Object.values(NATIONS).sort((a, b) => a.name.localeCompare(b.name));
 
 export function AbilityInfo({ d, compact }: { d: AbilityDef; compact?: boolean }) {
@@ -98,7 +101,7 @@ export function Creator() {
     if (errs.length) { toast(errs[0], true); return; }
     setStarting(true);
     await new Promise((r) => setTimeout(r, 30));
-    try { const g = newGame(cfg); await saveGame(g, 'auto'); setGame(g); nav('hub'); }
+    try { const g = newGame(cfg); if (cfg.skipNel) skipNel(g, cfg.proClub ?? ''); await saveGame(g, 'auto'); setGame(g); nav('hub'); }
     catch (e) { console.error(e); toast('Could not create the career: ' + (e as Error).message, true); setStarting(false); }
   };
   const team = NEL_TEAMS.find((t) => t.id === cfg.nelTeam)!;
@@ -139,12 +142,12 @@ export function Creator() {
             <label className="f mt">Playing style (shapes the balanced attribute spread)<select value={style} onChange={(e) => { setStyle(e.target.value); if (balanced) up({ attrs: regen(cfg.pos, target, e.target.value) }); }}>{stylesFor(cfg.pos).map((s) => <option key={s} value={s}>{STYLES[s].name}</option>)}</select></label>
           </section>
         </div>}
-        {step === 'look' && <div className="grid g2">
-          <section className="card center"><Avatar look={cfg.look} size={260} kit={'#1ea7ff'} /><p className="small muted mt">Original layered illustration. Every other player in the world gets a portrait generated from the same system.</p></section>
+        {step === 'look' && <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 320px) minmax(0, 1fr)' }}>
+          <section className="card center"><Avatar look={cfg.look} size={280} kit={'#1ea7ff'} /><div className="row mt" style={{ justifyContent: 'center' }}><button className="btn sm" onClick={() => up({ look: defaultLook(Math.floor(Math.random() * 1e9)) })}>Randomise</button></div><p className="small muted mt">Original layered illustration. Every other player in the world gets a portrait from the same system.</p></section>
           <section className="card"><h3>Appearance</h3><div className="grid g2">
-            {([['skin', 'Skin tone', 6], ['face', 'Face shape', 3], ['hair', 'Hair style', 10], ['eyes', 'Eye shape', 5], ['eyeCol', 'Eye colour', 6], ['brows', 'Eyebrows', 3], ['mouth', 'Mouth', 4], ['acc', 'Accessory (none / headband / glasses)', 3]] as const).map(([k, label, n]) => (
-              <label key={k} className="f">{label}<input type="range" min={0} max={n - 1} value={cfg.look[k]} onChange={(e) => up({ look: { ...cfg.look, [k]: +e.target.value } })} /></label>
-            ))}</div>
+            {LOOK_OPTIONS.map(([k, label, o]) => { const n = Array.isArray(o) ? o.length : o; const v = (cfg.look[k] ?? 0) as number; return (
+              <div key={k} className="f"><span>{label}{Array.isArray(o) ? <b className="blue" style={{ textTransform: 'none', letterSpacing: 0 }}> — {o[v % n]}</b> : null}</span>
+                <div className="row gap6"><button className="btn sm ghost" aria-label={`Previous ${label}`} onClick={() => up({ look: { ...cfg.look, [k]: (v + n - 1) % n } })}>◀</button><input type="range" min={0} max={n - 1} value={v % n} onChange={(e) => up({ look: { ...cfg.look, [k]: +e.target.value } })} aria-label={label} /><button className="btn sm ghost" aria-label={`Next ${label}`} onClick={() => up({ look: { ...cfg.look, [k]: (v + 1) % n } })}>▶</button></div></div>); })}</div>
             <div className="f mt">Hair colour<div className="row wrap gap6">{HAIR_COLS.map((c, i) => <button key={c} onClick={() => up({ look: { ...cfg.look, hairCol: i } })} aria-label={`Hair colour ${i + 1}`} aria-pressed={cfg.look.hairCol === i} style={{ width: 30, height: 30, background: c, border: cfg.look.hairCol === i ? '2px solid var(--cyan)' : '1px solid var(--line2)', cursor: 'pointer' }} />)}</div></div>
           </section>
         </div>}
@@ -184,12 +187,12 @@ export function Creator() {
             </div>)))}</div>)}</div>
         </section>}
         {step === 'ab' && <div className="col">
-          <div className="row between wrap"><p className="muted small grow">Pick a main weapon (up to 2 at the start, 3 slots in total), up to 3 passives and one ultimate. Ultimates only work inside Flow. Attribute requirements are advisory at creation.</p><button className="btn" onClick={() => setBuilding(true)}>+ Custom ability builder</button></div>
+          <div className="row between wrap"><p className="muted small grow">You start with <b>one weapon</b>. A player can only ever hold <b>four</b>, and the other three must be unlocked during your career by developing them in training — once learned they are permanent, so there is no swapping later. Your <b>ultimate is dormant</b>: it awakens only after you have a level-3 weapon, have entered Flow five times and made twelve appearances. Pick up to 3 passives.</p><button className="btn" onClick={() => setBuilding(true)}>+ Custom ability builder</button></div>
           {(['weapon', 'passive', 'ultimate'] as const).map((kind) => (
-            <section key={kind} className="card"><h3>{kind === 'weapon' ? `Weapons (${cfg.weapons.length}/2)` : kind === 'passive' ? `Passives (${cfg.passives.length}/3)` : 'Ultimate'}</h3>
+            <section key={kind} className="card"><h3>{kind === 'weapon' ? 'Starting weapon (choose one)' : kind === 'passive' ? `Passives (${cfg.passives.length}/3)` : 'Destined ultimate (dormant at the start)'}</h3>
               <div className="grid gauto">{allDefs(kind).map((d) => { const on = kind === 'weapon' ? cfg.weapons.includes(d.id) : kind === 'passive' ? cfg.passives.includes(d.id) : cfg.ultimate === d.id; const req = meetsReq(cfg.attrs, d); return (
                 <details key={d.id} className={`card ${on ? 'hot' : ''}`} style={{ padding: 10 }}>
-                  <summary style={{ cursor: 'pointer', listStyle: 'none' }}><div className="row between"><b className="num" style={{ fontSize: 18 }}>{d.name}{kind === 'weapon' && cfg.weapons[0] === d.id ? ' ★' : ''}</b><button className={`btn sm ${on ? 'pri' : ''}`} onClick={(e) => { e.preventDefault(); if (kind === 'weapon') toggle('weapons', d.id, 2); else if (kind === 'passive') toggle('passives', d.id, 3); else up({ ultimate: on ? '' : d.id }); }}>{on ? 'Selected' : 'Select'}</button></div>
+                  <summary style={{ cursor: 'pointer', listStyle: 'none' }}><div className="row between"><b className="num" style={{ fontSize: 18 }}>{d.name}{kind === 'weapon' && cfg.weapons[0] === d.id ? ' ★' : ''}</b><button className={`btn sm ${on ? 'pri' : ''}`} onClick={(e) => { e.preventDefault(); if (kind === 'weapon') up({ weapons: [d.id] }); else if (kind === 'passive') toggle('passives', d.id, 3); else up({ ultimate: on ? '' : d.id }); }}>{on ? 'Selected' : 'Select'}</button></div>
                     <div className="small muted">{d.desc.slice(0, 96)}{d.desc.length > 96 ? '…' : ''}</div>
                     <div className="row wrap gap4 mt">{d.custom && <Chip k="e">Custom</Chip>}<Chip>{'★'.repeat(Math.round(d.rarity))} rarity</Chip>{!req.ok && <Chip k="w" title={`Suggested: ${req.missing.join(', ')}`}>Low fit</Chip>}<span className="tiny dim">details ▾</span></div></summary>
                   <div className="mt"><AbilityInfo d={d} /></div>
@@ -198,7 +201,17 @@ export function Creator() {
           ))}
           {building && <CustomBuilder unrestricted={!balanced} onClose={() => setBuilding(false)} onDone={(c) => { up({ custom: [...cfg.custom, c] }); setBuilding(false); toast(`${c.name} created — select it below.`); }} />}
         </div>}
-        {step === 'team' && <div className="grid g2">
+        {step === 'team' && <>
+          <div className="row wrap mb"><button className={`btn big ${!cfg.skipNel ? 'pri' : ''}`} onClick={() => up({ skipNel: false })}>Start in the Neo Egoist League</button><button className={`btn big ${cfg.skipNel ? 'pri' : ''}`} onClick={() => up({ skipNel: true })}>Skip the NEL — straight to professional football</button></div>
+          {cfg.skipNel ? <div className="grid g2">
+            <section className="card"><h3>Choose your first professional club</h3>
+              <p className="small muted">The NEL still takes place without you (results, bids and the Blue Lock players' signings all happen), then you join your club for the {2025}/26 season under regulation rules. There is no yen bid or top-23 selection for you.</p>
+              <button className={`opt ${!cfg.proClub ? 'hot' : ''}`} onClick={() => up({ proClub: '' })}><b>Let the game place me</b><span className="small muted">A club at your level where you should play regularly.</span></button>
+              {LEAGUES.map((L) => <details key={L.id} style={{ marginTop: 8 }} open={!!cfg.proClub?.startsWith(L.id)}><summary className="num" style={{ cursor: 'pointer', fontSize: 18 }}>{L.name}</summary><div className="grid g2" style={{ gap: 6, marginTop: 6 }}>
+                {L.rows.trim().split('\n').map((r) => { const [short, name, , , rep] = r.split('|'); const id = `${L.id}_${short}`; const lvl = Math.round(38 + +rep * 0.5); const d = cur - lvl; return <button key={id} className={`opt ${cfg.proClub === id ? 'hot' : ''}`} style={{ padding: '6px 10px' }} onClick={() => up({ proClub: id })}><b style={{ fontSize: 15 }}>{name}</b><span className="tiny muted">squad level {lvl} · {d >= 4 ? 'you would be a star' : d >= -1 ? 'likely starter' : d >= -5 ? 'rotation' : 'fringe / development'}</span></button>; })}</div></details>)}
+            </section>
+            <section className="card"><h3>What skipping means</h3><ul className="small"><li>No NEL matches, bids, rankings or U-20 World Cup for you.</li><li>Your starting weapon, passives and dormant ultimate are unchanged.</li><li>You begin with no relationships: the Blue Lock cast will be opponents or team-mates you meet as a professional.</li><li>Your squad role depends on your OVR against the club's squad: {cur} OVR.</li></ul></section>
+          </div> : <div className="grid g2">
           <div className="col">{NEL_TEAMS.map((t) => { const m = NEL_MASTERS[t.id]; const sq = [...(NEL_BLUELOCK[t.id] ?? []), ...(NEL_YOUTH[t.id] ?? [])]; const rivals = sq.filter((p) => p.pos === cfg.pos || p.pos2.includes(cfg.pos)).sort((a, b) => b.ovr - a.ovr); return (
             <button key={t.id} className={`opt ${cfg.nelTeam === t.id ? 'hot' : ''}`} onClick={() => up({ nelTeam: t.id })}><b>{t.name} <span className="muted" style={{ fontSize: 14 }}>· {NATIONS[t.nat].name} · master striker {m.name}</span></b>
               <span className="small">{t.identity}</span><br />
@@ -209,6 +222,7 @@ export function Creator() {
               {[...(NEL_BLUELOCK[team.id] ?? []), ...(NEL_YOUTH[team.id] ?? [])].sort((a, b) => b.ovr - a.ovr).map((p) => <tr key={p.name}><td>{p.name}</td><td>{p.pos}</td><td className="n num">{p.ovr}</td><td className="n">{p.pot}</td><td><Chip k={p.canon === 'canon' ? 'b' : p.canon === 'original' ? '' : 'w'}>{p.canon}</Chip></td></tr>)}
             </tbody></table></div></section>
         </div>}
+        </>}
         {step === 'rules' && <div className="grid g2">
           <section className="card"><h3>Difficulty & world</h3>
             <label className="f">Difficulty<select value={cfg.settings.difficulty} onChange={(e) => up({ settings: { ...cfg.settings, difficulty: +e.target.value } })}>{DIFFICULTY.map((d, i) => <option key={i} value={i}>{d.name}</option>)}</select><span className="h">{DIFFICULTY[cfg.settings.difficulty].desc} Attributes are never scaled.</span></label>

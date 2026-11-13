@@ -1,6 +1,7 @@
 /** Small player-driven mutations that do not belong to the day loop. */
-import type { CustomAbility, Game, SessionPlan } from './types';
-import { abilityDef, makeHybrid, registerCustom, SLOTS, validateCustom } from './abilities';
+import type { Game, SessionPlan } from './types';
+import { abilityDef, makeHybrid, registerCustom } from './abilities';
+import { weaponSlots } from './development';
 import { calcOvr, N_OUT } from './attributes';
 import { clamp } from './rng';
 import { addNews, milestone } from './util';
@@ -31,7 +32,7 @@ export function craftHybrid(g: Game, a: string, b: string): string {
   const ok = canHybrid(g).map((x) => x.id);
   if (a === b || !ok.includes(a) || !ok.includes(b)) return 'Both weapons must be different and at level 3 or higher.';
   const weapons = p.ab.filter((r) => abilityDef(r.id)?.kind === 'weapon');
-  if (weapons.length >= SLOTS.weapon) return 'All weapon slots are full.';
+  if (weapons.length >= weaponSlots(g).open) return 'You have no free weapon slot yet.';
   const key = 'hyb_' + [a, b].sort().join('_');
   if (g.career.custom.some((c) => c.id === key)) return 'You have already created that hybrid.';
   const h = makeHybrid(abilityDef(a)!, abilityDef(b)!, key);
@@ -45,27 +46,6 @@ export function craftHybrid(g: Game, a: string, b: string): string {
 
 export function setPlan(g: Game, day: number, s: SessionPlan): void { g.career.plan[day] = s; }
 
-/** Sandbox: add a custom ability mid-career. Marks the save as edited. */
-export function sandboxAddAbility(g: Game, c: CustomAbility): string {
-  const errs = validateCustom(c, true);
-  if (errs.length) return errs[0];
-  const p = g.world.players[g.career.pid];
-  const have = p.ab.filter((r) => abilityDef(r.id)?.kind === c.kind).length;
-  g.career.custom.push(c);
-  registerCustom(g.career.custom);
-  if (have >= SLOTS[c.kind]) { const i = p.ab.findIndex((r) => abilityDef(r.id)?.kind === c.kind); p.ab.splice(i, 1); }
-  p.ab.push({ id: c.id, lv: 1, xp: 0 });
-  g.edited = true;
-  return `${c.name} added. This save is now marked as edited.`;
-}
-export function sandboxSwapAbility(g: Game, kind: 'weapon' | 'passive' | 'ultimate', slot: number, id: string): void {
-  const p = g.world.players[g.career.pid];
-  const mine = p.ab.filter((r) => abilityDef(r.id)?.kind === kind);
-  if (p.ab.some((r) => r.id === id)) return;
-  const target = mine[slot];
-  if (target) { target.id = id; target.lv = 1; target.xp = 0; delete target.evo; } else if (mine.length < SLOTS[kind]) p.ab.push({ id, lv: 1, xp: 0 });
-  g.edited = true;
-}
 /** Sandbox: edit attributes / potential / age / condition. Marks the save as edited. */
 export function sandboxEdit(g: Game, o: { attrs?: number[]; pot?: number; age?: number; fit?: number; trust?: number; rep?: number }): void {
   const p = g.world.players[g.career.pid];

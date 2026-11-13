@@ -59,14 +59,15 @@ export function valuation(g: Game, p: Player, b: BidState | undefined): Valuatio
   const w = g.world;
   const o = ovr(p), ag = w.season - p.born;
   const rl = roundLines(g, p).filter((x) => x.line[S.RATN] > 0);
-  const base = 3e6 * Math.pow(1.2, o - 62) * (1 + Math.max(0, p.pot - o) * 0.035) * (ag <= 17 ? 1.12 : ag >= 20 ? 0.9 : 1);
+  const base = 6e6 * Math.pow(1.13, o - 62) * (1 + Math.max(0, p.pot - o) * 0.035) * (ag <= 17 ? 1.12 : ag >= 20 ? 0.9 : 1);
   const why: string[] = [];
   if (!rl.length) return { value: base * 0.35, why: ['Not yet seen in a match'], played: 0, avg: 0 };
   // performance over multiple games: recency-weighted, but every match counts
   let sw = 0, sp = 0, sum = 0;
   rl.forEach((x, i) => { const wt = 1 + i * 0.15; sw += wt; sp += wt * (x.line[S.RAT] - 6.5); sum += x.line[S.RAT]; });
   const avg = sum / rl.length;
-  const perfMul = clamp(1 + (sp / sw) * 0.42, 0.55, 2.4);
+  // form is worth as much as raw ability: a 7.8 average roughly doubles a valuation, a 5.8 average halves it
+  const perfMul = clamp(Math.pow(2, (sp / sw) * 0.85), 0.3, 3.4);
   let cons = 1;
   if (rl.length >= 2) {
     const sd = Math.sqrt(rl.reduce((s, x) => s + (x.line[S.RAT] - avg) ** 2, 0) / rl.length);
@@ -79,7 +80,7 @@ export function valuation(g: Game, p: Player, b: BidState | undefined): Valuatio
   const line = POS_LINE[p.pos];
   // diminishing returns: the fifth goal adds far less than the first
   const prod = gl * 1.0 + as * 0.7 + kp * 0.12 + def * 0.06 * (line <= 1 ? 1.7 : line === 2 ? 1.2 : 0.6);
-  const prodMul = 1 + 0.5 * (1 - Math.exp(-prod / 4));
+  const prodMul = 1 + 0.9 * (1 - Math.exp(-prod / 4));
   const rar = rarityOf(p);
   const unique = 1 + rar * 0.03;
   const moments = b?.moments ?? 0;
@@ -128,7 +129,7 @@ export function updateBids(g: Game, rd: number): void {
       const noise = 0.92 + ((mixSeed(w.seed, p.id, c.id, rd) % 1000) / 1000) * 0.16;
       let amt = v.value * fit * need * wealth * noise * (c.id === parent ? 1.08 : 1);
       const old = b.bids.find((x) => x.club === c.id);
-      if (old) amt = old.amt + clamp(amt - old.amt, -old.amt * 0.25, old.amt * 0.4);
+      if (old) amt = old.amt + clamp(amt - old.amt, -old.amt * 0.4, old.amt * 0.6);
       const why = [...v.why];
       if (need > 1.1) why.push(`${c.sn} have nobody better at ${p.pos}`);
       if (fit > 1.05) why.push(`Suits ${c.sn}'s ${c.style} football`);
@@ -230,7 +231,7 @@ export function concludeNel(g: Game): void {
   all.forEach((b, i) => { const p = w.players[b.pid]; if (p) p.rep = clamp(p.rep + Math.max(0, 24 - i * 0.55), 0, 99); });
   if (selected) g.career.flags.u20 = 1;
   g.career.flags.nelGrade = grade;
-  milestone(g, 'nel', `Finished the Neo Egoist League ${myRank ? `ranked ${ordinal(myRank)} (${fmtYenShort(myB.top)})` : 'without a bid'} — grade ${grade}. ${selected ? 'Selected for the U-20 World Cup.' : 'Missed the U-20 selection.'}`);
+  if (!g.career.flags.skippedNel) milestone(g, 'nel', `Finished the Neo Egoist League ${myRank ? `ranked ${ordinal(myRank)} (${fmtYenShort(myB.top)})` : 'without a bid'} — grade ${grade}. ${selected ? 'Selected for the U-20 World Cup.' : 'Missed the U-20 selection.'}`);
   addNews(g, 'nel', `${champ.name} win the Neo Egoist League`, `Final table: ${table.map((r) => `${r.name} ${r.pts}`).join(', ')}. ${all[0] ? `${w.players[all[0].pid].name} tops the valuation ranking at ${fmtYenShort(all[0].top)}.` : ''}`, { imp: 3, clubs: [champ.id] });
   addNews(g, 'nel', `Blue Lock top ${N} confirmed`, `${w.nel.top23!.slice(0, 6).map((id) => w.players[id].sn).join(', ')} lead the squad for the U-20 World Cup.${selected && japan ? ' You are in.' : japan ? ' You are not on the list.' : ''}`, { imp: 3, me: japan });
   signNelPlayers(g);

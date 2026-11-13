@@ -8,6 +8,8 @@ import { abilityDef } from '../abilities';
 
 const T: Record<string, string[]> = {
   pass: ['{a} finds {b}.', '{a} plays it into {b}.', '{a} to {b}.', 'Neat from {a}, on to {b}.', '{a} moves it to {b}.'],
+  lob: ['{a} lifts it over the press to {b}.', '{a} floats one into {b}.', 'A lofted ball from {a} drops for {b}.'],
+  lob_through: ['{a} chips it over the top — {b} is running onto it!', 'Lobbed in behind by {a}! {b} is clear!'],
   pass_long: ['{a} switches it long to {b}.', 'A raking ball from {a} picks out {b}.', '{a} goes direct — {b} brings it down.'],
   through: ['{a} threads it through for {b}!', 'What a ball from {a} — {b} is in behind!', '{a} slides {b} through on goal!', 'Lovely weight on that from {a}; {b} is away!'],
   cross_ok: ['{a} delivers — {b} gets there first!', 'Cross from {a}, met by {b}!', '{a} whips it in towards {b}!'],
