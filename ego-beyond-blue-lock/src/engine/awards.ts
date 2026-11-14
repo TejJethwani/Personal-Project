@@ -64,7 +64,7 @@ export function bestXI(g: Game, cands: Cand[]): { form: string; xi: AwardXI[] } 
   return best ?? { form: '4-3-3', xi: [] };
 }
 
-const REP_GAIN: Partial<Record<AwardType, number>> = { potr: 2, potw: 1, potm: 3, gotm: 1.5, pots: 8, ypots: 5, boot: 5, playmaker: 4, glove: 4, nel_mvp: 10, nel_boot: 6, nel_playmaker: 5, nel_glove: 4, nel_goal: 3, world_player: 14, world_young: 8, world_gk: 8, world_goal: 4, tourn_best: 8, tourn_boot: 5 };
+const REP_GAIN: Partial<Record<AwardType, number>> = { potr: 2, potw: 1, potm: 3, gotm: 1.5, pots: 8, ypots: 5, boot: 5, playmaker: 4, glove: 4, nel_mvp: 10, nel_boot: 6, nel_playmaker: 5, nel_glove: 4, nel_goal: 3, world_player: 14, world_young: 8, world_gk: 8, world_goal: 4, tourn_best: 8, tourn_boot: 5, def_s: 4, mid_s: 4, fwd_s: 4, signing_s: 3, golden_shoe: 8, world_def: 7, world_mid: 7, world_fwd: 7, world_scorer: 6, world_playmaker: 5, tourn_young: 4, tourn_glove: 4 };
 
 function nom(g: Game, c: Cand): AwardNom {
   return { pid: c.p.id, name: c.p.name, club: c.club, clubName: teamName(g.world, c.club), line: statBlurb(c.line, c.p.pos), score: Math.round(c.score * 10) / 10 };
@@ -83,7 +83,7 @@ export function giveAward(g: Game, a: Omit<Award, 'day' | 's' | 'me'> & { s?: nu
     const p = w.players[aw.winner.pid];
     if (p) { p.awards.push(aw.id); p.rep = clamp(p.rep + gain, 0, 99); p.notable = true; }
   }
-  if (aw.xi) for (const x of aw.xi) { const p = w.players[x.pid]; if (p) { if (aw.type === 'tots' || aw.type === 'nel_xi' || aw.type === 'world_xi') { p.awards.push(aw.id); p.rep = clamp(p.rep + 2.5, 0, 99); p.notable = true; } else if (x.pid === me) p.awards.push(aw.id); } }
+  if (aw.xi) for (const x of aw.xi) { const p = w.players[x.pid]; if (p) { if (aw.type === 'tots' || aw.type === 'nel_xi' || aw.type === 'world_xi' || aw.type === 'tourn_xi') { p.awards.push(aw.id); p.rep = clamp(p.rep + 2.5, 0, 99); p.notable = true; } else if (x.pid === me) p.awards.push(aw.id); } }
   const mine = aw.winner?.pid === me || (!!aw.xi?.some((x) => x.pid === me));
   if (mine) {
     milestone(g, 'award', `${aw.title} — ${aw.compName}${aw.period ? ` (${aw.period})` : ''}.`);
@@ -148,6 +148,7 @@ export function monthlyAwards(g: Game, month: number): void {
     w.acc.m[id] = {};
     if (!comp) continue;
     const cands = candsFrom(g, acc, curClub, 2);
+    if (cands.length >= 40) { const xi = bestXI(g, cands); if (xi.xi.length === 11) giveAward(g, { id: `totm:${id}:${w.season}:${month}`, type: 'totm', title: 'Team of the Month', comp: id, compName: comp.name, period: mName, xi: xi.xi, form: xi.form, why: `The best eleven of ${mName} by performance score, in a ${xi.form}.` }); }
     if (cands.length >= 20) giveAward(g, { id: `potm:${id}:${w.season}:${month}`, type: 'potm', title: 'Player of the Month', comp: id, compName: comp.name, period: mName, winner: nom(g, cands[0]), noms: cands.slice(0, 4).map((c) => nom(g, c)), why: `Best sustained form in ${mName} among players with at least two rated appearances.` }, id === g.world.players[g.career.pid]?.con?.club);
   }
   for (const id in w.acc.goals) {
@@ -198,6 +199,12 @@ export function compSeasonAwards(g: Game, comp: Competition, nel = false): strin
   give(nel ? 'nel_playmaker' : 'playmaker', 'Playmaker Award', top(all.filter((c) => c.line[S.A] > 0), S.A, S.KP), 'Most assists in the competition. Ties are broken by chances created.', (c) => `${c.line[S.A]} assists, ${c.line[S.KP]} chances created`);
   const gks = all.filter((c) => c.p.pos === 'GK' && c.line[S.APP] >= minApps).sort((a, b) => b.line[S.CS] - a.line[S.CS] || a.line[S.GC] / a.line[S.APP] - b.line[S.GC] / b.line[S.APP]);
   give(nel ? 'nel_glove' : 'glove', 'Goalkeeper of the Season', gks, 'Most clean sheets (keeper must have played at least 60% of the match). Ties are broken by goals conceded per game.', (c) => `${c.line[S.CS]} clean sheets, ${c.line[S.GC]} conceded in ${c.line[S.APP]}`);
+  if (!nel) {
+    give('def_s', 'Defender of the Season', elig.filter((c) => POS_LINE[c.p.pos] === 1), 'Best season-long performance score among defenders.');
+    give('mid_s', 'Midfielder of the Season', elig.filter((c) => POS_LINE[c.p.pos] === 2), 'Best season-long performance score among midfielders.');
+    give('fwd_s', 'Forward of the Season', elig.filter((c) => POS_LINE[c.p.pos] === 3), 'Best season-long performance score among forwards.');
+    give('signing_s', 'Signing of the Season', elig.filter((c) => c.p.con && c.p.con.from === w.season && c.p.con.club === c.p.club), 'Best season by a player who joined his club this season.');
+  }
   const xi = bestXI(g, elig);
   if (xi.xi.length === 11) { const a = giveAward(g, { id: `${nel ? 'nel_xi' : 'tots'}:${comp.id}:${w.season}`, type: nel ? 'nel_xi' : 'tots', title: nel ? 'NEL Best Eleven' : 'Team of the Season', comp: comp.id, compName: comp.name, period, xi: xi.xi, form: xi.form, why: `Best eleven over the season in a ${xi.form}.` }); if (a) ids.push(a.id); }
   // store headline numbers on the competition history
@@ -225,7 +232,7 @@ export function nelFinalAwards(g: Game): string[] {
   return ids;
 }
 
-const LEAGUE_WEIGHT: Record<string, number> = { eng1: 1, esp1: 0.98, ger1: 0.94, ita1: 0.95, fra1: 0.9, eng2: 0.6, eng3: 0.45, ucl: 1.25, uel: 0.85 };
+const LEAGUE_WEIGHT: Record<string, number> = { eng1: 1, esp1: 0.98, ger1: 0.94, ita1: 0.95, fra1: 0.9, ned1: 0.78, por1: 0.8, eng2: 0.6, eng3: 0.45, ucl: 1.25, uel: 0.85 };
 /** World awards across all competitions of the season (club and international). */
 export function worldAwards(g: Game): string[] {
   const w = g.world;
@@ -257,9 +264,30 @@ export function worldAwards(g: Game): string[] {
     const a = giveAward(g, { id: `${type}:world:${w.season}`, type, title, comp: 'world', compName: 'World Football', period, winner: nom(g, list[0]), noms: list.slice(0, 5).map((c) => nom(g, c)), why }, true);
     if (a) ids.push(a.id);
   };
-  give('world_player', 'World Player of the Year', cands, 'All competitions, weighted by the strength of each league and competition, with a bonus for trophies won.');
-  give('world_young', 'World Young Player of the Year', cands.filter((c) => w.season - c.p.born <= 21), 'Best player in world football aged 21 or under.');
+  give('world_player', "Ballon d'Or", cands, 'All competitions, weighted by the strength of each league and competition, with a bonus for trophies won.');
+  give('world_young', 'Golden Boy', cands.filter((c) => w.season - c.p.born <= 21), 'Best player in world football aged 21 or under.');
   give('world_gk', 'World Goalkeeper of the Year', cands.filter((c) => c.p.pos === 'GK'), 'Best goalkeeper across all competitions.');
+  give('world_fwd', 'World Forward of the Year', cands.filter((c) => POS_LINE[c.p.pos] === 3), 'Best forward across all competitions.');
+  give('world_mid', 'World Midfielder of the Year', cands.filter((c) => POS_LINE[c.p.pos] === 2), 'Best midfielder across all competitions.');
+  give('world_def', 'World Defender of the Year', cands.filter((c) => POS_LINE[c.p.pos] === 1), 'Best defender across all competitions.');
+  {
+    const withLine = (title: string, type: AwardType, list: Cand[], fn: (c: Cand) => string, why: string) => {
+      if (!list.length) return;
+      const mk = (c: Cand) => { const n = nom(g, c); n.line = fn(c); return n; };
+      const a = giveAward(g, { id: `${type}:world:${w.season}`, type, title, comp: 'world', compName: 'World Football', period, winner: mk(list[0]), noms: list.slice(0, 5).map(mk), why }, true);
+      if (a) ids.push(a.id);
+    };
+    withLine('World Top Scorer', 'world_scorer', top(cands.filter((c) => c.line[S.G] > 0), S.G), (c) => `${c.line[S.G]} goals in ${c.line[S.APP]} matches (all competitions)`, 'Most goals for club and country across every competition.');
+    withLine('World Playmaker of the Year', 'world_playmaker', top(cands.filter((c) => c.line[S.A] > 0), S.A, S.KP), (c) => `${c.line[S.A]} assists, ${c.line[S.KP]} chances created`, 'Most assists across every competition.');
+    // European Golden Shoe: league goals × league coefficient
+    const shoe: (Cand & { pts: number; g: number; lg: string })[] = [];
+    for (const id in w.players) {
+      const p = w.players[id];
+      for (const cid in p.ss) { const comp = w.comps[cid]; if (comp?.kind !== 'league' || !p.ss[cid][S.G]) continue; const k = (LEAGUE_WEIGHT[cid] ?? 0.5) >= 0.9 ? 2 : (LEAGUE_WEIGHT[cid] ?? 0.5) >= 0.75 ? 1.5 : 1; shoe.push({ p, club: p.club ?? '', score: p.ss[cid][S.G] * k, rat: 0, line: p.ss[cid], pts: p.ss[cid][S.G] * k, g: p.ss[cid][S.G], lg: comp.sn }); }
+    }
+    shoe.sort((a, b) => b.pts - a.pts || a.line[S.SEC] - b.line[S.SEC]);
+    withLine('European Golden Shoe', 'golden_shoe', shoe, (c) => { const x = c as (typeof shoe)[number]; return `${x.g} league goals (${x.lg}) = ${x.pts} points`; }, 'League goals multiplied by the league coefficient (×2 top five leagues, ×1.5 next tier, ×1 others).');
+  }
   const xi = bestXI(g, cands.slice(0, 250));
   if (xi.xi.length === 11) { const a = giveAward(g, { id: `world_xi:world:${w.season}`, type: 'world_xi', title: 'World Eleven', comp: 'world', compName: 'World Football', period, xi: xi.xi, form: xi.form, why: `The best eleven in world football, arranged in a ${xi.form}.` }); if (a) ids.push(a.id); }
   const goals = (w.acc.goals.__season ?? []).sort((a, b) => b.spec - a.spec);
@@ -283,6 +311,12 @@ export function tournamentAwards(g: Game, comp: Competition): string[] {
   if (elig.length) { const a = giveAward(g, { id: `tourn_best:${comp.id}:${w.season}`, type: 'tourn_best', title: `${comp.sn} Player of the Tournament`, comp: comp.id, compName: comp.name, period, winner: nom(g, elig[0]), noms: elig.slice(0, 3).map((c) => nom(g, c)), why: 'Best performance score among players with at least three rated appearances in the competition.' }, true); if (a) ids.push(a.id); }
   const sc = top(all.filter((c) => c.line[S.G] > 0).map((c) => ({ ...c, club: clubOf(c.p) })), S.G);
   if (sc.length) { const n = nom(g, sc[0]); n.line = `${sc[0].line[S.G]} goals`; const a = giveAward(g, { id: `tourn_boot:${comp.id}:${w.season}`, type: 'tourn_boot', title: `${comp.sn} Top Scorer`, comp: comp.id, compName: comp.name, period, winner: n, noms: sc.slice(0, 3).map((c) => { const x = nom(g, c); x.line = `${c.line[S.G]} goals`; return x; }), why: 'Most goals in the competition.' }); if (a) ids.push(a.id); }
+  const xi = bestXI(g, elig);
+  if (xi.xi.length === 11) { const a = giveAward(g, { id: `tourn_xi:${comp.id}:${w.season}`, type: 'tourn_xi', title: `${comp.sn} Team of the Tournament`, comp: comp.id, compName: comp.name, period, xi: xi.xi, form: xi.form, why: `Best eleven of the competition in a ${xi.form}.` }); if (a) ids.push(a.id); }
+  const young = elig.filter((c) => w.season - c.p.born <= 21);
+  if (young.length && !comp.u20) { const a = giveAward(g, { id: `tourn_young:${comp.id}:${w.season}`, type: 'tourn_young', title: `${comp.sn} Young Player of the Tournament`, comp: comp.id, compName: comp.name, period, winner: nom(g, young[0]), noms: young.slice(0, 3).map((c) => nom(g, c)), why: 'Best player aged 21 or under.' }); if (a) ids.push(a.id); }
+  const gks = elig.filter((c) => c.p.pos === 'GK').sort((a, b) => b.line[S.CS] - a.line[S.CS] || b.score - a.score);
+  if (gks.length) { const n = nom(g, gks[0]); n.line = `${gks[0].line[S.CS]} clean sheets, ${gks[0].line[S.SV]} saves`; const a = giveAward(g, { id: `tourn_glove:${comp.id}:${w.season}`, type: 'tourn_glove', title: `${comp.sn} Golden Glove`, comp: comp.id, compName: comp.name, period, winner: n, why: 'Most clean sheets in the competition.' }); if (a) ids.push(a.id); }
   return ids;
 }
 
@@ -293,7 +327,7 @@ export function pruneAwards(g: Game): void {
   for (const id of w.awardIds) {
     const a = w.awards[id];
     if (!a) continue;
-    if (a.s < w.season && (a.type === 'potw' || a.type === 'totw' || a.type === 'gotm' || a.type === 'potm') && !a.me) { delete w.awards[id]; continue; }
+    if (a.s < w.season && (a.type === 'potw' || a.type === 'totw' || a.type === 'gotm' || a.type === 'potm' || a.type === 'totm') && !a.me) { delete w.awards[id]; continue; }
     keep.push(id);
   }
   w.awardIds = keep;

@@ -7,7 +7,7 @@ import { ovr } from './attributes';
 import { clamp } from './rng';
 import { rngOf, clubStrength, activatePoolClub, finalizeSquad } from './worldgen';
 import { LEAGUES, POOLS } from './data/clubs';
-import { mkComp, scheduleLeague, startCup, scheduleGroups, scheduleKo, tableOf, LEAGUE_SLOTS, CUP_DAYS, CUP_FINAL_DAY, CONT_GROUP_DAYS, CONT_KO_DAYS, CONT_FINAL_DAY, PLAYOFF_DAYS, compFixtures, seasonLabel, invalidateFixtures, dayOf } from './competitions';
+import { mkComp, scheduleLeague, startCup, scheduleLeaguePhase, scheduleKo, tableOf, LEAGUE_SLOTS, CUP_DAYS, CUP_FINAL_DAY, CONT_GROUP_DAYS, CONT_KO_DAYS, CONT_FINAL_DAY, PLAYOFF_DAYS, compFixtures, seasonLabel, invalidateFixtures, dayOf } from './competitions';
 import { S } from './match/model';
 import { winnerId } from './match/setup';
 import { addNews, milestone, ordinal, log } from './util';
@@ -17,9 +17,11 @@ import { yearlyDevelopment, pruneRetired } from './development';
 import { scheduleBreakFriendlies, finishTournament } from './international';
 import { relOf } from './relationships';
 
-const UCL_SLOTS: Record<string, number> = { eng1: 4, esp1: 4, ger1: 3, ita1: 3, fra1: 2 };
-const UEL_SLOTS: Record<string, number> = { eng1: 4, esp1: 3, ger1: 3, ita1: 3, fra1: 3 };
-export const SUPPORTED = 'England (Premier League, Championship, League One — connected by promotion and relegation), Spain (La Liga), Germany (Bundesliga), Italy (Serie A), France (Ligue 1), each with a domestic cup, plus the Champions League and Europa League contested by clubs from those five top divisions.';
+/** 36-club Champions League and 24-club Europa League, both with a single-table league phase. */
+const UCL_SLOTS: Record<string, number> = { eng1: 6, esp1: 6, ger1: 5, ita1: 5, fra1: 5, ned1: 4, por1: 5 };
+const UEL_SLOTS: Record<string, number> = { eng1: 4, esp1: 4, ger1: 4, ita1: 4, fra1: 3, ned1: 3, por1: 2 };
+const CONT_SIZE: Record<string, number> = { ucl: 36, uel: 24 };
+export const SUPPORTED = 'England (Premier League, Championship, League One — connected by promotion and relegation), Spain (La Liga), Germany (Bundesliga), Italy (Serie A), France (Ligue 1), the Netherlands (Eredivisie) and Portugal (Primeira Liga), each with a domestic cup; the Champions League (36 clubs) and Europa League (24 clubs) with a league phase, knockout play-off and two-legged knockouts; World Cups, continental championships and U-20 tournaments.';
 
 function leagueClubs(w: World, id: string): Club[] { return Object.values(w.clubs).filter((c) => c.league === id && !c.dormant); }
 
@@ -27,7 +29,9 @@ function leagueClubs(w: World, id: string): Club[] { return Object.values(w.club
 export function setupSeason(g: Game): void {
   const w = g.world;
   const rng = rngOf(w);
-  w.fixtures = {}; w.sched = {}; w.acc = { w: {}, m: {}, goals: { __season: w.acc.goals.__season ?? [] } }; w.events = [];
+  // club fixtures are rebuilt each season; NEL and international scoreboards stay until their next edition
+  for (const id of Object.keys(w.fixtures)) { const k = w.comps[w.fixtures[id].comp]?.kind; if (k !== 'nel' && k !== 'intl') delete w.fixtures[id]; }
+  w.sched = {}; w.acc = { w: {}, m: {}, goals: { __season: w.acc.goals.__season ?? [] } }; w.events = [];
   invalidateFixtures(w);
   for (const k of Object.keys(w.done)) if (!k.startsWith('keep:')) delete w.done[k];
   const cupTeams: Record<string, string[]> = {};
@@ -56,18 +60,15 @@ export function setupSeason(g: Game): void {
     startCup(w, c, CUP_DAYS, CUP_FINAL_DAY);
   }
   for (const [id, name, sn] of [['ucl', 'Champions League', 'UCL'], ['uel', 'Europa League', 'UEL']] as const) {
-    const teams = (qual[id] ?? []).filter((t) => w.clubs[t] && w.clubs[t].league && !w.clubs[t].dormant).slice(0, 16);
+    const size = CONT_SIZE[id];
+    const teams = (qual[id] ?? []).filter((t) => w.clubs[t] && w.clubs[t].league && !w.clubs[t].dormant).slice(0, size);
     // top up from the strongest clubs not already in Europe if a qualifier dropped out of the pyramid
     const inEurope = new Set([...(qual.ucl ?? []), ...(qual.uel ?? [])]);
-    for (const c of Object.values(w.clubs).filter((x) => x.tier === 1 && !x.dormant && !x.nel && !inEurope.has(x.id)).sort((a, b) => b.rep - a.rep)) { if (teams.length >= 16) break; teams.push(c.id); inEurope.add(c.id); }
+    for (const c of Object.values(w.clubs).filter((x) => x.tier === 1 && !x.dormant && !x.nel && !inEurope.has(x.id)).sort((a, b) => b.rep - a.rep)) { if (teams.length >= size) break; teams.push(c.id); inEurope.add(c.id); }
     const c = mkComp(w, { id, name, sn, kind: 'continental', teams });
     c.qual = qual;
-    // seeded draw: four pots by reputation, avoiding nothing else for simplicity
-    const sorted = [...teams].sort((a, b) => w.clubs[b].rep - w.clubs[a].rep);
-    const groups: string[][] = [[], [], [], []];
-    for (let pot = 0; pot < 4; pot++) rng.shuffle(sorted.slice(pot * 4, pot * 4 + 4)).forEach((t, i) => groups[i].push(t));
     (c as Competition & { days?: number[] }).days = [...CONT_KO_DAYS, CONT_FINAL_DAY];
-    scheduleGroups(w, c, groups, 2, CONT_GROUP_DAYS, false, 2);
+    scheduleLeaguePhase(w, c, teams, 8, CONT_GROUP_DAYS);
   }
   scheduleBreakFriendlies(g);
   for (const wk of [2, 3, 4, 23, 24, 25]) w.events.push({ key: 'market', day: dayOf(wk, 1) }, { key: 'market', day: dayOf(wk, 4) });
@@ -179,6 +180,7 @@ export function endSeason(g: Game): void {
   if (holder && !qual.ucl.includes(holder)) { qual.uel = qual.uel.filter((x) => x !== holder); qual.ucl.push(holder); }
   if (w.comps.ucl) w.comps.ucl.qual = qual;
   awardIds.push(...worldAwards(g));
+  g.career.flags.ceremony = w.season; // the UI presents the season's awards as a ceremony
   w.rec.seasons = { v: (w.rec.seasons?.v ?? 0) + 1, pid: '', name: '', s: w.season };
   managerChanges(g, positions);
   w.archive.push({ s: w.season, champs, awards: awardIds, moves });
@@ -253,7 +255,7 @@ export function rollover(g: Game): void {
   for (const c of Object.values(w.clubs)) if (!c.nel && !c.dormant && c.league) finalizeSquad(w, c);
   const p = w.players[me];
   if (p.con && g.career.promise && g.career.promise.club === p.club) p.con.role = g.career.promise.role;
-  for (const id of ['wc', 'euro', 'copa', 'afcon', 'asian', 'gold', 'u20wc', 'intlf']) if (w.comps[id]) w.comps[id].done = true;
+  for (const id of ['wc', 'euro', 'copa', 'afcon', 'asian', 'gold', 'u20wc', 'u20asian', 'u21euro', 'intlf']) if (w.comps[id]) w.comps[id].done = true;
   setupSeason(g);
   aiLoans(g);
   if (p.club && w.clubs[p.club]) for (const tid of w.clubs[p.club].squad) if (tid !== me) relOf(g, tid);

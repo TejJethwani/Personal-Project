@@ -46,7 +46,9 @@ export function Competitions({ g, id }: { g: Game; id?: string }) {
         <select value={c.id} onChange={(e) => { setRd(null); nav('competitions', e.target.value); }} aria-label="Competition">{comps.map((x) => <option key={x.id} value={x.id}>{x.name}{x.done ? ' ✓' : ''}</option>)}</select></div>
       <Tabs tabs={[['table', isLeague ? 'Table' : groups.length ? 'Groups' : 'Bracket'], ['fix', 'Fixtures & results'], ['top', 'Leaders'], ['hist', 'History']]} value={tab} onChange={setTab} />
       {tab === 'table' && (isLeague ? <Card><Table rows={tableOf(w, c.id)} />{c.kind === 'league' && <p className="tiny dim mt">{c.tier === 1 ? 'Blue: continental places. ' : 'Green: automatic promotion. Amber: play-offs. '}Red: relegation. The table is computed directly from results.</p>}</Card>
-        : <div className="col">{groups.length > 0 && <div className="grid g2">{groups.map((_, gi) => <Card key={gi} title={`Group ${String.fromCharCode(65 + gi)}`}><Table rows={tableOf(w, c.id, gi)} /></Card>)}</div>}
+        : <div className="col">{groups.length > 0 && (c.stages[0].name === 'League phase'
+            ? <Card title="League phase — top 8 go straight to the round of 16, 9th–24th enter the knockout play-off"><Table rows={tableOf(w, c.id, 0)} /></Card>
+            : <div className="grid g2">{groups.map((_, gi) => <Card key={gi} title={`Group ${String.fromCharCode(65 + gi)}`}><Table rows={tableOf(w, c.id, gi)} /></Card>)}</div>)}
           {c.stages.filter((s) => s.type === 'ko').map((s) => <Card key={s.name} title={s.name}>{fs.filter((f) => f.stg === s.name).map((f) => <FixtureRow key={f.id} g={g} f={f} />)}</Card>)}
           {!groups.length && !c.stages.some((s) => s.type === 'ko') && <Empty>The draw has not been made.</Empty>}</div>)}
       {tab === 'fix' && <Card>{fs.length ? <>

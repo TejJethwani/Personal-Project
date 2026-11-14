@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Game } from '../engine/types';
 import { startUserMatch, finishUserMatch, userFixtureToday, nextUserFixture, userSide } from '../engine/sim';
-import { advance as advMatch, ratingOf } from '../engine/match/engine';
+import { advance as advMatch, ratingOf, requestSub, subChance } from '../engine/match/engine';
+import { Replay3D, ReplayList } from '../ui/Replay3D';
 import { clockLabel } from '../engine/match/rules';
-import { S, type MatchState, type MPlayer, type Option } from '../engine/match/model';
+import { S, type MatchState, type MPlayer, type Option, type Replay } from '../engine/match/model';
 import { teamName, teamInfo, pickSheet, importance } from '../engine/match/setup';
 import { FLOW, abilityDef } from '../engine/abilities';
 import { fmtDate } from '../engine/competitions';
+import { NATIONS } from '../engine/data/nations';
 import { ovr } from '../engine/attributes';
 import { act, autosave, moment, nav, refresh, toast } from '../store/game';
 import { continueGame } from '../ui/flow';
@@ -211,6 +213,8 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
   const banner = useRef<{ x: string; i: number; at: number } | null>(null);
   const rat = useRef<{ last: number; delta: number; at: number; hist: number[] }>({ last: 6, delta: 0, at: -99, hist: [] });
   const ticks = useRef(0);
+  const [replay, setReplay] = useState<Replay | null>(null);
+  const seenRp = useRef(ms.replays?.length ? ms.replays[ms.replays.length - 1].id : 0);
   const u = ms.uc!;
   const speed = g.settings.matchSpeed;
   const me = ms.pl[u.idx];
@@ -230,6 +234,12 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
       if (e.x && (e.i >= 1 || e.p === u.idx || e.q === u.idx)) banner.current = { x: e.x, i: e.p === u.idx || e.q === u.idx ? Math.max(2, e.i) : e.i, at: ticks.current };
     }
     seen.current = ms.ev.length;
+    const rps = ms.replays ?? [];
+    if (rps.length && rps[rps.length - 1].id > seenRp.current) {
+      const r = rps[rps.length - 1];
+      seenRp.current = r.id;
+      if (u.mode !== 'sim' && !g.settings.reduceMotion && (r.res === 'goal' || r.sh === u.idx || r.xg >= 0.35 || r.res === 'post')) setReplay(r);
+    }
     if (me.used) {
       const r = ratingOf(me, ms.score[me.t], ms.score[1 - me.t], 0);
       const R = rat.current;
@@ -241,6 +251,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
   };
   const finish = () => { const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; autosave(true); refresh(); };
   useEffect(() => {
+    if (replay) return;
     if (ms.done) { finish(); return; }
     if (paused || ms.pending) return;
     const t = setTimeout(() => run(() => {
@@ -275,10 +286,16 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
       </div>
       <div className="matchgrid">
         <div className="col" style={{ gap: 10 }}>
-          <Pitch ms={ms} hover={hover} tick={delay} trail={trail.current} banner={b} />
+          {replay ? <Replay3D ms={ms} rp={replay} auto onClose={() => setReplay(null)} /> : <Pitch ms={ms} hover={hover} tick={delay} trail={trail.current} banner={b} />}
           <Hud ms={ms} live={liveRating} delta={rat.current.delta} hist={rat.current.hist} />
         </div>
         <div className="col" style={{ gap: 10 }}>
+          {!me.on && !me.used && !ms.done && (() => { const pc = subChance(ms); const T = ms.teams[me.t]; return <div className="card hot">
+            <b className="num" style={{ fontSize: 19 }}>On the bench</b>
+            <p className="small muted" style={{ margin: '4px 0 8px' }}>{T.subs}/{ms.rules.subs} substitutions used. {u.cameo ? 'The coach has you in his plans for the closing stages.' : 'No promise of minutes today — you may have to ask.'} Coach trust {Math.round(u.trust)}.</p>
+            <button className="btn pri" disabled={pc <= 0} onClick={() => { const r = requestSub(ms); toast(r.text, !r.ok); if (r.ok) moment('YOU ARE ON', `${ms.teams[me.t].name}`); force((x) => x + 1); autosave(); }}>🙋 Ask the coach to bring you on{pc > 0 ? ` — ${Math.round(pc * 100)}% chance` : ''}</button>
+            <p className="tiny dim" style={{ marginTop: 6 }}>Chance grows with coach trust, as the match goes on and when the team is chasing the game. Asking repeatedly lowers it — and costs a little trust.</p>
+          </div>; })()}
           {ms.pending ? <Decision ms={ms} onPick={pick} onHover={setHover} /> : <div className="card small muted">{me.on ? (u.mode === 'key' ? 'Highlights mode: skipping to the next key moment…' : 'Play continues — you will be asked the moment you are involved. Space pauses.') : me.used ? 'You have been substituted. Watching from the touchline — use "Sim to end" to skip.' : 'You are on the bench. The coach may bring you on — or use "Sim to end".'}</div>}
           <div className="card"><Tabs tabs={[['feed', 'Commentary'], ['stats', 'Match stats'], ['instr', 'Instructions']]} value={tab} onChange={setTab} />
             {tab === 'feed' ? <div className="evlist" style={{ height: ms.pending ? 150 : 330 }} aria-live="off">{events.map((e, i) => <div key={ms.ev.length - i} className={`ev i${e.i}`}><span className="t">{clockLabel(ms.rules.kind, e.c, e.h ?? 1)}</span><span>{e.x}</span></div>)}</div> : tab === 'stats' ? <StatTable ms={ms} /> : <>
@@ -311,8 +328,8 @@ function Post({ g, ms, notes }: { g: Game; ms: MatchState; notes: string[] }) {
         <Card title="Aftermath"><ul className="small" style={{ paddingLeft: 18, margin: 0 }}>{notes.length ? notes.map((n, i) => <li key={i}>{n}</li>) : <li className="muted">Nothing notable.</li>}</ul></Card>
         <Card title="Next"><p className="small muted">Results elsewhere, awards and bids are processed when you continue.</p><button className="btn pri big" onClick={() => { lastDone = null; nav('hub'); continueGame(1); }}>Continue</button></Card>
       </div>
-      <Card><Tabs tabs={[['rat', 'Player ratings'], ['stats', 'Team stats'], ['feed', 'Key events']]} value={tab} onChange={setTab} />
-        {tab === 'rat' ? <Ratings g={g} ms={ms} /> : tab === 'stats' ? <StatTable ms={ms} /> : <div>{ms.ev.filter((e) => e.i >= 2 && e.x).map((e, i) => <div key={i} className={`ev i${e.i}`}><span className="t">{clockLabel(ms.rules.kind, e.c, e.h ?? 1)}</span><span>{e.x}</span></div>)}</div>}</Card>
+      <Card><Tabs tabs={[['rat', 'Player ratings'], ['stats', 'Team stats'], ['feed', 'Key events'], ['rep', `3D replays${ms.replays?.length ? ` (${ms.replays.length})` : ''}`]]} value={tab} onChange={setTab} />
+        {tab === 'rep' ? <ReplayList ms={ms} /> : tab === 'rat' ? <Ratings g={g} ms={ms} /> : tab === 'stats' ? <StatTable ms={ms} /> : <div>{ms.ev.filter((e) => e.i >= 2 && e.x).map((e, i) => <div key={i} className={`ev i${e.i}`}><span className="t">{clockLabel(ms.rules.kind, e.c, e.h ?? 1)}</span><span>{e.x}</span></div>)}</div>}</Card>
     </>
   );
 }
@@ -323,14 +340,53 @@ export function MatchCentre({ g }: { g: Game }) {
   if (ms) return <Live g={g} ms={ms} />;
   if (lastDone) return <Post g={g} ms={lastDone.ms} notes={lastDone.notes} />;
   if (w.stage <= 1 && userFixtureToday(g)) return <PreMatch g={g} />;
+  return <Idle g={g} />;
+}
+
+function Idle({ g }: { g: Game }) {
+  const w = g.world;
+  const me = w.players[g.career.pid];
   const nf = nextUserFixture(g);
-  const recent = [...g.career.matches].reverse().slice(0, 12);
+  const natNext = !!nf && !!w.comps[nf.comp]?.natTeams;
+  const [view, setView] = useState<'club' | 'nat'>(natNext ? 'nat' : 'club');
+  const isNat = (m: Game['career']['matches'][number]) => !!NATIONS[m.club];
+  const all = [...g.career.matches].reverse();
+  const recent = all.filter((m) => (view === 'nat') === isNat(m)).slice(0, 14);
+  const nation = w.nations[me.nat];
+  const inSenior = !!nation?.squad?.includes(me.id), inU20 = !!nation?.u20squad?.includes(me.id);
+  const team = view === 'nat' ? me.nat : me.club ?? '';
+  const upcoming = Object.values(w.fixtures).filter((f) => !f.played && (f.h === team || f.a === team) && (view === 'club' || (w.comps[f.comp]?.u20 ? inU20 : inSenior))).sort((a, b) => a.day - b.day).slice(0, 6);
+  const tot = (list: typeof all) => { let ap = 0, gl = 0, as = 0, rt = 0, rn = 0, wn = 0; for (const m of list) { if (!m.line) continue; ap++; gl += m.line[S.G]; as += m.line[S.A]; if (m.rat) { rt += m.rat; rn++; } if (m.res === 'W') wn++; } return { ap, gl, as, avg: rn ? rt / rn : 0, wn }; };
+  const T = tot(all.filter((m) => (view === 'nat') === isNat(m)));
+  const youth = all.filter((m) => isNat(m) && /U-2[01]/.test(m.compName));
+  const Ty = tot(youth);
   return (
     <>
       <div className="pagehead"><div><h1>Match Centre</h1><div className="sub">{nf ? `Next: ${teamName(w, nf.h)} v ${teamName(w, nf.a)} — ${fmtDate(w, nf.day, true)} (${w.comps[nf.comp]?.name})` : 'No match scheduled.'}</div></div><button className="btn pri" onClick={() => continueGame()}>Continue to next event</button></div>
-      <Card title="Your recent matches">{recent.length ? <div className="tw"><table><thead><tr><th>Date</th><th>Competition</th><th>Opponent</th><th>Result</th><th className="n">Min</th><th className="n">G</th><th className="n">A</th><th className="n">Rating</th></tr></thead><tbody>
+      <div className="row wrap mb">
+        <button className={`btn ${view === 'club' ? 'pri' : ''}`} onClick={() => setView('club')}>{me.club ? <><ClubBadge g={g} id={me.club} /> {teamName(w, me.club)}</> : 'Club'}</button>
+        <button className={`btn ${view === 'nat' ? 'pri' : ''}`} onClick={() => setView('nat')}><ClubBadge g={g} id={me.nat} /> {NATIONS[me.nat]?.name ?? 'National team'}{inSenior ? '' : inU20 ? ' U-20' : ''}</button>
+      </div>
+      <div className="grid g3 mb">
+        <Card title={view === 'nat' ? 'International status' : 'Club status'} className="hot">
+          {view === 'nat' ? <>
+            <b className={`num ${inSenior ? 'good' : inU20 ? 'warn' : 'bad'}`} style={{ fontSize: 22 }}>{inSenior ? 'In the senior squad' : inU20 ? 'In the U-20 squad' : 'Not called up'}</b>
+            <p className="small muted">{inSenior || inU20 ? 'You are part of the current squad. Squad-mates are listed under Relationships → national team.' : 'Call-ups follow form, overall and reputation. Keep performing for your club.'}</p>
+            <button className="btn sm" onClick={() => nav('relationships', 'people')}>Squad relationships</button>
+          </> : <>
+            <b className="num" style={{ fontSize: 22 }}>{me.club ? teamName(w, me.club) : 'Unattached'}</b>
+            <p className="small muted">{me.con ? `${me.con.role} · contract to ${me.con.until + 1}` : 'No contract'} · coach trust {Math.round(g.career.mgrTrust)}</p>
+          </>}
+        </Card>
+        <Card title={view === 'nat' ? 'International record' : 'Club record (all matches)'}>
+          <div className="row wrap gap4"><Chip>{T.ap} {view === 'nat' ? 'caps' : 'apps'}</Chip><Chip>{T.gl} goals</Chip><Chip>{T.as} assists</Chip><Chip>{T.wn} wins</Chip><Chip>avg {T.avg ? T.avg.toFixed(2) : '—'}</Chip></div>
+          {view === 'nat' && Ty.ap > 0 && <p className="small muted mt">Of which youth internationals: {Ty.ap} caps, {Ty.gl} goals.</p>}
+        </Card>
+        <Card title="Upcoming">{upcoming.length ? <div className="small">{upcoming.map((f) => <div key={f.id} className="row between" style={{ padding: '2px 0' }}><span>{f.h === team ? 'v' : '@'} {teamName(w, f.h === team ? f.a : f.h)}</span><span className="muted">{fmtDate(w, f.day)} · {w.comps[f.comp]?.sn}</span></div>)}</div> : <Empty>{view === 'nat' ? 'No international fixtures for your squad right now.' : 'No fixtures scheduled.'}</Empty>}</Card>
+      </div>
+      <Card title={view === 'nat' ? 'Your international matches' : 'Your recent club matches'}>{recent.length ? <div className="tw"><table><thead><tr><th>Date</th><th>Competition</th><th>Opponent</th><th>Result</th><th className="n">Min</th><th className="n">G</th><th className="n">A</th><th className="n">Rating</th></tr></thead><tbody>
         {recent.map((m) => <tr key={m.fid}><td>{m.date}</td><td>{m.compName}</td><td>{m.home ? 'v' : '@'} {m.oppName}</td><td><b className={m.res === 'W' ? 'good' : m.res === 'L' ? 'bad' : ''}>{m.res} {m.sc[0]}–{m.sc[1]}</b>{m.pens ? ` (${m.pens[0]}–${m.pens[1]}p)` : ''}</td><td className="n">{m.line ? Math.round((m.rules === 'nel' ? m.line[S.PLAY] : m.line[S.SEC]) / 60) : '—'}</td><td className="n">{m.line?.[S.G] ?? ''}</td><td className="n">{m.line?.[S.A] ?? ''}</td><td className="n"><Rating v={m.rat} />{m.potm ? ' ⭐' : ''}</td></tr>)}
-      </tbody></table></div> : <Empty>No matches played yet.</Empty>}</Card>
+      </tbody></table></div> : <Empty>{view === 'nat' ? 'No international matches yet.' : 'No matches played yet.'}</Empty>}</Card>
       {recent[0]?.feed?.length ? <Card title={`Key events — v ${recent[0].oppName}`} className="mt"><div className="small">{recent[0].feed!.map((f, i) => <div key={i} style={{ padding: '2px 0' }}>{f}</div>)}</div></Card> : null}
       <p className="tiny dim mt"><Ovr v={ovr(w.players[g.career.pid])} size="sm" /> Tip: interaction frequency and probability display can be changed in Settings; match mode can be switched during a match.</p>
       {(() => { void toast; return null; })()}

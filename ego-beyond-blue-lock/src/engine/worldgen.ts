@@ -176,6 +176,8 @@ const FOREIGN: Record<string, string[]> = {
   ESP: ['ARG', 'BRA', 'FRA', 'POR', 'URU', 'COL', 'MAR', 'NED', 'SEN', 'CRO', 'MEX', 'JPN'],
   GER: ['AUT', 'SUI', 'FRA', 'NED', 'DEN', 'POL', 'CRO', 'TUR', 'JPN', 'USA', 'KOR', 'BEL', 'CZE', 'GHA'],
   ITA: ['ARG', 'FRA', 'BRA', 'SRB', 'CRO', 'NED', 'POL', 'NGA', 'SEN', 'DEN', 'SWE', 'ESP', 'ALB', 'SVN'],
+  NED: ['BEL', 'MAR', 'SUR', 'DEN', 'NOR', 'SWE', 'USA', 'JPN', 'GER', 'GHA', 'CUW', 'IDN'],
+  POR: ['BRA', 'BRA', 'ARG', 'CPV', 'ANG', 'GNB', 'MOZ', 'ESP', 'FRA', 'URU', 'COL', 'NGA'],
   FRA: ['SEN', 'CIV', 'MLI', 'ALG', 'MAR', 'CMR', 'BRA', 'POR', 'BEL', 'GUI', 'COD', 'TUN', 'JPN', 'GHA'],
 };
 

@@ -189,6 +189,44 @@ pxg|Paris X Gen|Paris X Gen|PXG|93|#004170|#da291c|dualace
 ren|Stade Rennais|Rennes|REN|78|#e13327|#111111|balanced
 str|RC Strasbourg|Strasbourg|STR|78|#009fe3|#ffffff|possession
 tou|Toulouse|Toulouse|TFC|74|#5a2d81|#ffffff|balanced` },
+  { id: 'ned1', name: 'Eredivisie', sn: 'ERE', nat: 'NED', tier: 1, up: 0, playoff: 0, down: 2, cup: 'nedcup', cupName: 'KNVB Beker', rows: `
+aja|Ajax|Ajax|AJA|82|#f4f4f4|#d2122e|possession
+psv|PSV Eindhoven|PSV|PSV|83|#e30613|#ffffff|gegenpress
+fey|Feyenoord|Feyenoord|FEY|81|#e30613|#111111|gegenpress
+az|AZ Alkmaar|AZ|AZ|77|#d2122e|#ffffff|possession
+twe|FC Twente|Twente|TWE|75|#e30613|#ffffff|balanced
+utr|FC Utrecht|Utrecht|UTR|74|#e30613|#ffffff|counter
+gae|Go Ahead Eagles|Go Ahead|GAE|69|#e30613|#ffd100|balanced
+nec|NEC Nijmegen|NEC|NEC|70|#d2122e|#007a3d|possession
+hee|SC Heerenveen|Heerenveen|HEE|69|#0057b8|#ffffff|balanced
+fst|Fortuna Sittard|Fortuna|FOR|67|#ffd100|#00843d|counter
+spa|Sparta Rotterdam|Sparta|SPA|68|#e30613|#ffffff|direct
+gro|FC Groningen|Groningen|GRO|69|#00843d|#ffffff|balanced
+pec|PEC Zwolle|Zwolle|PEC|66|#0057b8|#ffffff|lowblock
+her|Heracles Almelo|Heracles|HER|66|#111111|#ffffff|direct
+nac|NAC Breda|NAC|NAC|66|#ffd100|#111111|direct
+vol|FC Volendam|Volendam|VOL|64|#f58220|#111111|lowblock
+exc|Excelsior|Excelsior|EXC|64|#e30613|#111111|counter
+tel|Telstar|Telstar|TEL|63|#f4f4f4|#0057b8|lowblock` },
+  { id: 'por1', name: 'Primeira Liga', sn: 'LP', nat: 'POR', tier: 1, up: 0, playoff: 0, down: 2, cup: 'porcup', cupName: 'Taça de Portugal', rows: `
+ben|SL Benfica|Benfica|SLB|84|#e30613|#ffffff|possession
+fcp|FC Porto|Porto|FCP|83|#0057b8|#ffffff|gegenpress
+scp|Sporting CP|Sporting|SCP|85|#00843d|#ffffff|possession
+bra|SC Braga|Braga|SCB|79|#e30613|#ffffff|counter
+vsc|Vitória SC|Vitória|VSC|74|#f4f4f4|#111111|balanced
+fam|FC Famalicão|Famalicão|FAM|70|#0057b8|#ffffff|possession
+sta|Santa Clara|Santa Clara|STC|69|#e30613|#ffffff|lowblock
+est|Estoril Praia|Estoril|EST|68|#ffd100|#0057b8|balanced
+cpi|Casa Pia|Casa Pia|CPI|67|#111111|#ffffff|counter
+mor|Moreirense|Moreirense|MOR|67|#00843d|#ffffff|lowblock
+rio|Rio Ave|Rio Ave|RIO|67|#00843d|#ffffff|balanced
+aro|FC Arouca|Arouca|ARO|66|#ffd100|#0057b8|counter
+gil|Gil Vicente|Gil Vicente|GIL|67|#e30613|#0057b8|possession
+nac|CD Nacional|Nacional|NAC|65|#111111|#ffffff|lowblock
+eam|Estrela da Amadora|Estrela|EST|65|#e30613|#00843d|direct
+avs|AVS Futebol|AVS|AVS|64|#e30613|#0057b8|lowblock
+ton|CD Tondela|Tondela|TON|64|#00843d|#ffd100|direct
+alv|FC Alverca|Alverca|ALV|63|#e30613|#0057b8|balanced` },
 ];
 
 /** Lower-division clubs outside the simulated pyramid. They swap in when clubs are relegated out of it. */
@@ -231,6 +269,18 @@ sam|Sampdoria|Sampdoria|SAM|69|#1b5497|#ffffff|counter
 bri|Bari|Bari|BAR|67|#f4f4f4|#d50a1e|direct
 spe|Spezia|Spezia|SPE|68|#f4f4f4|#111111|lowblock
 fro|Frosinone|Frosinone|FRO|67|#ffe400|#0054a6|balanced` },
+  NED: { name: 'Eerste Divisie', rows: `wil|Willem II|Willem II|WIL|65|#e30613|#0057b8|balanced
+rkc|RKC Waalwijk|RKC|RKC|64|#ffd100|#0057b8|lowblock
+alm|Almere City|Almere|ALM|63|#e30613|#111111|counter
+ado|ADO Den Haag|ADO|ADO|64|#ffd100|#00843d|direct
+vit|Vitesse|Vitesse|VIT|64|#ffd100|#111111|possession
+dgr|De Graafschap|De Graafschap|DGR|62|#0057b8|#ffffff|balanced` },
+  POR: { name: 'Liga Portugal 2', rows: `far|SC Farense|Farense|FAR|64|#f4f4f4|#111111|lowblock
+boa|Boavista FC|Boavista|BOA|65|#111111|#ffffff|direct
+mrt|CS Marítimo|Marítimo|MAR|64|#00843d|#e30613|balanced
+cha|GD Chaves|Chaves|CHA|63|#0057b8|#e30613|counter
+pac|Paços de Ferreira|Paços|PAC|63|#ffd100|#00843d|balanced
+viz|FC Vizela|Vizela|VIZ|62|#0057b8|#ffffff|possession` },
   FRA: { name: 'Ligue 2', rows: `rei|Stade de Reims|Reims|REI|71|#ee2223|#ffffff|counter
 ste|AS Saint-Étienne|Saint-Étienne|STE|72|#009639|#ffffff|balanced
 mhp|Montpellier HSC|Montpellier|MHP|70|#f58113|#0c2340|direct

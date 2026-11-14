@@ -3,7 +3,9 @@ import type { Game } from '../engine/types';
 import { seasonLabel } from '../engine/competitions';
 import { fmtEur } from '../engine/util';
 import { S } from '../engine/match/model';
-import { Card, Chip, Empty, Tabs, Rating, PlayerLink } from '../ui/kit';
+import { Card, Chip, Empty, Tabs, Rating, PlayerLink, ConfirmButton } from '../ui/kit';
+import { retire } from '../engine/actions';
+import { act, nav } from '../store/game';
 import { OvrChart } from './Player';
 
 const CATS: [string, string][] = [['all', 'All'], ['me', 'About you'], ['match', 'Matches'], ['transfer', 'Transfers'], ['award', 'Awards'], ['club', 'Clubs'], ['world', 'World'], ['intl', 'International']];
@@ -31,7 +33,7 @@ export function History({ g }: { g: Game }) {
   const icon: Record<string, string> = { start: '🚩', nel: '🔵', pro: '⚽', first: '✨', feat: '🔥', award: '🏆', trophy: '🏆', transfer: '✍️', contract: '📄', season: '📅', growth: '📈', ability: '⚡', rival: '⚔', intl: '🌍', promotion: '⬆', record: '📊', retire: '🏁' };
   return (
     <>
-      <div className="pagehead"><div><h1>Career History</h1><div className="sub">{me.name} · {played.length} appearances · {tg} goals · {ta} assists · {myAwards.length} individual awards · {trophies.length} team honours · earnings {fmtEur(c.wages)}</div></div>{me.retired != null && <Chip k="r">Retired</Chip>}</div>
+      <div className="pagehead"><div><h1>Career History</h1><div className="sub">{me.name} · {played.length} appearances · {tg} goals · {ta} assists · {myAwards.length} individual awards · {trophies.length} team honours · earnings {fmtEur(c.wages)}</div></div><span className="row wrap gap6">{me.retired != null ? <Chip k="r">Retired</Chip> : <ConfirmButton className="btn danger" label={`Retire (age ${w.season - me.born})`} confirm="Confirm retirement — ends the playable career" onConfirm={() => { act((x) => retire(x)); nav('hof'); }} />}<button className="btn" onClick={() => nav('hof')}>🏛 Hall of Fame</button></span></div>
       <Tabs tabs={[['time', 'Timeline'], ['seasons', 'Season by season'], ['honours', 'Honours'], ['dev', 'Development']]} value={tab} onChange={setTab} />
       {tab === 'time' && <Card>{c.timeline.length ? <div className="feed">{[...c.timeline].reverse().map((t, i) => <div key={i} className="it" style={{ gridTemplateColumns: '150px 1fr' }}><span className="tiny dim">{t.date}</span><div>{icon[t.type] ?? '•'} {t.txt}</div></div>)}</div> : <Empty>Your story starts with your first match.</Empty>}</Card>}
       {tab === 'seasons' && <Card>{seasons.length || Object.keys(me.ss).length ? <div className="tw"><table><thead><tr><th>Season</th><th>Club</th><th>Competition</th><th className="n">Apps</th><th className="n">G</th><th className="n">A</th><th className="n">POTM</th><th className="n">Rating</th></tr></thead><tbody>

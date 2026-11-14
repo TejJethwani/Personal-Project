@@ -89,6 +89,13 @@ export function pickSheet(g: Game | null, w: World, info: TeamInfo, rotate = 0, 
   return sheet;
 }
 
+/** Opponents plan for whoever is scoring freely this season: goals per appearance above 0.55 draw extra marking. */
+function markedMan(p: Player): number {
+  let g = 0, ap = 0;
+  for (const k in p.ss) { g += p.ss[k][S.G]; ap += p.ss[k][S.APP]; }
+  if (ap < 4) return 0;
+  return clamp((g / ap - 0.55) * 1.6, 0, 1.1);
+}
 function mkPlayer(w: World, p: Player, t: 0 | 1, slot: { pos: Pos; x: number; y: number } | null, mult: number, scale: number): MPlayer {
   const cond = mult * (0.9 + 0.1 * (p.fit / 100)) * (1 + (p.form - 6.6) * 0.006 + (p.morale - 60) * 0.0004) * (0.97 + 0.03 * (p.sharp / 100));
   const a = new Array(N_ATTR);
@@ -107,7 +114,7 @@ function mkPlayer(w: World, p: Player, t: 0 | 1, slot: { pos: Pos; x: number; y:
     boost: line === 3 ? [A.FIN, A.POS, A.DRI, A.COM] : line === 2 ? [A.VIS, A.SPA, A.DEC, A.BCO] : line === 1 ? [A.TAC, A.INT, A.DAW] : [A.GKR, A.GKP],
     run: 0, runT: 0, open: false, beat: 0, yc: 0, rc: false, inj: 0,
     ab: p.ab.map((r) => ({ id: r.id, lv: r.lv, evo: r.evo })), abN: {}, ego: p.pers.ego, agg: 40 + p.pers.temper * 0.4,
-    user: false, star: false, chem: 50, trust: 50, rival: false, foot: p.foot === 'L' ? 0 : p.foot === 'R' ? 1 : 2,
+    user: false, star: false, chem: 50, trust: 50, rival: false, mk: markedMan(p), foot: p.foot === 'L' ? 0 : p.foot === 'R' ? 1 : 2,
     streak: 0, lostTo: -1, ultN: 0, req: 0, focus: 0,
   };
 }
@@ -196,6 +203,7 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
       const diff = DIFFICULTY[g.settings.difficulty] ?? DIFFICULTY[1];
       uc = {
         idx, mode, thr: FREQ_THR[g.settings.freq] ?? 50, showP: g.settings.showProb, forgive: diff.forgive, autoFlow: g.settings.autoFlow,
+        trust: g.career.mgrTrust ?? 50, asked: 0, cameo: ((hashStr(fx.id) >>> 3) % 100) < 35 + (g.career.mgrTrust ?? 50) * 0.5 ? 1 : 0,
         instr: { ...g.career.instr }, egoBoost: et.boost, gain: et.gain, lastSeq: -1, lastDefSeq: -1, decisions: 0, selfish: 0, unselfish: 0, discipline: 0, disciplineN: 0,
         memo: {}, combo: -1, reactions: {}, seen: {}, used: {}, dominion: 0, realism: g.settings.realism,
       };

@@ -48,6 +48,7 @@ export interface MPlayer {
   streak: number; lostTo: number; ultN: number;
   req: number; // requesting the ball (steps)
   focus: number; // user defensive stance for the current possession
+  mk: number; // marked man: extra attention earned by this season's scoring rate
 }
 
 export interface MTeam {
@@ -74,6 +75,16 @@ export interface MEvent {
   h?: number; // period
 }
 
+/** A snapshot of a goal or big chance, replayed in 3D by the match centre. Coordinates are pitch % (x 0..100, y 0..100). */
+export interface Replay {
+  id: number; min: number; t: number; sh: number; as: number; gk: number;
+  v: string; d: number; xg: number; p: number;
+  res: 'goal' | 'save' | 'off' | 'post' | 'block';
+  bx: number; by: number; fx: number; fy: number; high: boolean;
+  gy: number; gz: number; // aim point: −1..1 across the goal, 0..1 of crossbar height
+  pl: [number, number, number][]; // idx, x, y of everyone on the pitch
+  sc: [number, number];
+}
 export interface Option {
   id: string;
   kind: string; // shoot | pass | through | cross | dribble | carry | hold | onetwo | run | press | tackle | ...
@@ -108,6 +119,9 @@ export interface UserCtl {
   instr: { stance: number; press: number; risk: number };
   egoBoost: number[]; // attribute indices boosted in Flow
   gain: { goal: number; key: number; dribble: number; duel: number; defend: number; challenge: number };
+  trust: number; // coach trust 0..100 (drives bench decisions)
+  asked: number; // times the user has asked to come on
+  cameo: number; // 1 = the coach plans to give the user late minutes
   lastSeq: number; // possession sequence of the last off-ball prompt
   lastDefSeq: number;
   decisions: number;
@@ -122,6 +136,7 @@ export interface UserCtl {
 }
 
 export interface MatchState {
+  replays?: Replay[];
   v: number;
   fid: string; comp: string; compName: string;
   rules: Rules;

@@ -13,7 +13,7 @@ import type { Game } from '../src/engine/types';
 describe('full career simulation', () => {
   let g: Game;
   let mid: Game; // snapshot in the middle of the first professional season
-  const SIZES: Record<string, number> = { eng1: 20, eng2: 24, eng3: 24, esp1: 20, ger1: 18, ita1: 20, fra1: 18 };
+  const SIZES: Record<string, number> = { eng1: 20, eng2: 24, eng3: 24, esp1: 20, ger1: 18, ita1: 20, fra1: 18, ned1: 18, por1: 18 };
   beforeAll(() => {
     const cfg = defaultConfig(20251); cfg.name = 'E2E Egoist';
     g = newGame(cfg);
@@ -106,14 +106,30 @@ describe('full career simulation', () => {
       expect(h(L.id).champion, L.id).toBeTruthy(); expect(h(L.id).table!.length).toBe(SIZES[L.id]);
       expect(h(L.id).relegated!.length).toBe(L.down); expect(h(L.id).topScorer).toBeTruthy();
     }
-    for (const id of ['ucl', 'uel', 'engcup', 'espcup', 'gercup', 'itacup', 'fracup', 'wc']) expect(w.comps[id].hist.some((x) => x.s === 2025 && x.champion), id).toBe(true);
+    for (const id of ['ucl', 'uel', 'engcup', 'espcup', 'gercup', 'itacup', 'fracup', 'nedcup', 'porcup', 'wc']) expect(w.comps[id].hist.some((x) => x.s === 2025 && x.champion), id).toBe(true);
     expect(h('eng2').promoted!.length).toBe(3); expect(h('eng3').promoted!.length).toBe(3);
     for (const t of ['pots', 'ypots', 'tots', 'boot', 'playmaker', 'glove']) expect(w.awards[`${t}:eng1:2025`], t).toBeTruthy();
     const yp = w.awards['ypots:eng1:2025'].winner!; expect(2025 - w.players[yp.pid].born).toBeLessThanOrEqual(21);
     const boot = w.awards['boot:eng1:2025'].winner!; expect(h('eng1').topScorer!.pid).toBe(boot.pid);
     expect(w.awards['world_player:world:2025']).toBeTruthy(); expect(w.awards['world_xi:world:2025'].xi!.length).toBe(11);
     // realistic scale: no absurd totals
-    expect(h('eng1').topScorer!.v).toBeLessThan(70); expect(h('eng1').table![0].pts).toBeLessThanOrEqual(114);
+    for (const L of LEAGUES) expect(h(L.id).topScorer!.v, L.id + ' top scorer').toBeLessThan(50);
+    // European league phase: 36 / 24 clubs, eight matches each, then a play-off round and a round of 16
+    const ucl = compFixtures(w, 'ucl');
+    const lp = ucl.filter((f) => f.stg === 'Group');
+    expect(lp.length).toBe(36 * 8 / 2);
+    // (the knockout rounds of 2025/26 are proven by the champion recorded above; these fixtures are next season's draw)
+    expect(compFixtures(w, 'uel').filter((f) => f.stg === 'Group').length).toBe(24 * 8 / 2);
+    // new awards and the ceremony hook
+    for (const t of ['def_s', 'mid_s', 'fwd_s']) expect(w.awards[`${t}:eng1:2025`], t).toBeTruthy();
+    for (const t of ['world_fwd', 'world_mid', 'world_def', 'golden_shoe', 'world_scorer', 'world_young']) expect(w.awards[`${t}:world:2025`], t).toBeTruthy();
+    expect(w.awards['world_player:world:2025'].title).toBe("Ballon d'Or");
+    expect(Object.keys(w.awards).some((k) => k.startsWith('tourn_xi:wc'))).toBe(true);
+    expect(g.career.flags.ceremony).toBe(2025);
+    // last season's tournaments keep their scoreboards after the rollover
+    expect(compFixtures(w, 'wc').length).toBeGreaterThan(40);
+    expect(compFixtures(w, 'nel').length).toBeGreaterThan(0);
+    expect(h('eng1').table![0].pts).toBeLessThanOrEqual(114);
   });
 
   it('next-season leagues are valid after promotion and relegation', () => {
@@ -130,7 +146,7 @@ describe('full career simulation', () => {
     const e2 = w.comps.eng2.hist.find((x) => x.s === 2025)!;
     for (const id of e2.promoted!) expect(w.comps.eng1.teams).toContain(id);
     for (const id of w.comps.eng1.hist.find((x) => x.s === 2025)!.relegated!) expect(w.comps.eng2.teams).toContain(id);
-    expect(w.comps.ucl.teams.length).toBe(16); expect(w.comps.uel.teams.length).toBe(16);
+    expect(w.comps.ucl.teams.length).toBe(36); expect(w.comps.uel.teams.length).toBe(24);
     expect(validate(g)).toEqual([]);
     // squads and player.club stay consistent
     for (const c of Object.values(w.clubs)) for (const id of c.squad) expect(w.players[id].club).toBe(c.id);

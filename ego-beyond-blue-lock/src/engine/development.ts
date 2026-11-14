@@ -40,7 +40,10 @@ export function weeklyGrowth(g: Game): number {
   const ag = g.world.season - p.born;
   const gap = p.pot - ovr(p);
   const club = p.club ? g.world.clubs[p.club] : null;
-  return 1.15 * g.settings.devSpeed * AGE_F(ag) * clamp(0.25 + gap * 0.11, 0.1, 1.9) * (0.8 + (club?.fac ?? 5) * 0.04);
+  // form: the average rating of the last five rated matches feeds training growth too
+  const last = g.career.matches.filter((m) => m.rat > 0).slice(-5);
+  const form = last.length ? last.reduce((x, m) => x + m.rat, 0) / last.length : 6.8;
+  return 1.15 * g.settings.devSpeed * AGE_F(ag) * clamp(0.25 + gap * 0.11, 0.1, 1.9) * (0.8 + (club?.fac ?? 5) * 0.04) * clamp(1 + (form - 6.8) * 0.28, 0.85, 1.5);
 }
 
 function gainXp(g: Game, attr: number, amount: number, source: string): void {
@@ -227,7 +230,10 @@ export function applyMatchDevelopment(g: Game, ms: MatchState): string[] {
   const total = ms.rules.kind === 'nel' ? Math.max(ms.play, 1) : 5400;
   const share = Math.min(1.2, (ms.rules.kind === 'nel' ? s[S.PLAY] : s[S.SEC]) / total);
   const rat = s[S.RATN] ? s[S.RAT] : 6;
-  const pts = weeklyGrowth(g) * 0.3 * share * clamp(1 + (rat - 6.5) * 0.3, 0.5, 1.8);
+  // performance drives development: a 9.0 is worth roughly three times a 6.5, and decisive contributions add more
+  const perf = clamp(1 + (rat - 6.5) * 0.6, 0.4, 3) + Math.min(0.8, s[S.G] * 0.2 + s[S.A] * 0.12) + (s[S.POTM] ? 0.4 : 0);
+  const pts = weeklyGrowth(g) * 0.3 * share * perf;
+  if (rat >= 8 && share > 0.3) notes.push(`Outstanding display (${rat.toFixed(1)}): development ×${perf.toFixed(1)} from this match.`);
   const used: [number, number][] = [[A.FIN, s[S.SH] * 1.2 + s[S.G] * 3], [A.POS, s[S.SH] + s[S.G] * 2], [A.SPA, s[S.PC] * 0.25], [A.VIS, s[S.KP] * 2 + s[S.A] * 3], [A.DRI, s[S.DC] * 1.6], [A.BCO, s[S.TCH] * 0.1], [A.TAC, s[S.TKW] * 2], [A.INT, s[S.INT] * 2], [A.DAW, s[S.INT] + s[S.BLK] * 2 + s[S.CLR]], [A.HEA, s[S.AW] * 1.5], [A.STA, share * 4], [A.COM, share * 2 + s[S.G] * 2], [A.DEC, share * 3], [A.REA, share * 2]];
   const tot = used.reduce((x, y) => x + y[1], 0) || 1;
   const label = `Match vs ${ms.teams[1 - mp.t].name}`;

@@ -24,8 +24,9 @@ export const LEAGUE_SLOTS: Record<number, number[]> = {
 };
 export const CUP_DAYS = [8, 13, 18, 23, 27, 31, 36].map((w) => dayOf(w, MID));
 export const CUP_FINAL_DAY = dayOf(43, END);
-export const CONT_GROUP_DAYS = [5, 7, 9, 12, 14, 16].map((w) => dayOf(w, MID));
-export const CONT_KO_DAYS = [28, 30, 35, 37].map((w) => dayOf(w, MID));
+export const CONT_GROUP_DAYS = [5, 7, 9, 12, 14, 16, 22, 25].map((w) => dayOf(w, MID));
+/** play-off (2 legs), round of 16, quarter-finals, semi-finals */
+export const CONT_KO_DAYS = [28, 30, 32, 34, 35, 37, 39, 41].map((w) => dayOf(w, MID));
 export const CONT_FINAL_DAY = dayOf(44, END);
 export const PLAYOFF_DAYS = [dayOf(43, MID), dayOf(44, END)];
 export const WINDOWS = { summerEnd: dayOf(5, 0), winterStart: dayOf(22, 0), winterEnd: dayOf(26, 0), summerStart: dayOf(45, 0) };
@@ -156,6 +157,37 @@ export function scheduleGroups(w: World, c: Competition, groups: string[][], leg
   c.cur = 0; c.rounds = maxR;
 }
 
+/**
+ * Modern continental league phase: one table, every club plays `k` different opponents
+ * (half at home, half away) instead of a full round robin.
+ */
+export function scheduleLeaguePhase(w: World, c: Competition, teams: string[], k: number, days: number[]): void {
+  const rng = rngOf(w);
+  const met = new Set<string>();
+  const home: Record<string, number> = {};
+  for (const t of teams) home[t] = 0;
+  for (let r = 0; r < k; r++) {
+    let pairs: [string, string][] = [];
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const order = rng.shuffle([...teams]);
+      pairs = [];
+      const used = new Set<string>();
+      let ok = true;
+      for (const a of order) {
+        if (used.has(a)) continue;
+        const b = order.find((x) => x !== a && !used.has(x) && !met.has(a < x ? a + x : x + a));
+        if (!b) { ok = false; break; }
+        used.add(a); used.add(b);
+        pairs.push(home[a] <= home[b] ? [a, b] : [b, a]);
+      }
+      if (ok) break;
+    }
+    for (const [h, a] of pairs) { met.add(h < a ? h + a : a + h); home[h]++; addFixture(w, { comp: c.id, rd: r + 1, stg: 'Group', grp: 0, day: days[Math.min(r, days.length - 1)], h, a }); }
+  }
+  c.stages = [{ type: 'rr', name: 'League phase', legs: 1, groups: [teams.slice()], round: 1, slots: days, advance: 24 }];
+  c.cur = 0; c.rounds = k;
+}
+
 const KO_NAMES: Record<number, string> = { 1: 'Final', 2: 'Semi-final', 4: 'Quarter-final', 8: 'Round of 16', 16: 'Round of 32', 32: 'Round of 64' };
 /** Add a knockout round. `pairs` are [home, away]; two-legged ties reverse for the second leg. */
 export function scheduleKo(w: World, c: Competition, pairs: [string, string][], legs: number, days: number[], neutral: boolean, name?: string): void {
@@ -236,6 +268,20 @@ export function progressComps(g: Game): Competition[] {
     const cc = c as Competition & { days?: number[]; byes?: string[] };
     if (st.type === 'rr') {
       if (c.kind === 'league' || c.kind === 'nel') { c.done = true; c.champion = tableOf(w, id)[0]?.id; finished.push(c); continue; }
+      if (st.name === 'League phase') {
+        // top 8 go straight to the round of 16; 9th–24th meet in a two-legged knockout play-off
+        const tab = tableOf(w, id, 0);
+        const n = Math.min(24, tab.length - (tab.length % 2));
+        const direct = Math.min(8, Math.floor(n / 3));
+        cc.byes = tab.slice(0, direct).map((r) => r.id);
+        const po = tab.slice(direct, n).map((r) => r.id);
+        const pp: [string, string][] = [];
+        for (let i = 0; i < po.length / 2; i++) pp.push([po[i], po[po.length - 1 - i]]);
+        const days = cc.days ?? [];
+        scheduleKo(w, c, pp, 2, [days[0], days[1]], false, 'Knockout play-off');
+        cc.days = days.slice(2);
+        continue;
+      }
       // groups → knockouts
       const adv = st.advance ?? 2;
       const tabs = st.groups!.map((_, gi) => tableOf(w, id, gi));
@@ -249,7 +295,8 @@ export function progressComps(g: Game): Competition[] {
       cc.days = days.slice(legs);
     } else {
       const winners = st.ties!.map((t) => (t.winner = tieWinner(w, id, t.id) ?? t.a));
-      const pool = [...winners, ...(st.name === 'Preliminary round' ? cc.byes ?? [] : [])];
+      let pool = [...winners, ...(st.name === 'Preliminary round' ? cc.byes ?? [] : [])];
+      if (st.name === 'Knockout play-off') { const b = cc.byes ?? []; pool = []; for (let i = 0; i < b.length; i++) { pool.push(b[i], winners[winners.length - 1 - i] ?? winners[i]); } }
       if (pool.length === 1) { c.done = true; c.champion = pool[0]; finished.push(c); continue; }
       if (c.kind === 'cup') { drawKo(w, c, pool); continue; }
       const pairs: [string, string][] = [];

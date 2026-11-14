@@ -294,6 +294,7 @@ export const SOCIAL_ACTIONS: SocialAction[] = [
   { id: 'rival', name: 'Declare a rivalry', desc: 'Name him as your rival (max. three). Rivalry-driven abilities trigger against him.' },
   { id: 'apologise', name: 'Apologise', desc: 'Only available if he holds something against you.' },
   { id: 'combo', name: 'Request a combination', desc: 'Plan a specific link-up for the next match (needs chemistry 40+).' },
+  { id: 'catchup', name: 'Catch up (message / call)', desc: 'Stay in touch with someone at another club. Costs no social time — friendships survive transfers if you keep them alive.' },
   { id: 'ambitions', name: 'Discuss ambitions / a transfer', desc: 'Find out what he wants — or ask a friend at another club to recommend you.' },
 ];
 function weekKey(g: Game): number { return g.world.season * 100 + Math.floor(g.world.day / 7) + (g.world.phase === 'nel' ? 5000 : 0); }
@@ -307,16 +308,29 @@ export function canAct(g: Game, pid: string, action: string): string | null {
   const me = w.players[c.pid];
   const p = w.players[pid];
   if (!p || p.retired) return 'Not available.';
-  if (socialLeft(g) <= 0) return 'No social time left this week.';
   const r = relOf(g, pid);
+  const natMate = isNatMate(g, pid);
+  if (action === 'catchup') {
+    if (p.club === me.club && !!p.club) return 'You see him every day — spend real time with him instead.';
+    if ((r.uses.catchup ?? []).some((d) => d > w.abs - 6)) return 'You spoke this week already.';
+    return null;
+  }
+  if (socialLeft(g) <= 0) return 'No social time left this week.';
   if ((r.uses.any ?? []).some((d) => d > w.abs - 6)) return 'You already spent time with him this week.';
-  const mate = p.club === me.club && !!p.club;
-  if ((action === 'train' || action === 'combo' || action === 'tactics') && !mate) return 'Team-mates only.';
+  const mate = (p.club === me.club && !!p.club) || natMate;
+  if ((action === 'train' || action === 'combo' || action === 'tactics') && !mate) return 'Club or national team-mates only.';
   if (action === 'combo' && r.chem < 40) return 'Needs tactical chemistry of 40+.';
   if (action === 'advice' && !(ovr(p) >= ovr(me) - 2 || w.season - p.born >= w.season - me.born + 4)) return 'He has nothing to teach you yet.';
   if (action === 'apologise' && !r.mem.some((m) => m.t === 'ignored_them' && m.w <= -1)) return 'There is nothing to apologise for.';
   if (action === 'rival') { if (c.rivals.includes(pid)) return 'Already your rival.'; if (c.rivals.length >= 3) return 'You already have three rivals.'; if (r.vs + r.shared < 1 && r.mem.length === 0) return 'You have no history with him yet.'; }
   return null;
+}
+/** True if this player is in the same current national squad (senior or youth) as the user. */
+export function isNatMate(g: Game, pid: string): boolean {
+  const me = g.world.players[g.career.pid];
+  const n = g.world.nations[me.nat];
+  if (!n) return false;
+  return (!!n.squad?.includes(me.id) && !!n.squad?.includes(pid)) || (!!n.u20squad?.includes(me.id) && !!n.u20squad?.includes(pid));
 }
 /** Perform an initiated action. Gains shrink with repeated use on the same person. */
 export function doAction(g: Game, pid: string, action: string): { text: string; effects: string[] } {
@@ -327,6 +341,14 @@ export function doAction(g: Game, pid: string, action: string): { text: string; 
   const me = w.players[c.pid];
   const p = w.players[pid];
   const r = relOf(g, pid);
+  if (action === 'catchup') {
+    (r.uses.catchup ??= []).push(w.abs);
+    if (r.uses.catchup.length > 6) r.uses.catchup.shift();
+    const warm = r.friend >= 40;
+    const fx = adjust(g, pid, { friend: warm ? 1.6 : 1, trust: 0.8, chem: r.shared > 0 ? 0.3 : 0 });
+    remember(g, pid, 'talked', `You and ${p.sn} caught up while at different clubs.`, 0.4);
+    return { text: warm ? `${p.sn} picks up on the second ring. Twenty minutes later you are still laughing about the old dressing room.` : `A short exchange of messages with ${p.sn}. Small, but it keeps the door open.`, effects: fx };
+  }
   const wk = weekKey(g);
   if (c.social.week !== wk) c.social = { week: wk, used: 0 };
   c.social.used++;

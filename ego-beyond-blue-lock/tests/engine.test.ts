@@ -315,3 +315,63 @@ describe('weapons, ultimate and career start', () => {
     expect(seen.has('lob')).toBe(true); expect(seen.has('driven')).toBe(true); expect(lobDone).toBe(true);
   });
 });
+
+import { tournamentsFor } from '../src/engine/international';
+import { requestSub, subChance } from '../src/engine/match/engine';
+import { xgLogit as xgL2, shotGeo as geo2, logistic as lg2 } from '../src/engine/match/xg';
+import { doAction as doAct2, canAct as canAct2 } from '../src/engine/interactions';
+import { newGame as ng2, defaultConfig as dc2 } from '../src/engine/career';
+import { startUserMatch as sum2, userFixtureToday as uft2, autoPilot as ap2 } from '../src/engine/sim';
+import { advance as adv2 } from '../src/engine/match/engine';
+
+describe('later additions', () => {
+  it('schedules every international tournament on its cycle', () => {
+    const ids = (y: number) => tournamentsFor(y).map((t) => t.id).sort();
+    expect(ids(2026)).toEqual(['u20asian', 'u21euro', 'wc']);
+    expect(ids(2027)).toEqual(['afcon', 'asian', 'gold', 'u20wc']);
+    expect(ids(2028)).toEqual(['copa', 'euro', 'u20asian', 'u21euro']);
+    expect(ids(2029)).toEqual(['u20wc']);
+  });
+  it('xG is realistic for clear chances', () => {
+    const x = (ax: number, y: number, o: object = {}) => lg2(xgL2(geo2(ax, y), { pressure: 0, ...o }));
+    expect(x(96.5, 50)).toBeGreaterThan(0.7); // tap-in from four metres
+    expect(x(89.5, 50, { oneOnOne: true })).toBeGreaterThan(0.45); // clean through from the penalty spot
+    expect(x(89.5, 50)).toBeGreaterThan(0.2); expect(x(89.5, 50)).toBeLessThan(0.3);
+    expect(x(71, 50)).toBeLessThan(0.04); // thirty metres
+    expect(x(89.5, 50, { pressure: 1 })).toBeLessThan(x(89.5, 50));
+  });
+  it('a benched player can ask to come on, and replays are captured for interactive matches', () => {
+    const cfg = dc2(991); cfg.name = 'Bench Test';
+    const g = ng2(cfg);
+    ap2(g, (x) => !!uft2(x) && x.world.stage === 1);
+    const ms = sum2(g, 'full')!;
+    const me = ms.pl[ms.uc!.idx];
+    adv2(ms, undefined, 50);
+    if (!me.on && !me.used) {
+      expect(subChance(ms)).toBeGreaterThan(0);
+      ms.uc!.trust = 100;
+      let ok = false;
+      for (let i = 0; i < 12 && !ok; i++) { ms.uc!.asked = 0; ok = requestSub(ms).ok; }
+      expect(ok).toBe(true); expect(me.on).toBe(true); expect(me.used).toBe(true);
+      expect(subChance(ms)).toBe(0);
+    }
+    let n = 0;
+    while (!ms.done && n++ < 3000) adv2(ms, ms.pending ? ms.pending.options[0].id : undefined, 400);
+    expect(ms.done).toBe(true);
+    expect((ms.replays ?? []).some((r) => r.res === 'goal')).toBe(true);
+    for (const r of ms.replays ?? []) { expect(r.pl.length).toBeGreaterThan(14); expect(r.xg).toBeGreaterThan(0); }
+  });
+  it('friendships can be kept alive at a distance without using social time', () => {
+    const cfg = dc2(993); cfg.name = 'Far Friend';
+    const g = ng2(cfg);
+    const me = g.world.players[g.career.pid];
+    const other = Object.values(g.world.players).find((p) => p.club && p.club !== me.club && !p.retired)!;
+    expect(canAct2(g, other.id, 'catchup')).toBeNull();
+    const used = g.career.social.used;
+    const r = doAct2(g, other.id, 'catchup');
+    expect(r.effects.length).toBeGreaterThan(0);
+    expect(g.career.social.used).toBe(used);
+    expect(g.career.rel[other.id].friend).toBeGreaterThan(0);
+    expect(canAct2(g, other.id, 'catchup')).toBeTruthy(); // once a week
+  });
+});

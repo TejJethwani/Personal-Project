@@ -232,7 +232,10 @@ export type AwardType =
   | 'pots' | 'ypots' | 'tots' | 'boot' | 'playmaker' | 'glove'
   | 'nel_mvp' | 'nel_boot' | 'nel_xi' | 'nel_playmaker' | 'nel_glove' | 'nel_goal'
   | 'world_player' | 'world_young' | 'world_gk' | 'world_xi' | 'world_goal'
-  | 'tourn_best' | 'tourn_boot' | 'champion';
+  | 'tourn_best' | 'tourn_boot' | 'champion'
+  | 'totm' | 'def_s' | 'mid_s' | 'fwd_s' | 'signing_s'
+  | 'golden_shoe' | 'world_def' | 'world_mid' | 'world_fwd' | 'world_scorer' | 'world_playmaker'
+  | 'tourn_xi' | 'tourn_young' | 'tourn_glove';
 
 export interface AwardNom { pid: string; name: string; club: string; clubName: string; line: string; score: number }
 export interface AwardXI { pid: string; name: string; pos: Pos; club: string; clubName: string; rat: number }

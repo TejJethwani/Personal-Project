@@ -634,12 +634,14 @@ export const CTX_NAME: Record<ActCtx, string> = {
 };
 
 /** Passive (always-on, contextual) modifier table for a set of abilities. */
+/** How strongly each weapon level adds to its effect (levelling a weapon visibly raises the chances it produces). */
+export const LV_SCALE = 1.8;
 export function buildMods(ab: AbilityRef[], scale: number): number[] {
   const m = new Array(N_MODS).fill(0);
   for (const r of ab) {
     const d = abilityDef(r.id);
     if (!d) continue;
-    for (const e of d.fx) m[M[e.k]] += (e.v + e.per * (r.lv - 1)) * scale;
+    for (const e of d.fx) m[M[e.k]] += (e.v + e.per * (r.lv - 1) * LV_SCALE) * scale;
     if (r.evo && d.evo) {
       const ev = d.evo.find((x) => x.id === r.evo);
       if (ev) for (const e of ev.fx) m[M[e.k]] += (e.v + e.per * Math.max(0, r.lv - 3)) * scale;
@@ -652,7 +654,7 @@ export function buildMods(ab: AbilityRef[], scale: number): number[] {
 
 export function actValue(r: AbilityRef, d: AbilityDef, scale: number): { k: number; v: number }[] {
   if (!d.act) return [];
-  return d.act.fx.map((e) => ({ k: M[e.k], v: (e.v + e.per * (r.lv - 1)) * scale }));
+  return d.act.fx.map((e) => ({ k: M[e.k], v: (e.v + e.per * (r.lv - 1) * LV_SCALE) * scale }));
 }
 
 /** A player can hold at most four weapons in a career; slots beyond the first are unlocked through progression. */

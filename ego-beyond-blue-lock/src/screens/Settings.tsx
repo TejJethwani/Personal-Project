@@ -59,7 +59,7 @@ export function Settings({ g }: { g: Game }) {
         <Card title="About this world">
           <p className="small">{g.world.baseline}</p><p className="small"><b>Simulated:</b> {SUPPORTED}</p>
           <p className="small muted">Not simulated: other countries' leagues, lower tiers outside England, reserve leagues and international qualifying. Clubs relegated out of the simulated pyramid are replaced by clubs from the division below and can return. World seed {g.world.seed}; {Object.keys(g.world.players).length} players tracked.</p>
-          <div className="mt"><ConfirmButton className="btn danger" label="Retire from football" confirm="Confirm retirement (ends the playable career)" disabled={me.retired != null} onConfirm={() => { act((x) => retire(x)); nav('history'); }} /></div>
+          <div className="mt"><ConfirmButton className="btn danger" label="Retire from football" confirm="Confirm retirement (ends the playable career)" disabled={me.retired != null} onConfirm={() => { act((x) => retire(x)); nav('hof'); }} /></div>
         </Card>
       </div>
       <Card title="Sandbox editor" className="mt" right={<Chip k="w">Marks the save as edited</Chip>}>

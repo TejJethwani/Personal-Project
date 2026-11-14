@@ -11,6 +11,7 @@ import { rngOf, genPlayer } from './worldgen';
 import { NATIONS } from './data/nations';
 import { mkComp, scheduleGroups, addFixture, dayOf, END, BREAK_WEEKS, seasonLabel, tableOf, compFixtures } from './competitions';
 import { addNews, milestone } from './util';
+import { relOf } from './relationships';
 import { winnerId } from './match/setup';
 
 const SHAPE: [Pos[], number][] = [[['GK'], 3], [['CB'], 4], [['LB', 'LM'], 2], [['RB', 'RM'], 2], [['DM'], 2], [['CM'], 3], [['AM', 'SS'], 2], [['LW'], 2], [['RW'], 1], [['ST'], 2]];
@@ -95,6 +96,7 @@ export function setupU20WorldCup(g: Game): void {
   const c = mkComp(w, { id: 'u20wc', name: 'U-20 World Cup', sn: 'U20 WC', kind: 'intl', teams, natTeams: true, u20: true, weekly: false });
   (c as Competition & { days?: number[] }).days = [52, 55, 58];
   scheduleGroups(w, c, drawGroups(g, teams), 1, [42, 45, 48], true, 2);
+  if (selected) meetSquad(g, w.nations[me.nat].u20squad ?? []);
   addNews(g, 'intl', 'U-20 World Cup squads named', `Sixteen nations. Japan travel with the Blue Lock top ${w.nel.top23?.length ?? 23}.${selected ? ` You are in the ${NATIONS[me.nat].name} squad.` : ''}`, { imp: 2, me: selected });
   if (selected) milestone(g, 'intl', `Named in the ${NATIONS[me.nat].name} squad for the U-20 World Cup.`);
 }
@@ -104,53 +106,74 @@ export function isCalledUp(g: Game): boolean {
   return !!g.world.nations[me.nat]?.squad?.includes(me.id);
 }
 
-/** Summer tournaments after the club season. Returns true if one was created. */
+function clearEdition(g: Game, id: string): void {
+  // the previous edition's scoreboard stays visible until the next one is drawn
+  const w = g.world;
+  for (const fid of Object.keys(w.fixtures)) if (w.fixtures[fid].comp === id) delete w.fixtures[fid];
+  for (const pid in w.players) if (w.players[pid].ss[id]) delete w.players[pid].ss[id];
+}
+/** Make sure the user has relationship entries with national-team colleagues. */
+export function meetSquad(g: Game, squad: string[]): void {
+  const me = g.career.pid;
+  if (!squad.includes(me)) return;
+  for (const id of squad) if (id !== me) { const r = relOf(g, id); r.flags.nat = 1; }
+}
+
+interface TDef { id: string; name: string; conf: string | null; n: number; u20?: boolean }
+/** Which international tournaments are played in the summer of a given year. */
+export function tournamentsFor(year: number): TDef[] {
+  const out: TDef[] = [];
+  if (year % 4 === 2) out.push({ id: 'wc', name: `World Cup ${year}`, conf: null, n: 32 });
+  if (year % 4 === 0) out.push({ id: 'euro', name: `European Championship ${year}`, conf: 'UEFA', n: 16 }, { id: 'copa', name: `Copa América ${year}`, conf: 'CONMEBOL', n: 8 });
+  if (year % 4 === 3) out.push({ id: 'asian', name: `Asian Cup ${year}`, conf: 'AFC', n: 8 }, { id: 'afcon', name: `Africa Cup of Nations ${year}`, conf: 'CAF', n: 16 }, { id: 'gold', name: `Gold Cup ${year}`, conf: 'CONCACAF', n: 8 });
+  if (year % 2 === 1) out.push({ id: 'u20wc', name: `U-20 World Cup ${year}`, conf: null, n: 16, u20: true });
+  else out.push({ id: 'u20asian', name: `U-20 Asian Cup ${year}`, conf: 'AFC', n: 8, u20: true }, { id: 'u21euro', name: `U-21 European Championship ${year}`, conf: 'UEFA', n: 8, u20: true });
+  return out;
+}
+
+/** Summer tournaments after the club season. Returns true if any were created. */
 export function setupSummerTournament(g: Game): boolean {
   const w = g.world;
   const year = w.season + 1;
   const me = w.players[g.career.pid];
   const d0 = dayOf(46, 1);
-  if (year % 4 === 2) {
-    const quota: [string, number][] = [['UEFA', 13], ['CONMEBOL', 5], ['CAF', 5], ['AFC', 5], ['CONCACAF', 4]];
-    let teams: string[] = [];
-    for (const [conf, n] of quota) teams.push(...strongest(conf, n, [me.nat], w.seed + year));
-    teams = [...new Set(teams)].slice(0, 32);
-    for (const extra of strongest(null, 40, [], w.seed + year)) { if (teams.length >= 32) break; if (!teams.includes(extra)) teams.push(extra); }
-    const pools = byNation(g, 99);
-    for (const t of teams) selectSquad(g, t, false, pools[t]);
-    const c = mkComp(w, { id: 'wc', name: `World Cup ${year}`, sn: 'World Cup', kind: 'intl', teams, natTeams: true });
-    (c as Competition & { days?: number[] }).days = [d0 + 11, d0 + 15, d0 + 19, d0 + 23];
+  const defs = tournamentsFor(year);
+  const senior = byNation(g, 99), young = byNation(g, 21);
+  const busy = new Set<string>();
+  for (const def of defs.filter((d) => !d.u20).concat(defs.filter((d) => d.u20))) {
+    let teams: string[];
+    if (def.id === 'wc') {
+      teams = [];
+      for (const [conf, n] of [['UEFA', 13], ['CONMEBOL', 5], ['CAF', 5], ['AFC', 5], ['CONCACAF', 4]] as const) teams.push(...strongest(conf, n, [me.nat], w.seed + year));
+      teams = [...new Set(teams)].slice(0, 32);
+      for (const extra of strongest(null, 40, [], w.seed + year)) { if (teams.length >= 32) break; if (!teams.includes(extra)) teams.push(extra); }
+    } else {
+      const must = def.id === 'u20wc' ? ['JPN', me.nat, 'FRA', 'GER', 'ESP', 'ENG', 'BRA', 'ARG'] : [me.nat];
+      teams = strongest(def.conf, def.n, must, w.seed + year + (def.u20 ? 7 : 0));
+      if (teams.length < 8) continue;
+      teams = teams.slice(0, teams.length >= 32 ? 32 : teams.length >= 16 ? 16 : 8);
+    }
+    clearEdition(g, def.id);
+    for (const t of teams) {
+      if (def.u20) {
+        const pool = (young[t] ?? []).filter((p) => !busy.has(p.id));
+        selectSquad(g, t, true, pool);
+      } else { for (const id of selectSquad(g, t, false, senior[t])) busy.add(id); }
+    }
+    const c = mkComp(w, { id: def.id, name: def.name, sn: def.name.replace(/ \d+$/, ''), kind: 'intl', teams, natTeams: true, u20: def.u20 });
+    (c as Competition & { days?: number[] }).days = teams.length === 32 ? [d0 + 11, d0 + 15, d0 + 19, d0 + 23] : teams.length === 16 ? [d0 + 11, d0 + 15, d0 + 19] : [d0 + 11, d0 + 15];
     scheduleGroups(w, c, drawGroups(g, teams), 1, [d0, d0 + 3, d0 + 7], true, 2);
     announce(g, c);
-    return true;
   }
-  if (year % 4 === 0) {
-    const conf = NATIONS[me.nat]?.conf ?? 'UEFA';
-    const defs: [string, string, string, number][] = [['UEFA', 'euro', `European Championship ${year}`, 16]];
-    if (conf === 'CONMEBOL') defs.push(['CONMEBOL', 'copa', `Copa América ${year}`, 8]);
-    if (conf === 'CAF') defs.push(['CAF', 'afcon', `Africa Cup of Nations ${year}`, 16]);
-    if (conf === 'AFC') defs.push(['AFC', 'asian', `Asian Cup ${year}`, 8]);
-    if (conf === 'CONCACAF') defs.push(['CONCACAF', 'gold', `Gold Cup ${year}`, 8]);
-    const pools = byNation(g, 99);
-    for (const [cf, id, name, n] of defs) {
-      const teams = strongest(cf, n, [me.nat], w.seed + year);
-      if (teams.length < 8) continue;
-      const use = teams.slice(0, teams.length >= 16 ? 16 : 8);
-      for (const t of use) selectSquad(g, t, false, pools[t]);
-      const c = mkComp(w, { id, name, sn: name.replace(/ \d+$/, ''), kind: 'intl', teams: use, natTeams: true });
-      (c as Competition & { days?: number[] }).days = use.length === 16 ? [d0 + 11, d0 + 15, d0 + 19] : [d0 + 11, d0 + 15];
-      scheduleGroups(w, c, drawGroups(g, use), 1, [d0, d0 + 3, d0 + 7], true, 2);
-      announce(g, c);
-    }
-    return true;
-  }
-  return false;
+  return defs.length > 0;
 }
 
 function announce(g: Game, c: Competition): void {
   const w = g.world;
   const me = w.players[g.career.pid];
-  const inSquad = c.teams.includes(me.nat) && !!w.nations[me.nat].squad?.includes(me.id);
+  const sq = (c.u20 ? w.nations[me.nat]?.u20squad : w.nations[me.nat]?.squad) ?? [];
+  const inSquad = c.teams.includes(me.nat) && sq.includes(me.id);
+  if (inSquad) meetSquad(g, sq);
   addNews(g, 'intl', `${c.name}: squads announced`, `${c.teams.length} nations.${c.teams.includes(me.nat) ? (inSquad ? ` You are in the ${NATIONS[me.nat].name} squad.` : ` ${NATIONS[me.nat].name} have named their squad without you.`) : ''}`, { imp: 2, me: c.teams.includes(me.nat) });
   if (inSquad) milestone(g, 'intl', `Selected by ${NATIONS[me.nat].name} for the ${c.name}.`);
 }
@@ -172,6 +195,7 @@ export function breakFriendly(g: Game): void {
   const pools = byNation(g, 99);
   const squad = selectSquad(g, me.nat, false, pools[me.nat]);
   const called = squad.includes(me.id);
+  if (called) meetSquad(g, squad);
   if (!called) { if (ovr(me) >= (NATIONS[me.nat].str - 8)) addNews(g, 'intl', `${NATIONS[me.nat].name} squad announced — you miss out`, `${w.nations[me.nat].coach} has not picked you for this international window.`, { imp: 1, me: true }); return; }
   const opps = Object.values(NATIONS).filter((n) => n.id !== me.nat && Math.abs(n.str - NATIONS[me.nat].str) <= 10);
   const opp = rng.pick(opps.length ? opps : Object.values(NATIONS)).id;

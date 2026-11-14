@@ -234,6 +234,7 @@ export function finishUserMatch(g: Game, ms: MatchState): string[] {
   const myTeam = ms.teams[side], opp = ms.teams[1 - side];
   const res = ms.winner === side ? 'W' : ms.winner === -1 ? 'D' : 'L';
   const played = !!mp?.used;
+  if (u && u.asked > 1) c.mgrTrust = clamp(c.mgrTrust - (u.asked - 1) * 1.5, 0, 100);
   if (u && mp) {
     notes.push(...applyMatchRelations(g, fx, ms));
     notes.push(...applyMatchDevelopment(g, ms));
