@@ -381,6 +381,9 @@ export interface SessionPlan { type: string; focus?: string; partner?: string; a
 export interface Appearance {
   skin: number; face: number; hair: number; hairCol: number; eyes: number; eyeCol: number; brows: number; mouth: number; acc: number;
   beard?: number; mark?: number; hair2?: number; nose?: number; ears?: number; bg?: number;
+  fringe?: number; eyeSize?: number; cheek?: number; collar?: number;
+  /** custom hair colour (#rrggbb); overrides hairCol when set */
+  hairHex?: string;
 }
 
 export interface CustomAbility {

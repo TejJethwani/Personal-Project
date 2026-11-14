@@ -144,11 +144,17 @@ export function Creator() {
         </div>}
         {step === 'look' && <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 320px) minmax(0, 1fr)' }}>
           <section className="card center"><Avatar look={cfg.look} size={280} kit={'#1ea7ff'} /><div className="row mt" style={{ justifyContent: 'center' }}><button className="btn sm" onClick={() => up({ look: defaultLook(Math.floor(Math.random() * 1e9)) })}>Randomise</button></div><p className="small muted mt">Original layered illustration. Every other player in the world gets a portrait from the same system.</p></section>
-          <section className="card"><h3>Appearance</h3><div className="grid g2">
-            {LOOK_OPTIONS.map(([k, label, o]) => { const n = Array.isArray(o) ? o.length : o; const v = (cfg.look[k] ?? 0) as number; return (
-              <div key={k} className="f"><span>{label}{Array.isArray(o) ? <b className="blue" style={{ textTransform: 'none', letterSpacing: 0 }}> — {o[v % n]}</b> : null}</span>
-                <div className="row gap6"><button className="btn sm ghost" aria-label={`Previous ${label}`} onClick={() => up({ look: { ...cfg.look, [k]: (v + n - 1) % n } })}>◀</button><input type="range" min={0} max={n - 1} value={v % n} onChange={(e) => up({ look: { ...cfg.look, [k]: +e.target.value } })} aria-label={label} /><button className="btn sm ghost" aria-label={`Next ${label}`} onClick={() => up({ look: { ...cfg.look, [k]: (v + 1) % n } })}>▶</button></div></div>); })}</div>
-            <div className="f mt">Hair colour<div className="row wrap gap6">{HAIR_COLS.map((c, i) => <button key={c} onClick={() => up({ look: { ...cfg.look, hairCol: i } })} aria-label={`Hair colour ${i + 1}`} aria-pressed={cfg.look.hairCol === i} style={{ width: 30, height: 30, background: c, border: cfg.look.hairCol === i ? '2px solid var(--cyan)' : '1px solid var(--line2)', cursor: 'pointer' }} />)}</div></div>
+          <section className="card"><h3>Appearance</h3>
+            {['Hair', 'Head', 'Eyes & mouth', 'Extras'].map((grp) => <div key={grp} style={{ marginBottom: 14 }}>
+              <h4 style={{ marginBottom: 8 }}>{grp}</h4>
+              <div className="grid g2">
+                {LOOK_OPTIONS.filter((x) => x[3] === grp).map(([k, label, o]) => { const n = Array.isArray(o) ? o.length : o; const v = ((cfg.look[k] as number | undefined) ?? 0); return (
+                  <div key={k} className="f"><span>{label}{Array.isArray(o) ? <b className="blue" style={{ textTransform: 'none', letterSpacing: 0 }}> — {o[v % n]}</b> : <b className="blue" style={{ textTransform: 'none', letterSpacing: 0 }}> — {(v % n) + 1}/{n}</b>}</span>
+                    <div className="row gap6"><button className="btn sm ghost" aria-label={`Previous ${label}`} onClick={() => up({ look: { ...cfg.look, [k]: (v + n - 1) % n } })}>◀</button><input type="range" min={0} max={n - 1} value={v % n} onChange={(e) => up({ look: { ...cfg.look, [k]: +e.target.value } })} aria-label={label} /><button className="btn sm ghost" aria-label={`Next ${label}`} onClick={() => up({ look: { ...cfg.look, [k]: (v + 1) % n } })}>▶</button></div></div>); })}
+              </div>
+              {grp === 'Hair' && <div className="f mt">Hair colour<div className="row wrap gap6">{HAIR_COLS.map((c, i) => <button key={c} onClick={() => up({ look: { ...cfg.look, hairCol: i, hairHex: undefined } })} aria-label={`Hair colour ${i + 1}`} aria-pressed={!cfg.look.hairHex && cfg.look.hairCol === i} style={{ width: 30, height: 30, background: c, border: !cfg.look.hairHex && cfg.look.hairCol === i ? '2px solid var(--cyan)' : '1px solid var(--line2)', cursor: 'pointer' }} />)}
+                <label className="row gap6 small" style={{ textTransform: 'none', letterSpacing: 0, marginLeft: 6, border: cfg.look.hairHex ? '2px solid var(--cyan)' : '1px solid var(--line2)', padding: '2px 8px' }}>Custom <input type="color" value={cfg.look.hairHex ?? HAIR_COLS[cfg.look.hairCol % HAIR_COLS.length]} onChange={(e) => up({ look: { ...cfg.look, hairHex: e.target.value } })} aria-label="Custom hair colour" style={{ width: 34, height: 26, padding: 0, border: 0, background: 'none' }} /></label></div></div>}
+            </div>)}
           </section>
         </div>}
         {step === 'mind' && <div className="grid g3">

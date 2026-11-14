@@ -47,7 +47,11 @@ export const PRESETS = [
 
 export function defaultLook(seed: number): Appearance {
   const r = Rng.seeded(seed);
-  return { skin: r.int(8), face: r.int(5), hair: r.int(16), hairCol: r.int(12), eyes: r.int(7), eyeCol: r.int(8), brows: r.int(5), mouth: r.int(6), acc: 0, beard: r.chance(0.2) ? 1 + r.int(4) : 0, mark: 0, hair2: 0, nose: r.int(4), ears: r.int(3), bg: 0 };
+  const L: Appearance = { skin: r.int(8), face: r.int(5), hair: r.int(16), hairCol: r.int(12), eyes: r.int(7), eyeCol: r.int(8), brows: r.int(5), mouth: r.int(6), acc: 0, beard: r.chance(0.2) ? 1 + r.int(4) : 0, mark: 0, hair2: 0, nose: r.int(4), ears: r.int(3), bg: 0 };
+  // later additions draw from the generator afterwards so existing portraits keep their earlier features
+  L.fringe = r.int(8); L.eyeSize = r.chance(0.6) ? 0 : 1 + r.int(2); L.cheek = r.chance(0.7) ? 0 : 1 + r.int(3); L.collar = r.int(6);
+  if (r.chance(0.3)) L.hair = 16 + r.int(6);
+  return L;
 }
 export function lookFor(id: string): Appearance { return defaultLook(hashStr(id)); }
 

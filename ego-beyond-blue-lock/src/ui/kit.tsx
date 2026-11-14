@@ -62,84 +62,182 @@ export function PlayerLink({ g, id, full }: { g: Game; id: string; full?: boolea
   return <button className="link" onClick={() => nav('player', id)}>{full ? p.name : p.sn}{id === g.career.pid ? ' ★' : ''}</button>;
 }
 
-const SKIN = ['#fbe3cf', '#f6d7bd', '#eec39a', '#d9a273', '#c68b59', '#a9683c', '#8b5a36', '#5c3a22'];
-export const HAIR_COLS = ['#141414', '#3b2a1e', '#7a4a22', '#c58a3c', '#e9d27a', '#e8e8ee', '#c1272d', '#1e6bd6', '#2a9d8f', '#d14c9a', '#7b2bff', '#ff7a1a'];
-const EYE_COLS = ['#2b2b2b', '#5a3a1e', '#1e6bd6', '#2a9d8f', '#8a8f98', '#b3122f', '#d8a31a', '#7b2bff'];
-const BGS = ['#0a1122', '#0b2a4a', '#2a0b2e', '#0b2e22', '#3a1010', '#2c2a10'];
-export const LOOK_OPTIONS: [keyof Appearance, string, number | string[]][] = [
-  ['skin', 'Skin tone', 8], ['face', 'Face shape', ['Oval', 'Broad', 'Narrow', 'Square jaw', 'Sharp chin']], ['hair', 'Hair style', ['Short', 'Spiky', 'Long', 'Bowl', 'Side tail', 'Buzz cut', 'Mohawk', 'Curly', 'Swept', 'Wild', 'Twin spikes', 'Centre part', 'Top knot', 'Afro', 'Slick back', 'Bald']],
-  ['hair2', 'Hair streak', ['None', 'White', 'Gold', 'Red', 'Blue', 'Green', 'Pink']], ['eyes', 'Eye shape', ['Round', 'Narrow', 'Wide', 'Almond', 'Sharp', 'Sleepy', 'Fierce']], ['eyeCol', 'Eye colour', 8],
-  ['brows', 'Eyebrows', ['Flat', 'Angry', 'Raised', 'Thick', 'Thin arched']], ['nose', 'Nose', ['Soft', 'Straight', 'Wide', 'Pointed']], ['mouth', 'Mouth', ['Smile', 'Neutral', 'Frown', 'Grin', 'Smirk', 'Open']], ['ears', 'Ears', ['Regular', 'Small', 'Large']],
-  ['beard', 'Facial hair', ['None', 'Stubble', 'Goatee', 'Full beard', 'Moustache']], ['mark', 'Face detail', ['None', 'Scar', 'Freckles', 'Nose strip', 'Eye black', 'Beauty mark']],
-  ['acc', 'Accessory', ['None', 'White headband', 'Glasses', 'Team headband', 'Earring', 'Bandana']], ['bg', 'Portrait background', 6],
+const SKIN = ['#fbe3cf', '#f6d7bd', '#eec39a', '#d9a273', '#c68b59', '#a9683c', '#8b5a36', '#5c3a22', '#f3cdb4', '#3f2716'];
+export const HAIR_COLS = ['#141414', '#3b2a1e', '#7a4a22', '#c58a3c', '#e9d27a', '#e8e8ee', '#c1272d', '#1e6bd6', '#2a9d8f', '#d14c9a', '#7b2bff', '#ff7a1a', '#5a6270', '#8fd3ff', '#9be15d', '#4b1d6b', '#ff9ecb', '#0d3b3a'];
+const EYE_COLS = ['#2b2b2b', '#5a3a1e', '#1e6bd6', '#2a9d8f', '#8a8f98', '#b3122f', '#d8a31a', '#7b2bff', '#3df2ff', '#ff5fa2', '#6fbf3a', '#e8742a'];
+const BGS = ['#0a1122', '#0b2a4a', '#2a0b2e', '#0b2e22', '#3a1010', '#2c2a10', '#14161c', '#1b2f5e', '#40204f', '#0f3d3d'];
+const HAIR_NAMES = ['Short', 'Spiky', 'Long', 'Bowl', 'Ponytail', 'Buzz cut', 'Mohawk', 'Curly', 'Quiff', 'Wild', 'Twin spikes', 'Curtains', 'Top knot', 'Afro', 'Slick back', 'Bald', 'Locs', 'Man bun', 'Undercut', 'Mullet', 'Braids', 'Messy'];
+/** [key, label, options, group] — the creator renders these grouped. */
+export const LOOK_OPTIONS: [keyof Appearance, string, number | string[], string][] = [
+  ['hair', 'Hair style', HAIR_NAMES, 'Hair'], ['fringe', 'Fringe / hairline', ['Natural', 'Straight bangs', 'Side part', 'Centre part', 'Widow\'s peak', 'Jagged bangs', 'Swept across', 'High forehead'], 'Hair'],
+  ['hair2', 'Highlight', ['None', 'White', 'Gold', 'Red', 'Blue', 'Green', 'Pink', 'Black'], 'Hair'], ['beard', 'Facial hair', ['None', 'Stubble', 'Goatee', 'Full beard', 'Moustache', 'Chin strap', 'Soul patch'], 'Hair'],
+  ['skin', 'Skin tone', 10, 'Head'], ['face', 'Face shape', ['Oval', 'Broad', 'Narrow', 'Square jaw', 'Sharp chin'], 'Head'], ['ears', 'Ears', ['Regular', 'Small', 'Large'], 'Head'], ['nose', 'Nose', ['Soft', 'Straight', 'Wide', 'Pointed'], 'Head'],
+  ['eyes', 'Eye shape', ['Round', 'Narrow', 'Wide', 'Almond', 'Sharp', 'Sleepy', 'Fierce'], 'Eyes & mouth'], ['eyeSize', 'Eye size', ['Normal', 'Small', 'Large'], 'Eyes & mouth'], ['eyeCol', 'Eye colour', 12, 'Eyes & mouth'],
+  ['brows', 'Eyebrows', ['Flat', 'Angry', 'Raised', 'Thick', 'Thin arched'], 'Eyes & mouth'], ['mouth', 'Mouth', ['Smile', 'Neutral', 'Frown', 'Grin', 'Smirk', 'Open'], 'Eyes & mouth'], ['cheek', 'Cheeks', ['Plain', 'Blush', 'Cheekbones', 'Dimples'], 'Eyes & mouth'],
+  ['mark', 'Face detail', ['None', 'Scar', 'Freckles', 'Nose strip', 'Eye black', 'Beauty mark'], 'Extras'], ['acc', 'Accessory', ['None', 'White headband', 'Glasses', 'Team headband', 'Earring', 'Bandana', 'Two earrings', 'Eye patch', 'Face mask'], 'Extras'],
+  ['collar', 'Shirt', ['V-neck', 'Crew neck', 'Collar', 'Stripes', 'Sash', 'Hoops'], 'Extras'], ['bg', 'Portrait background', 10, 'Extras'],
 ];
-const STREAK = ['', '#f1f1f1', '#ffd166', '#e63946', '#3da9fc', '#2ee59d', '#ff70a6'];
-const HAIR: ((c: string) => ReactNode)[] = [
-  (c) => <path d="M22 44c-3-22 9-32 28-32s31 10 28 32c-4-12-10-17-28-17S26 32 22 44z" fill={c} />,
-  (c) => <path d="M20 46c-4-10 0-20 4-24l-2-9 9 5 5-10 6 9 8-9 4 10 9-6-1 10c5 5 9 13 6 24-5-13-9-18-26-18S25 33 20 46z" fill={c} />,
-  (c) => <path d="M19 74c-5-34 4-62 31-62s36 28 31 62l-6-2c3-22 1-40-25-40S22 50 25 72z" fill={c} />,
-  (c) => <path d="M20 58c-4-28 6-46 30-46s34 18 30 46c-2-16-8-28-30-28S22 42 20 58z" fill={c} />,
-  (c) => <><path d="M22 44c-3-22 9-32 28-32s31 10 28 32c-4-12-10-17-28-17S26 32 22 44z" fill={c} /><path d="M70 22c12 2 16 14 12 30-2-10-6-18-14-24z" fill={c} /></>,
-  (c) => <path d="M24 40c-1-18 10-26 26-26s27 8 26 26c-4-9-10-13-26-13s-22 4-26 13z" fill={c} opacity=".85" />,
-  (c) => <path d="M42 30c-2-12 2-22 8-24 6 2 10 12 8 24-4-3-12-3-16 0zM24 42c0-8 4-13 9-15-2 5-2 10-1 14zM76 42c0-8-4-13-9-15 2 5 2 10 1 14z" fill={c} />,
-  (c) => <path d="M18 46c-3-8 0-16 5-19-2-7 4-13 10-12 2-6 10-8 15-4 5-5 14-3 16 3 7-1 13 5 11 12 5 4 7 12 4 20-3-10-8-18-29-18S22 36 18 46z" fill={c} />,
-  (c) => <><path d="M26 42c-2-20 8-29 24-29s26 9 24 29c-3-8-6-10-10-12-10 2-22 2-30-2-4 3-6 7-8 14z" fill={c} /><path d="M30 20c8-6 22-8 34-4-10 0-22 2-34 4z" fill="#fff" opacity=".12" /></>,
-  (c) => <path d="M18 50c-6-12 2-22 6-25-4-10 6-16 12-11 0-8 12-10 15-3 6-6 16-2 14 6 8-2 14 6 10 13 6 5 8 14 5 22l-8-10c-6-10-12-13-22-13s-18 3-24 12z" fill={c} />,
-  (c) => <path d="M22 44c-2-12 2-20 6-24l-6-14 14 8 14-10 14 10 14-8-6 14c4 4 8 12 6 24-5-12-10-16-28-16S27 32 22 44z" fill={c} />,
-  (c) => <path d="M21 52c-4-26 8-40 29-40s33 14 29 40c-2-12-6-20-12-24-6 2-10 2-17-2-7 4-11 4-17 2-6 4-10 12-12 24z" fill={c} />,
-  (c) => <><path d="M24 42c-1-18 10-27 26-27s27 9 26 27c-4-9-10-13-26-13s-22 4-26 13z" fill={c} /><circle cx="50" cy="11" r="8" fill={c} /></>,
-  (c) => <path d="M14 46a36 34 0 1 1 72 0c-4-12-12-20-36-20S18 34 14 46z" fill={c} />,
-  (c) => <path d="M23 46c-3-24 9-33 27-33s30 9 27 33c-3-10-6-14-12-17-9 3-21 3-30 0-6 3-9 7-12 17z" fill={c} />,
-  () => null,
-];
+const STREAK = ['', '#f1f1f1', '#ffd166', '#e63946', '#3da9fc', '#2ee59d', '#ff70a6', '#111111'];
+
+// ── hair: generated from the head geometry so it always fits every face width ──
+const RY = 30, CY = 48;
+const f1 = (v: number) => Math.round(v * 10) / 10;
+/** Point on the head outline pushed outwards by `o`, at angle `deg` (0 = right, 90 = top, 180 = left). */
+function hp(fw: number, deg: number, o: number): [number, number] { const a = (deg * Math.PI) / 180; return [50 + (fw + o) * Math.cos(a), CY - (RY + o) * Math.sin(a)]; }
+const tri = (x: number) => 1 - Math.abs(((x % 1) + 1) % 1 * 2 - 1);
+const bump = (d: number, c: number, w: number) => Math.exp(-(((d - c) / w) ** 2));
+/** Outward volume of each style as a function of the angle around the head. */
+function volume(style: number, d: number): number {
+  switch (style) {
+    case 1: return d > 18 && d < 162 ? 2.5 + 10 * tri((d - 18) / 24) : 2.5;
+    case 2: case 11: case 16: case 19: case 20: return 4;
+    case 3: return 5;
+    case 5: return 1.1;
+    case 6: return 0.6 + 13 * bump(d, 90, 13);
+    case 7: return 6;
+    case 8: return 3.5 + 10 * bump(d, 62, 26);
+    case 9: return 4 + 9 * tri((d + 14) / 21) * (0.55 + 0.45 * Math.sin((d * Math.PI) / 180));
+    case 10: return 3 + 14 * (bump(d, 126, 10) + bump(d, 54, 10));
+    case 12: case 17: return 2.4;
+    case 13: return 12;
+    case 14: return 3;
+    case 18: return 1 + 9 * bump(d, 90, 40);
+    case 21: return 4 + 3.5 * tri((d + 5) / 13) + 4 * bump(d, 110, 20);
+    default: return 3.2;
+  }
+}
+/** Hairline height across the forehead, u from −1 (left temple) to 1 (right temple). */
+function hairline(fr: number, u: number): number {
+  const a = Math.abs(u);
+  let y: number;
+  switch (fr) {
+    case 1: y = 41 + 9 * a ** 4; break;
+    case 2: y = 35 - 6 * u + 15 * a ** 3; break;
+    case 3: y = 30 + 13 * Math.min(1, a * 2.4) ** 0.7 + 6 * a ** 6; break;
+    case 4: y = 31 + 18 * a ** 3 + 6 * Math.exp(-((u * 7) ** 2)); break;
+    case 5: y = 38 + 10 * a ** 4 + 4.5 * tri(u * 3.5 + 0.25); break;
+    case 6: y = 37 + 8 * u + 10 * a ** 4; break;
+    case 7: y = 27 + 23 * a ** 2.4; break;
+    default: y = 32 + 18 * a ** 3;
+  }
+  return Math.min(51, y);
+}
+function hairPaths(fw: number, style: number, fringe: number): { cap: string; top: string; back: ReactNode; capOpacity: number } | null {
+  if (style === 15) return null;
+  const T = style === 3 ? 196 : 186; // how far down the temples the hair reaches
+  // scalp cap: over the top of the head, back along the hairline
+  let cap = '';
+  for (let d = T; d >= 180 - T; d -= 6) { const [x, y] = hp(fw, d, 1.4); cap += `${cap ? 'L' : 'M'}${f1(x)} ${f1(y)}`; }
+  const tY = hp(fw, T, 1.4)[1];
+  for (let k = 0; k <= 24; k++) { const u = 1 - k / 12; const x = 50 + u * (fw + 1.4); cap += `L${f1(x)} ${f1(Math.min(tY, hairline(style === 3 ? 1 : fringe, u) + (style === 3 ? 2 : 0)))}`; }
+  cap += 'z';
+  // silhouette: volume outside the head
+  let top = '';
+  for (let d = T; d >= 180 - T; d -= 3) { const [x, y] = hp(fw, d, volume(style, Math.max(0, Math.min(180, d)))); top += `${top ? 'L' : 'M'}${f1(x)} ${f1(y)}`; }
+  for (let d = 180 - T; d <= T; d += 6) { const [x, y] = hp(fw, d, -1.5); top += `L${f1(x)} ${f1(y)}`; }
+  top += 'z';
+  const L = 50 - fw, R = 50 + fw;
+  let back: ReactNode = null;
+  if (style === 2) back = <path d={`M${L - 5} 46V86h${2 * fw + 10}V46z`} />;
+  else if (style === 11) back = <path d={`M${L - 4} 46v18q4 6 9 0V46zM${R + 4} 46v18q-4 6-9 0V46z`} />;
+  else if (style === 19) back = <path d={`M${L - 3} 48l-2 26 6-4 3 8 5-7 4 8h${2 * fw - 30}l4-8 5 7 3-8 6 4-2-26z`} />;
+  else if (style === 4) back = <path d={`M${R - 2} 30q18 0 16 22q-1 16-7 26q-1-14-5-22q-4-10-8-14z`} />;
+  else if (style === 13) back = <ellipse cx="50" cy="40" rx={fw + 15} ry="32" />;
+  else if (style === 7) back = <>{Array.from({ length: 11 }, (_, i) => { const [x, y] = hp(fw, 190 - i * 20, 5); return <circle key={i} cx={f1(x)} cy={f1(y)} r="6.5" />; })}</>;
+  else if (style === 16) back = <>{Array.from({ length: 9 }, (_, i) => { const x = L - 5 + (i * (2 * fw + 10)) / 8; return <rect key={i} x={f1(x - 2.6)} y="40" width="5.2" height={i > 2 && i < 6 ? 44 : 38 + (i % 2) * 5} rx="2.6" />; })}</>;
+  else if (style === 20) back = <>{[L - 6, R + 6].map((x) => <g key={x}>{[50, 57, 64, 71, 78].map((y, i) => <circle key={y} cx={x + (i % 2 ? 1 : -1)} cy={y} r={4.4 - i * 0.35} />)}</g>)}</>;
+  else if (style === 12) back = <><circle cx="50" cy={CY - RY - 8} r="8" /><rect x="47" y={CY - RY - 3} width="6" height="5" /></>;
+  else if (style === 17) back = <circle cx="50" cy={CY - RY - 3} r="9.5" />;
+  return { cap, top, back, capOpacity: style === 6 || style === 18 ? 0.38 : style === 5 ? 0.8 : 1 };
+}
+
 /** Original layered-SVG avatar. NPC looks are generated deterministically from the player's id. */
 export function Avatar({ look, size = 64, kit = '#1ea7ff', hair }: { look: Appearance; size?: number; kit?: string; hair?: string }) {
   const skin = SKIN[look.skin % SKIN.length];
-  const hc = hair ?? HAIR_COLS[look.hairCol % HAIR_COLS.length];
+  const hc = hair ?? look.hairHex ?? HAIR_COLS[look.hairCol % HAIR_COLS.length];
   const ec = EYE_COLS[look.eyeCol % EYE_COLS.length];
   const ft = look.face % 5;
   const fw = [26, 29, 23, 27, 25][ft];
   const ey = look.eyes % 7;
-  const br = look.brows % 5, mo = look.mouth % 6, no = (look.nose ?? 0) % 4, beard = (look.beard ?? 0) % 5, mark = (look.mark ?? 0) % 6, acc = look.acc % 6;
+  const br = look.brows % 5, mo = look.mouth % 6, no = (look.nose ?? 0) % 4, beard = (look.beard ?? 0) % 7, mark = (look.mark ?? 0) % 6, acc = look.acc % 9;
   const earR = [7, 5, 9][(look.ears ?? 0) % 3];
   const streak = STREAK[(look.hair2 ?? 0) % STREAK.length];
+  const es = [1, 0.84, 1.18][(look.eyeSize ?? 0) % 3];
+  const cheek = (look.cheek ?? 0) % 4, collar = (look.collar ?? 0) % 6;
   const eyeRy = [4.5, 3, 5.5, 3.8, 3.4, 2.6, 4][ey], eyeRx = [6.5, 6.5, 6.5, 5.5, 6.5, 6.5, 7][ey];
+  const style = look.hair % HAIR_NAMES.length;
+  const H = hairPaths(fw, style, (look.fringe ?? 0) % 8);
+  const hs = shadeHex(hc, -0.28);
   const face = ft === 3 ? <path d={`M${50 - fw} 44c0-16 10-26 ${fw}-26s${fw} 10 ${fw} 26v10c0 12-10 24-${fw} 24s-${fw}-12-${fw}-24z`} fill={skin} /> : ft === 4 ? <path d={`M${50 - fw} 42c0-15 10-24 ${fw}-24s${fw} 9 ${fw} 24c0 14-8 28-${fw} 37-${fw - 8}-9-${fw}-23-${fw}-37z`} fill={skin} /> : <ellipse cx="50" cy="48" rx={fw} ry="30" fill={skin} />;
   return (
     <svg className="avatar" width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Player portrait">
       <rect width="100" height="100" fill={BGS[(look.bg ?? 0) % BGS.length]} />
-      <path d="M0 100 30 82h40l30 18z" fill={kit} /><path d="M40 82h20l-10 9z" fill="#fff" opacity=".85" />
+      {H?.back && <g fill={hs}>{H.back}</g>}
+      <path d="M0 100 30 82h40l30 18z" fill={kit} />
+      {collar === 3 && <path d="M14 100l8-13h6l-7 13zM32 100l4-18h5l-2 18zM61 100l-2-18h5l4 18zM79 100l-7-13h6l8 13z" fill="#fff" opacity=".8" />}
+      {collar === 4 && <path d="M26 84l8-2 40 18H56z" fill="#fff" opacity=".85" />}
+      {collar === 5 && <path d="M16 91l7-4h54l7 4zM5 97l6-3h78l6 3z" fill="#fff" opacity=".75" />}
+      {collar === 0 && <path d="M40 82h20l-10 9z" fill="#fff" opacity=".85" />}
+      {collar === 1 && <path d="M39 82q11 8 22 0v3q-11 8-22 0z" fill="#fff" opacity=".85" />}
+      {collar === 2 && <path d="M37 80l13 8 13-8 3 6-16 8-16-8z" fill="#fff" opacity=".9" />}
       <rect x="43" y="68" width="14" height="16" fill={skin} /><rect x="43" y="74" width="14" height="6" fill="#000" opacity=".12" />
       <ellipse cx={50 - fw} cy="50" rx="4" ry={earR} fill={skin} /><ellipse cx={50 + fw} cy="50" rx="4" ry={earR} fill={skin} />
       {face}
+      {cheek === 1 && <g fill="#ff6b8a" opacity=".28"><ellipse cx={50 - fw * 0.58} cy="59" rx="5" ry="3" /><ellipse cx={50 + fw * 0.58} cy="59" rx="5" ry="3" /></g>}
+      {cheek === 2 && <g stroke="#000" strokeOpacity=".18" strokeWidth="1.3" fill="none" strokeLinecap="round"><path d={`M${50 - fw + 4} 57q4 5 3 11`} /><path d={`M${50 + fw - 4} 57q-4 5-3 11`} /></g>}
+      {cheek === 3 && <g stroke="#000" strokeOpacity=".22" strokeWidth="1.2" fill="none" strokeLinecap="round"><path d="M38 64q-2 3 0 6" /><path d="M62 64q2 3 0 6" /></g>}
       {beard === 1 && <path d={`M${50 - fw + 3} 58q${fw - 3} 30 ${2 * fw - 6} 0q-2 18-${fw - 3} 20t-${fw - 3}-20z`} fill={hc} opacity=".28" />}
       {beard === 2 && <path d="M43 70q7 12 14 0q-1 8-7 9t-7-9z" fill={hc} />}
       {beard === 3 && <path d={`M${50 - fw + 2} 54q2 26 ${fw - 2} 26t${fw - 2}-26q-6 12-${fw - 2} 12t-${fw - 2}-12z`} fill={hc} />}
       {beard === 4 && <path d="M41 63q9-5 18 0q-9 3-18 0z" fill={hc} />}
+      {beard === 5 && <path d={`M${50 - fw + 1} 52q1 27 ${fw - 1} 27t${fw - 1}-27l-3 1q-2 21-${fw - 4} 21t-${fw - 4}-21z`} fill={hc} />}
+      {beard === 6 && <path d="M47.500 70h5l-2.500 5z" fill={hc} />}
       {[-1, 1].map((s) => <g key={s} transform={`translate(${50 + s * 11} 49)`}>
-        <ellipse rx={eyeRx} ry={eyeRy} fill="#fff" />
-        <circle r={ey === 1 || ey === 5 ? 2.6 : 3.4} fill={ec} /><circle r="1.4" fill="#000" /><circle cx="1.2" cy="-1.2" r=".9" fill="#fff" />
-        {(ey === 4 || ey === 6) && <path d={`M${-7 * s} -3 ${7 * s} -6`} stroke="#111" strokeWidth="1.6" />}
-        {ey === 5 && <path d="M-7 -1.500h14" stroke={skin} strokeWidth="3.4" />}
-        {ey === 6 && <path d={`M${7 * s} 3 ${-4 * s} 4`} stroke="#111" strokeWidth="1" />}
-        <path d={br === 0 ? 'M-7 -8h14' : br === 1 ? `M${-7 * s} -6 ${7 * s} -10` : br === 2 ? `M${-7 * s} -10 ${7 * s} -7` : br === 3 ? 'M-7 -8h14' : 'M-7 -8q7 -4 14 0'} stroke={hc === '#e8e8ee' ? '#9aa0ad' : hc} strokeWidth={br === 3 ? 4.2 : br === 4 ? 1.6 : 2.6} strokeLinecap="round" fill="none" />
+        <g transform={`scale(${es})`}>
+          <ellipse rx={eyeRx} ry={eyeRy} fill="#fff" />
+          <circle r={ey === 1 || ey === 5 ? 2.6 : 3.4} fill={ec} /><circle r="1.4" fill="#000" /><circle cx="1.2" cy="-1.2" r=".9" fill="#fff" />
+          {(ey === 4 || ey === 6) && <path d={`M${-7 * s} -3 ${7 * s} -6`} stroke="#111" strokeWidth="1.6" />}
+          {ey === 5 && <path d="M-7 -1.500h14" stroke={skin} strokeWidth="3.4" />}
+          {ey === 6 && <path d={`M${7 * s} 3 ${-4 * s} 4`} stroke="#111" strokeWidth="1" />}
+        </g>
+        <path d={br === 0 ? 'M-7 -8h14' : br === 1 ? `M${-7 * s} -6 ${7 * s} -10` : br === 2 ? `M${-7 * s} -10 ${7 * s} -7` : br === 3 ? 'M-7 -8h14' : 'M-7 -8q7 -4 14 0'} stroke={lumHex(hc) > 0.7 ? '#9aa0ad' : hc} strokeWidth={br === 3 ? 4.2 : br === 4 ? 1.6 : 2.6} strokeLinecap="round" fill="none" />
         {mark === 4 && <path d="M-6 8h12" stroke="#111" strokeWidth="2.6" strokeLinecap="round" />}
       </g>)}
       <path d={['M48 58q2 3 4 0', 'M50 52v6h3', 'M46 58q4 4 8 0', 'M50 52l-3 7h5'][no]} stroke="#000" strokeOpacity=".32" fill="none" strokeWidth="1.4" strokeLinecap="round" />
-      <path d={['M43 66q7 4 14 0', 'M43 67h14', 'M43 68q7 -3 14 0', 'M44 65q6 7 12 0z', 'M44 67q8 2 13 -3', 'M45 65q5 8 10 0q-5 -2 -10 0z'][mo]} stroke="#7a2f2f" strokeWidth="2" fill={mo === 3 ? '#fff' : mo === 5 ? '#4a1414' : 'none'} strokeLinecap="round" />
+      {acc !== 8 && <path d={['M43 66q7 4 14 0', 'M43 67h14', 'M43 68q7 -3 14 0', 'M44 65q6 7 12 0z', 'M44 67q8 2 13 -3', 'M45 65q5 8 10 0q-5 -2 -10 0z'][mo]} stroke="#7a2f2f" strokeWidth="2" fill={mo === 3 ? '#fff' : mo === 5 ? '#4a1414' : 'none'} strokeLinecap="round" />}
       {mark === 1 && <path d="M62 40l5 13M61 46l7-2" stroke="#b23a48" strokeWidth="1.5" strokeLinecap="round" />}
       {mark === 2 && <g fill="#000" opacity=".25">{[[38, 57], [42, 59], [35, 60], [58, 59], [62, 57], [65, 60]].map(([x, y]) => <circle key={x} cx={x} cy={y} r="1" />)}</g>}
       {mark === 3 && <rect x="44" y="53" width="12" height="4" rx="1.5" fill="#f1f1f1" />}
       {mark === 5 && <circle cx="60" cy="63" r="1.300" fill="#2b1a12" />}
-      {HAIR[look.hair % HAIR.length](hc)}
-      {streak && look.hair % HAIR.length !== 15 && <path d="M46 14q10 2 12 16q-8-8-16-9z" fill={streak} opacity=".95" />}
-      {acc === 1 && <path d="M22 36h56v5H22z" fill="#fff" opacity=".9" />}
+      {H && <>
+        <path d={H.cap} fill={hc} opacity={H.capOpacity} />
+        <path d={H.top} fill={hc} />
+        {style === 14 && <g stroke={hs} strokeWidth="1" fill="none" opacity=".7"><path d={`M${50 - fw * 0.5} 30q${fw * 0.5}-9 ${fw}-0`} /><path d={`M${50 - fw * 0.7} 35q${fw * 0.7}-13 ${fw * 1.4} 0`} /></g>}
+        {streak && (() => { const pts: string[] = []; for (let d = 122; d >= 100; d -= 3) { const [x, y] = hp(fw, d, volume(style, d) - 0.2); pts.push(`${f1(x)} ${f1(y)}`); } const [x1, y1] = hp(fw, 100, -9), [x2, y2] = hp(fw, 118, -9); return <path d={`M${pts.join('L')}L${f1(x1)} ${f1(y1)}L${f1(x2)} ${f1(y2)}z`} fill={streak} opacity=".95" />; })()}
+      </>}
+      {acc === 1 && <path d={`M${50 - fw - 1} 34h${2 * fw + 2}v5H${50 - fw - 1}z`} fill="#fff" opacity=".92" />}
       {acc === 2 && <g fill="none" stroke="#dfe7ff" strokeWidth="1.8"><circle cx="39" cy="49" r="8.5" /><circle cx="61" cy="49" r="8.5" /><path d="M47.500 49h5" /></g>}
-      {acc === 3 && <path d="M22 36h56v5H22z" fill={kit} stroke="#fff" strokeWidth=".6" />}
-      {acc === 4 && <circle cx={50 + fw + 1} cy={57} r="2.2" fill="#ffd166" stroke="#fff" strokeWidth=".5" />}
-      {acc === 5 && <><path d="M20 38q30-12 60 0v-8q-30-12-60 0z" fill="#c1272d" /><path d="M78 34l10 8-9 2z" fill="#c1272d" /></>}
+      {acc === 3 && <path d={`M${50 - fw - 1} 34h${2 * fw + 2}v5H${50 - fw - 1}z`} fill={kit} stroke="#fff" strokeWidth=".6" />}
+      {(acc === 4 || acc === 6) && <circle cx={50 + fw + 1} cy={57} r="2.2" fill="#ffd166" stroke="#fff" strokeWidth=".5" />}
+      {acc === 6 && <circle cx={50 - fw - 1} cy={57} r="2.2" fill="#ffd166" stroke="#fff" strokeWidth=".5" />}
+      {acc === 5 && <><path d={`M${50 - fw - 2} 38q${fw + 2}-12 ${2 * fw + 4} 0v-8q-${fw + 2}-12-${2 * fw + 4} 0z`} fill="#c1272d" /><path d={`M${50 + fw} 34l10 8-9 2z`} fill="#c1272d" /></>}
+      {acc === 7 && <><path d={`M${50 - fw} 38L${50 + fw} 46`} stroke="#111" strokeWidth="1.6" /><ellipse cx="61" cy="49" rx="8" ry="6.5" fill="#111" /></>}
+      {acc === 8 && <path d={`M${50 - fw + 3} 58q${fw - 3}-6 ${2 * fw - 6} 0q-1 16-${fw - 3} 18t-${fw - 3}-18z`} fill="#e8edf5" stroke="#aab3c2" strokeWidth=".6" />}
     </svg>
   );
+}
+function shadeHex(hex: string, k: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const f = (v: number) => Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k)));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+function lumHex(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return 0.3;
+  const n = parseInt(m[1], 16);
+  return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
 }
 export function PlayerAvatar({ g, p, size = 48 }: { g: Game; p: Player; size?: number }) {
   const look = p.id === g.career.pid ? g.career.look : lookFor(p.id);
