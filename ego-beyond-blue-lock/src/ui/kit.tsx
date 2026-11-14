@@ -144,7 +144,7 @@ export function Avatar({ look, size = 64, kit = '#1ea7ff', hair }: { look: Appea
 export function PlayerAvatar({ g, p, size = 48 }: { g: Game; p: Player; size?: number }) {
   const look = p.id === g.career.pid ? g.career.look : lookFor(p.id);
   const club = p.club ? g.world.clubs[p.club] : null;
-  return <Avatar look={look} size={size} kit={club?.col[0] ?? '#31405f'} hair={p.id === g.career.pid ? undefined : p.hair} />;
+  return <Avatar look={look} size={size} kit={club?.col[0] ?? '#31405f'} hair={p.id === g.career.pid && !g.career.flags.playAs ? undefined : p.hair} />;
 }
 
 export interface Col<T> { h: string; get: (r: T) => ReactNode; sort?: (r: T) => number | string; n?: boolean; title?: string; cls?: string }

@@ -336,8 +336,9 @@ describe('later additions', () => {
     const x = (ax: number, y: number, o: object = {}) => lg2(xgL2(geo2(ax, y), { pressure: 0, ...o }));
     expect(x(96.5, 50)).toBeGreaterThan(0.7); // tap-in from four metres
     expect(x(89.5, 50, { oneOnOne: true })).toBeGreaterThan(0.45); // clean through from the penalty spot
-    expect(x(89.5, 50)).toBeGreaterThan(0.2); expect(x(89.5, 50)).toBeLessThan(0.3);
-    expect(x(71, 50)).toBeLessThan(0.04); // thirty metres
+    expect(x(89.5, 50)).toBeGreaterThan(0.25); expect(x(89.5, 50)).toBeLessThan(0.36);
+    expect(x(89.5, 50, { pressure: 1 })).toBeGreaterThan(0.17); // even fully pressured, a shot from the spot is a real chance
+    expect(x(71, 50)).toBeLessThan(0.05); // thirty metres
     expect(x(89.5, 50, { pressure: 1 })).toBeLessThan(x(89.5, 50));
   });
   it('a benched player can ask to come on, and replays are captured for interactive matches', () => {
@@ -373,5 +374,16 @@ describe('later additions', () => {
     expect(g.career.social.used).toBe(used);
     expect(g.career.rel[other.id].friend).toBeGreaterThan(0);
     expect(canAct2(g, other.id, 'catchup')).toBeTruthy(); // once a week
+  });
+  it('a career can be started as an existing NEL player', () => {
+    const cfg = dc2(995); cfg.playAs = 'Yoichi Isagi';
+    const g = ng2(cfg);
+    const me = g.world.players[g.career.pid];
+    expect(me.name).toBe('Yoichi Isagi'); expect(me.nelTeam).toBe('nel_bastard'); expect(me.club).toBe('nel_bastard');
+    expect(Object.values(g.world.players).filter((p) => p.name === 'Yoichi Isagi').length).toBe(1);
+    expect(me.ab.some((a) => a.id === 'zero_frame')).toBe(true);
+    expect(Object.keys(g.career.rel).length).toBeGreaterThan(10);
+    ap2(g, (x) => x.world.phase === 'pro');
+    expect(g.world.players[g.career.pid].club).toBeTruthy();
   });
 });

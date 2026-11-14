@@ -286,3 +286,21 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .cer-xi span { font-family: var(--disp); color: #d7a938; letter-spacing: .14em; font-size: 12px; } .cer-xi b { display: block; font-family: var(--disp); font-size: 19px; text-transform: uppercase; line-height: 1.05; } .cer-xi i { font-style: normal; font-size: 11px; color: #9c8f6d; }
 .cer-skip { position: absolute; right: 16px; top: 14px; }
 body.rm .cer-lights i, body.rm .cer-win .burst, body.rm .cer-nom.roll { animation: none; }
+
+/* ── live pitch (canvas) & ultimate cut-ins ── */
+.pitchwrap.livepitch { border-radius: 12px; overflow: hidden; border: 1px solid #14502a; aspect-ratio: 105 / 68; max-height: 60vh; width: 100%; }
+.pitchwrap.livepitch canvas { width: 100%; height: 100%; display: block; }
+.replay3d .rp-tag.ult { color: #05060c; }
+.ultcut { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; background: #04050b; border: 1px solid var(--uc); box-shadow: 0 0 40px color-mix(in srgb, var(--uc) 35%, transparent); }
+.ultcut canvas { width: 100%; height: 100%; display: block; }
+.ultcut-txt { position: absolute; left: 0; right: 0; bottom: 12%; padding: 0 5%; display: flex; flex-direction: column; font-family: 'Barlow Condensed', sans-serif; transform: skewX(-8deg); animation: ultin .45s cubic-bezier(.2,1.3,.4,1) both; pointer-events: none; }
+.ultcut-txt .k { letter-spacing: .34em; text-transform: uppercase; font-size: 13px; color: var(--uc2); }
+.ultcut-txt b { font-size: clamp(34px, 8.5vw, 92px); font-weight: 800; text-transform: uppercase; line-height: .9; color: #fff; text-shadow: 0 0 30px var(--uc), 4px 4px 0 color-mix(in srgb, var(--uc) 60%, #000); }
+.ultcut-txt i { font-style: normal; font-size: clamp(14px, 2vw, 20px); color: #dfe6f5; letter-spacing: .06em; margin-top: 6px; }
+.ultcut-skip { position: absolute; right: 10px; top: 10px; }
+@keyframes ultin { from { opacity: 0; transform: skewX(-8deg) translateX(-60px); } to { opacity: 1; transform: skewX(-8deg); } }
+
+.seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; }
+.seg button { background: var(--panel2); color: var(--muted); border: 0; border-right: 1px solid var(--line2); padding: 4px 11px; font-family: var(--disp); font-size: 14px; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.seg button:last-child { border-right: 0; } .seg button.on { background: var(--blue); color: #02101f; } .seg button:hover:not(.on) { color: #fff; }
+.matchgrid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); }

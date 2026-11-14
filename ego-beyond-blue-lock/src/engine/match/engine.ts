@@ -267,6 +267,7 @@ function canUlt(ms: MatchState, p: MPlayer, key: string): { id: string; lv: numb
 }
 function spendUlt(ms: MatchState, p: MPlayer, id: string, sta: number): void {
   p.ultN++;
+  if (ms.uc && ms.uc.mode !== 'sim') { const d = abilityDef(id); (ms.ults ??= []).push({ n: (ms.ults.length ? ms.ults[ms.ults.length - 1].n : 0) + 1, key: d?.ult ?? '', name: d?.name ?? 'Ultimate', idx: ms.pl.indexOf(p), t: p.t, x: p.x, y: p.y, min: goalMinute(ms) }); if (ms.ults.length > 12) ms.ults.shift(); }
   const left = p.flEnd - ms.play;
   p.flEnd = ms.play + Math.max(left * (1 - FLOW.ultimateShare), Math.min(left, 20));
   useAbility(ms, p, id, sta, true);
@@ -568,7 +569,9 @@ function liveRating(p: MPlayer): number { return ratingOf(p, 0, 0, 0); }
 function riskLabel(p: number): string { return p >= 0.8 ? 'Safe' : p >= 0.58 ? 'Moderate' : p >= 0.35 ? 'Risky' : 'Audacious'; }
 
 /** Global finishing offset applied to the xG logit (calibrated so league-wide goals ≈ xG). */
-const SHOT_OFFSET = 0.02;
+const SHOT_OFFSET = 0.17;
+/** Utility cost of shooting: higher values make players wait for better chances (fewer, better shots). */
+const SHOT_COST = 0.09;
 function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number; v: number }[] } | null, ult: string): { xg: number; p: number; d: number; theta: number } {
   const t = c.t;
   const cax = ax(t, ms.bx);
@@ -591,7 +594,7 @@ function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number;
   let l = xl - SHOT_OFFSET - 1.1 * attn + cz(shotSk(ms, c, v) - gkSk(gk)) / 42 + c.m[GB] + ms.esc;
   // composure wins back part of the pressure penalty
   const comp = clamp((at(ms, c, A.COM) - DQ[1 - c.t] - 6) / 110, -0.15, 0.32) + c.m[M.COMPOSURE] + c.m[M.SH_PRESS] + actBonus(act, M.SH_PRESS);
-  l += 1.0 * press * clamp(comp, -0.15, 0.85);
+  l += 0.5 * press * clamp(comp, -0.15, 0.85);
   if (header) l += c.m[M.SH_HEAD] + actBonus(act, M.SH_HEAD);
   else if (volley) l += c.m[M.SH_VOLLEY] + actBonus(act, M.SH_VOLLEY) + actBonus(act, M.SH_PLACED);
   else if (v === 'long' || v === 'fk') l += c.m[M.SH_LONG] + actBonus(act, M.SH_LONG) + c.m[M.SH_POWER] * 0.5;
@@ -606,7 +609,7 @@ function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number;
   if (c.foot !== 2 && !header) l -= 0.3 * (1 - c.a[A.WFT] / 100) * 1.1 * (1 - Math.min(0.9, c.m[M.SH_WEAK] + actBonus(act, M.SH_WEAK)));
   if (c.user && ms.uc) l += ms.uc.forgive;
   let p = logistic(l);
-  if (ult === 'zero') p = logistic(l + 0.25 + 0.8 * press * 0.5);
+  if (ult === 'zero') p = logistic(l + 0.25 + 0.5 * press * 0.5);
   return { xg, p: clamp(p, 0.004, 0.93), d: g.d, theta: g.theta };
 }
 
@@ -701,7 +704,7 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       const add = (v: string, id: string, label: string, detail: string, ab = '') => {
         const act = ab ? actFor(ms, c, ab as ActCtx) : null;
         const s = shotCalc(ms, c, v, act, '');
-        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 22 ? 0.62 : 1) - 0.012 - c.s[S.SH] * 0.02 - c.s[S.XG] * 0.05 - c.s[S.G] * 0.03, -1, v);
+        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 22 ? 0.5 : 1) - SHOT_COST - c.s[S.SH] * 0.02 - c.s[S.XG] * 0.05 - c.s[S.G] * 0.03, -1, v);
         if (act) { o.ab = act.id; o.sta = act.sta; o.hot = true; }
         if (full) { o.label = label; o.detail = detail + ` (${Math.round(g.d)} m, xG ${s.xg.toFixed(2)})`; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, s.p * 2.4)); }
         return o;
@@ -1073,10 +1076,10 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
   const h = (ms.steps * 2654435761) >>> 0;
   const s = shotCalc(ms, c, v.startsWith('dag') ? 'placed' : v, act, ult);
   const rp: Replay = {
-    id: (ms.replays?.length ?? 0) + 1, min: goalMinute(ms), t: c.t, sh: ci, as: from, gk: gk ? ms.pl.indexOf(gk) : -1, v, d: s.d, xg: s.xg, p: pForce >= 0 ? pForce : s.p, res: 'save',
+    id: (ms.replays?.length ? ms.replays[ms.replays.length - 1].id : 0) + 1, min: goalMinute(ms), t: c.t, sh: ci, as: from, gk: gk ? ms.pl.indexOf(gk) : -1, v, d: s.d, xg: s.xg, p: pForce >= 0 ? pForce : s.p, res: 'save',
     bx: ms.bx, by: ms.by, fx: from >= 0 ? ms.pl[from].x : -1, fy: from >= 0 ? ms.pl[from].y : -1, high: ms.bh >= 1 || v === 'header' || v === 'volley',
     gy: ((h % 1000) / 500 - 1) * 0.86, gz: (((h >>> 10) % 1000) / 1000) * 0.8 + 0.06,
-    pl: [], sc: [0, 0],
+    pl: [], sc: [0, 0], ult: ult || (v.startsWith('dag') ? 'dag' : undefined), ab: act ? abilityDef(act.id)?.name : undefined, clock: ms.clock,
   };
   for (let t = 0; t < 2; t++) for (const i of ms.teams[t].on) rp.pl.push([i, Math.round(ms.pl[i].x * 10) / 10, Math.round(ms.pl[i].y * 10) / 10]);
   resolveShot0(ms, rng, c, v, act, ult, pForce);
@@ -1086,7 +1089,7 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
     if (e?.k === 'shot') rp.res = e.q === -1 ? (/POST!|woodwork|crossbar denies/.test(e.x) ? 'post' : 'off') : e.q === rp.gk ? 'save' : 'block';
   }
   rp.sc = [ms.score[0], ms.score[1]];
-  if (rp.res === 'goal' || rp.xg >= 0.22 || (rp.res === 'post') || (c.user && rp.res !== 'block')) { (ms.replays ??= []).push(rp); if (ms.replays.length > 40) ms.replays.shift(); }
+  (ms.replays ??= []).push(rp); if (ms.replays.length > 60) ms.replays.shift();
 }
 function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id: string; sta: number; fx: { k: number; v: number }[] } | null, ult: string, pForce = -1): void {
   const t = c.t;

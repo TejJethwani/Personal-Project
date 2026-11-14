@@ -4,7 +4,7 @@
  * xG is the probability that an AVERAGE finisher beats an AVERAGE goalkeeper from the same
  * shot context. It is a logistic function of shot geometry and situation:
  *
- *   logit(xG) = -1.05 + 1.60·θ − 0.10·d + Σ modifiers
+ *   logit(xG) = -1.00 + 1.60·θ − 0.10·d + Σ modifiers
  *
  *   θ  = angle (radians) subtended by the goal mouth (7.32 m) from the shot location
  *   d  = distance (metres) from the shot location to the centre of the goal
@@ -12,7 +12,7 @@
  * Modifiers (added to the logit):
  *   header                    −1.00
  *   volley / airborne strike  −0.35
- *   defender pressure p∈[0,1] −0.80·p   (only real, physical pressure — never the shooter's reputation)
+ *   defender pressure p∈[0,1] −0.50·p   (only real, physical pressure — never the shooter's reputation)
  *   one-on-one with keeper    +1.25
  *   rebound                   +0.45
  *   cut-back / first-time on the ground from a pass  +0.35
@@ -20,8 +20,9 @@
  *
  * Fixed values: penalty 0.76; direct free kick uses the open-play formula with pressure 0.35 (the wall).
  *
- * Calibration targets (central, unpressured, foot): 4 m ≈ 0.78, 6 m ≈ 0.52, 11 m ≈ 0.26, 16 m ≈ 0.12,
- * 20 m ≈ 0.07, 25 m ≈ 0.04, 30 m ≈ 0.025. A clean one-on-one from 11 m ≈ 0.55, a cut-back tap-in ≈ 0.8+.
+ * Calibration targets (central, unpressured, foot): 4 m ≈ 0.82, 6 m ≈ 0.58, 11 m ≈ 0.31, 16 m ≈ 0.15,
+ * 20 m ≈ 0.09, 25 m ≈ 0.05, 30 m ≈ 0.03. Under full pressure these drop to roughly 0.46 (6 m), 0.21 (11 m)
+ * and 0.10 (16 m). A clean one-on-one from 11 m ≈ 0.6, a cut-back tap-in ≈ 0.85.
  *
  * The simulation's actual scoring chance starts from this same logit and then adds the
  * shooter-vs-keeper skill difference and ability effects, so skilled finishers genuinely
@@ -45,10 +46,10 @@ export function shotGeo(ax: number, y: number): ShotGeo {
 }
 
 export function xgLogit(g: ShotGeo, o: { header?: boolean; volley?: boolean; pressure: number; oneOnOne?: boolean; rebound?: boolean; cutback?: boolean }): number {
-  let l = -1.25 + 1.6 * g.theta - 0.1 * g.d;
+  let l = -1.0 + 1.6 * g.theta - 0.1 * g.d;
   if (o.header) l -= 1.0;
   if (o.volley) l -= 0.35;
-  l -= 1.0 * o.pressure;
+  l -= 0.5 * o.pressure;
   if (o.oneOnOne) l += 1.25;
   if (o.rebound) l += 0.45;
   if (o.cutback) l += 0.35;

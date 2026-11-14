@@ -84,7 +84,12 @@ export interface Replay {
   gy: number; gz: number; // aim point: −1..1 across the goal, 0..1 of crossbar height
   pl: [number, number, number][]; // idx, x, y of everyone on the pitch
   sc: [number, number];
+  ult?: string; // ultimate key used for the strike (dag, zero, sky, predator…)
+  ab?: string; // weapon name used
+  clock?: number;
 }
+/** An ultimate being unleashed — the match centre plays a custom cut-in animation for each. */
+export interface UltEvent { n: number; key: string; name: string; idx: number; t: number; x: number; y: number; min: number }
 export interface Option {
   id: string;
   kind: string; // shoot | pass | through | cross | dribble | carry | hold | onetwo | run | press | tackle | ...
@@ -137,6 +142,7 @@ export interface UserCtl {
 
 export interface MatchState {
   replays?: Replay[];
+  ults?: UltEvent[];
   v: number;
   fid: string; comp: string; compName: string;
   rules: Rules;

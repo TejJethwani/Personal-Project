@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { MatchState, Replay } from '../engine/match/model';
+import { ULT_STYLE } from './UltCutIn';
 
 type V3 = [number, number, number];
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -119,7 +120,7 @@ interface Scene {
   rp: Replay; long: boolean; dir: number; goalX: number; shot: V3; passFrom: V3 | null; end: V3; after: V3; h0: number; arc: number; curl: number;
   tPass: number; tStrike: number; tFlight: number; tEnd: number; side: number;
 }
-function buildScene(rp: Replay): Scene {
+function buildScene(rp: Replay, quick = false): Scene {
   const dir = rp.t === 0 ? 1 : -1;
   const goalX = rp.t === 0 ? 105 : 0;
   const sx = rp.v === 'pen' ? goalX - dir * 11 : rp.bx * 1.05, sz = rp.v === 'pen' ? 34 : rp.by * 0.68;
@@ -134,16 +135,17 @@ function buildScene(rp: Replay): Scene {
   else if (rp.res === 'block') { const m: V3 = [lerp(sx, goalX, 0.3), 0.7, lerp(sz, 34, 0.3)]; end = m; after = [m[0] - dir * 3, 0.11, m[2] + sg * 5]; }
   else { const over = rp.gz > 0.55; end = over ? [goalX, 2.44 + 0.5 + rp.gz * 1.6, 34 + rp.gy * 3] : [goalX, gz, 34 + sg * (3.66 + 0.7 + Math.abs(rp.gy) * 2.6)]; after = add(end, [dir * 7, over ? 0.6 : -gz * 0.8, sg * 1]); }
   const passFrom: V3 | null = rp.fx >= 0 ? [rp.fx * 1.05, 0.11, rp.fy * 0.68] : null;
-  const tPass = passFrom ? 0.95 : 0;
-  const tStrike = 0.45 + tPass + 0.2;
-  const tFlight = Math.max(0.42, Math.min(1.5, rp.d / 24)) * (long ? 2.1 : 1.45);
-  return { rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, arc: long ? rp.d * 0.07 : rp.v === 'header' ? 0.25 : 0.35, curl: (long ? rp.d * 0.06 : 0.5) * (rp.gy >= 0 ? -1 : 1) * (rp.v === 'power' ? 0.3 : 1), tPass, tStrike, tFlight, tEnd: tStrike + tFlight + 1.9, side: sz < 34 ? -1 : 1 };
+  const tPass = passFrom ? (quick ? 0.7 : 0.95) : 0;
+  const tStrike = (quick ? 0.25 : 0.45) + tPass + 0.2 + (rp.ult ? 0.85 : 0);
+  const tFlight = Math.max(0.42, Math.min(1.5, rp.d / 24)) * (long ? 2.1 : 1.45) * (rp.ult === 'zero' ? 0.4 : quick && !long ? 0.85 : 1);
+  return { rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, arc: long ? rp.d * 0.07 : rp.v === 'header' ? 0.25 : 0.35, curl: (long ? rp.d * 0.06 : 0.5) * (rp.gy >= 0 ? -1 : 1) * (rp.v === 'power' ? 0.3 : 1), tPass, tStrike, tFlight, tEnd: tStrike + tFlight + (quick && rp.res !== 'goal' ? 1.0 : 1.9), side: sz < 34 ? -1 : 1 };
 }
 function ballAt(sc: Scene, t: number): { p: V3; u: number; phase: 0 | 1 | 2 | 3 } {
   const { rp } = sc;
   if (t < sc.tStrike) {
-    if (sc.passFrom && t > 0.45) {
-      const u = c01((t - 0.45) / sc.tPass);
+    const p0 = sc.tStrike - 0.2 - sc.tPass - (rp.ult ? 0.85 : 0);
+    if (sc.passFrom && t > p0) {
+      const u = c01((t - p0) / sc.tPass);
       const p = lerp3(sc.passFrom, [sc.shot[0], sc.h0, sc.shot[2]], u);
       p[1] = lerp(0.11, sc.h0, u) + (rp.high ? 3.2 : 0.05) * 4 * u * (1 - u);
       return { p, u, phase: 1 };
@@ -247,7 +249,7 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
       X -= sdir[0] * run * 3.2; Z -= sdir[2] * run * 3.2;
       const k = t - sc.tStrike;
       kick = k > -0.18 && k < 0.3 ? Math.sin(c01((k + 0.18) / 0.48) * Math.PI) : 0;
-      if (rp.v === 'header' || rp.v === 'volley' || rp.v.startsWith('dag')) lift = Math.sin(c01((t - sc.tStrike + 0.35) / 0.7) * Math.PI) * (rp.v === 'header' ? 0.55 : 0.35);
+      if (rp.v === 'header' || rp.v === 'volley' || rp.v.startsWith('dag')) lift = Math.sin(c01((t - sc.tStrike + 0.35) / 0.7) * Math.PI) * (rp.ult === 'sky' ? 1.5 : rp.v === 'header' ? 0.55 : 0.35);
       if (rp.v.startsWith('dag')) rot = -dir * Math.sin(c01((t - sc.tStrike + 0.3) / 0.6) * Math.PI) * 1.2;
       if (rp.res === 'goal' && impact > 0.25) { X += -sdir[0] * 0 + sc.side * 0; lift = Math.abs(Math.sin((impact - 0.25) * 7)) * 0.35; }
     } else if (isGk) {
@@ -304,6 +306,26 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
   } });
   items.sort((a, c2) => c2.z - a.z);
   for (const it of items) if (it.z > NEAR) it.draw();
+  // ── ultimate effects: charge-up aura, shockwave and a coloured trail
+  if (rp.ult) {
+    const us = ULT_STYLE[rp.ult] ?? { col: '#3df2ff', col2: '#fff', tag: '' };
+    const ch = c01((t - (sc.tStrike - 0.85)) / 0.85);
+    const shp = rp.pl.find((x) => x[0] === rp.sh);
+    const fq = proj(cam, [sc.shot[0] - sdir[0] * 0.45, 0.9, sc.shot[2] - sdir[2] * 0.45]);
+    if (shp && t < sc.tStrike && ch > 0) {
+      ctx.fillStyle = `rgba(2,3,10,${0.5 * ch})`; ctx.fillRect(0, 0, W, H);
+      const s = cam.fl / Math.max(1, fq.z);
+      for (let r = 0; r < 4; r++) { const k = (ch * 2.2 + r / 4) % 1; ctx.strokeStyle = r % 2 ? us.col : us.col2; ctx.globalAlpha = (1 - k) * 0.9; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(fq.x, fq.y + 0.9 * s, (0.4 + 2.6 * (1 - k)) * s, (0.14 + 0.9 * (1 - k)) * s, 0, 0, 6.3); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      const g = ctx.createRadialGradient(fq.x, fq.y, 2, fq.x, fq.y, 2.4 * s); g.addColorStop(0, us.col + 'cc'); g.addColorStop(1, us.col + '00'); ctx.fillStyle = g; ctx.globalAlpha = ch * 0.7; ctx.beginPath(); ctx.arc(fq.x, fq.y, 2.4 * s, 0, 6.3); ctx.fill(); ctx.globalAlpha = 1;
+      for (let i = 0; i < 14; i++) { const a = i * 0.449 + t * 3, yy = ((t * 1.6 + i * 0.13) % 1); ctx.strokeStyle = i % 2 ? us.col : us.col2; ctx.lineWidth = 2; ctx.globalAlpha = 1 - yy; ctx.beginPath(); ctx.moveTo(fq.x + Math.cos(a) * 0.9 * s, fq.y + 0.9 * s - yy * 2.6 * s); ctx.lineTo(fq.x + Math.cos(a) * 0.9 * s, fq.y + 0.9 * s - yy * 2.6 * s - 0.35 * s); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      if (rp.ult === 'predator') { const gq = proj(cam, sc.end); const rr = (0.6 + (1 - ch) * 3) * (cam.fl / Math.max(1, gq.z)); ctx.strokeStyle = us.col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(gq.x, gq.y, rr, 0, 6.3); ctx.moveTo(gq.x - rr * 1.4, gq.y); ctx.lineTo(gq.x + rr * 1.4, gq.y); ctx.moveTo(gq.x, gq.y - rr * 1.4); ctx.lineTo(gq.x, gq.y + rr * 1.4); ctx.stroke(); }
+    }
+    const sk = t - sc.tStrike;
+    if (sk > 0 && sk < 0.5) { const s = cam.fl / Math.max(1, fq.z); ctx.strokeStyle = us.col2; ctx.globalAlpha = 1 - sk / 0.5; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(fq.x, fq.y + 0.8 * s, sk * 9 * s, sk * 3.2 * s, 0, 0, 6.3); ctx.stroke(); ctx.globalAlpha = 1; if (sk < 0.12) { ctx.fillStyle = `rgba(255,255,255,${(0.12 - sk) * (rp.ult === 'zero' ? 8 : 4)})`; ctx.fillRect(0, 0, W, H); } }
+    if (b.phase === 2) { for (let i = 1; i < trail.length; i++) { const a = proj(cam, trail[i - 1]), c2 = proj(cam, trail[i]); if (a.z < NEAR || c2.z < NEAR) continue; const al = i / trail.length; ctx.strokeStyle = i % 2 ? us.col : us.col2; ctx.globalAlpha = al * 0.85; ctx.lineWidth = Math.max(2, al * 0.34 * (cam.fl / c2.z)); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c2.x, c2.y); ctx.stroke(); } ctx.globalAlpha = 1; }
+  }
   // ── post effects
   if (sc.long && b.phase === 2) {
     // speed lines converging on the ball
@@ -317,11 +339,11 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
   if (sc.long) { const bar = H * 0.085 * ease(c01(t / 0.4)); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar); }
 }
 
-export function Replay3D({ ms, rp, onClose, auto }: { ms: MatchState; rp: Replay; onClose?: () => void; auto?: boolean }) {
+export function Replay3D({ ms, rp, onClose, auto, quick }: { ms: MatchState; rp: Replay; onClose?: () => void; auto?: boolean; quick?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [run, setRun] = useState(0);
   const [stage, setStage] = useState(0); // 0 playing, 1 result shown, 2 finished
-  const sc = buildScene(rp);
+  const sc = buildScene(rp, quick);
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
@@ -340,7 +362,7 @@ export function Replay3D({ ms, rp, onClose, auto }: { ms: MatchState; rp: Replay
       const ns = t >= sc.tEnd ? 2 : t >= sc.tStrike + sc.tFlight ? 1 : 0;
       if (ns !== st) { st = ns; setStage(ns); }
       if (t < sc.tEnd) raf = requestAnimationFrame(frame);
-      else if (auto && onClose) setTimeout(onClose, 700);
+      else if (auto && onClose) setTimeout(onClose, quick ? 250 : 700);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
@@ -350,7 +372,7 @@ export function Replay3D({ ms, rp, onClose, auto }: { ms: MatchState; rp: Replay
   return (
     <div className={`replay3d ${sc.long ? 'long' : ''}`}>
       <canvas ref={ref} aria-label={`3D replay: ${sh?.nm} ${RES_LABEL[rp.res].toLowerCase()} in minute ${rp.min}`} />
-      <div className="rp-top"><span className="rp-live"><i />REPLAY</span><span className="rp-min">{rp.min}'</span>{sc.long && <span className="rp-tag">LONG RANGE · {Math.round(rp.d)} M</span>}</div>
+      <div className="rp-top"><span className="rp-live"><i />{auto ? 'LIVE · 3D' : 'REPLAY'}</span><span className="rp-min">{rp.min}'</span>{sc.long && <span className="rp-tag">LONG RANGE · {Math.round(rp.d)} M</span>}{rp.ult && <span className="rp-tag ult" style={{ background: ULT_STYLE[rp.ult]?.col }}>ULTIMATE</span>}{rp.ab && !rp.ult && <span className="rp-min">{rp.ab}</span>}</div>
       <div className="rp-info">
         <div><b>{sh?.nm}</b>{as ? <span className="muted"> · assist {as.nm}</span> : null}</div>
         <div className="small">{SHOT_NAME[rp.v] ?? (rp.v.startsWith('dag') ? 'Dead Angle Genesis' : 'Shot')} · {Math.round(rp.d)} m · xG {rp.xg.toFixed(2)} · chance {Math.round(rp.p * 100)}%</div>

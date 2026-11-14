@@ -7,10 +7,15 @@ import { tryLearn, weaponSlots, ultimateStatus, ULT_NEED, startDeveloping } from
 import { act, toast } from '../store/game';
 import { Bar, Card, Chip, Empty, PlayerLink, Tabs } from '../ui/kit';
 import { AbilityInfo } from './Creator';
+import { UltCutIn } from '../ui/UltCutIn';
+import { ULTIMATES } from '../engine/abilities';
+import type { MatchState } from '../engine/match/model';
 
 export function Weapons({ g }: { g: Game }) {
   const c = g.career;
   const me = g.world.players[c.pid];
+  const [prev, setPrev] = useState('');
+  const [prevN, setPrevN] = useState(1);
   const abs = playerAbilityDefs(me);
   const [tab, setTab] = useState('mine');
   const [ha, setHa] = useState(''); const [hb, setHb] = useState('');
@@ -60,6 +65,10 @@ export function Weapons({ g }: { g: Game }) {
             <div className="mt"><AbilityInfo d={d} /></div>
           </details>); })}</div>
       </>}
+      {tab === 'ult' && <Card title="Ultimate animations" className="mb"><p className="small muted">Every ultimate has its own cut-in when it is unleashed in a match (shooting ultimates also get their own 3D strike effects). Preview them here.</p>
+        <div className="row wrap gap6 mb">{ULTIMATES.map((d) => <button key={d.id} className={`btn sm ${prev === d.id ? 'pri' : ''}`} onClick={() => { setPrev(d.id); setPrevN((n) => n + 1); }}>{d.name}</button>)}</div>
+        {prev && (() => { const d = ULTIMATES.find((x) => x.id === prev)!; return <div style={{ maxWidth: 720 }}><UltCutIn key={prevN} ms={{ pl: [{ nm: me.sn }] } as unknown as MatchState} ev={{ n: prevN, key: d.ult ?? '', name: d.name, idx: 0, t: 0, x: 50, y: 50, min: 67 }} onDone={() => setPrev('')} /></div>; })()}
+      </Card>}
       {tab === 'ult' && <Card title={ultDef ? ultDef.name : 'No ultimate chosen'} className="hot" right={<Chip k={ult.awake ? 'e' : ''}>{ult.awake ? 'Awakened' : 'Dormant'}</Chip>}>
         {ultDef ? <>
           {!ult.awake && <><p>Your ultimate was chosen when you created your player, but it cannot be used yet. It awakens by itself once all three conditions are met:</p>

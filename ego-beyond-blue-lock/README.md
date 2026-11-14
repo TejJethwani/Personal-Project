@@ -56,7 +56,7 @@ npm run preview
 - Seeded, deterministic RNG whose state is stored in the save; per-fixture seeds make results independent of processing order.
 - 31 outfield + 5 goalkeeper attributes on one 1–99 scale; OVR is always computed from position-specific weights.
 - One possession engine for every match and mode, with two separate rule state machines: **NEL** (first to three, playing-time clock, no 90-minute ending, Star Change, substitutions) and **regulation** (halves, stoppage time, extra time, penalties, offsides).
-- A documented xG model (`src/engine/match/xg.ts`); xA is the xG of the shot a pass creates. xG measures chance quality only (tap-ins ≈ 0.8, a clean one-on-one ≈ 0.55); a striker who keeps shooting, or who is scoring freely over the season ("marked man"), gets tighter marking that lowers his real chance without changing xG, which keeps season tallies in a realistic range (top scorers around 30–45 in all competitions).
+- A documented xG model (`src/engine/match/xg.ts`); xA is the xG of the shot a pass creates. xG measures chance quality only (tap-ins ≈ 0.85, a clean one-on-one ≈ 0.6, a pressured shot from the penalty spot ≈ 0.2); a striker who keeps shooting, or who is scoring freely over the season ("marked man"), gets tighter marking that lowers his real chance without changing xG, which keeps season tallies in a realistic range (top scorers around 30–45 in all competitions).
 - Weapon levels scale their effect strongly (×1.8 per-level growth), and match performance drives development: a 9.0 display is worth roughly three times a 6.5.
 - Bench life: the coach may plan a late cameo for you, and from the bench you can ask to be brought on (chance from coach trust, time and score).
 - 32 weapons, 12 passives, 10 ultimates (including Dead Angle Genesis). You start with one weapon and can hold four in a career; the other slots are earned and weapons are permanent once learned. The ultimate chosen at creation is dormant until you have a level-3 weapon, five Flow entries and twelve appearances. Each ability comes each with description, activation, effects, costs, counterplay, limits, five levels and commentary; evolutions, hybrids, chemical reactions, learning from other players, a custom ability builder, and Flow that builds, boosts, drains and gets harder to re-enter.
@@ -69,9 +69,11 @@ npm run preview
 
 **Awards** – weekly, monthly (Player, Goal and Team of the Month) and season awards per league (including Defender / Midfielder / Forward / Signing of the Season), tournament awards (best player, top scorer, golden glove, young player, team of the tournament) and world awards (Ballon d'Or, Golden Boy, European Golden Shoe, positional awards, World Eleven). The season's major awards are presented in an **awards ceremony**.
 
-**Match Centre** – 3D replays (a small built-in canvas renderer, no library) of every goal and big chance, with a chase-camera animation for strikes from outside the box; a club / national-team switch; "Sim ahead" for 1 week up to a full year.
+**Match Centre** – a canvas pitch where players and ball are interpolated on one clock (a carried ball stays at the carrier's feet, a pass arrives exactly with its receiver); every shot zooms into the 3D view; each of the ten ultimates has its own cut-in animation (previewable under Weapons → Ultimate) and shooting ultimates get their own 3D strike effects; 3D replays (a small built-in canvas renderer, no library) of every goal and big chance, with a chase-camera animation for strikes from outside the box; a club / national-team switch; "Sim ahead" for 1 week up to a full year.
 
 **Hall of Fame** – a career portfolio (trophy cabinet, season campaigns, ledger, records, timeline, every recorded result). You can retire at any age from the Hall of Fame, Career History or Settings.
+
+**Play as an existing player** – in the creator's *Team & Start* step you can take over any NEL player (Isagi, Kaiser, …) with his attributes, weapons, ultimate and club instead of creating your own.
 
 **People** – about 3,600 tracked players: the Blue Lock cast, master strikers, baseline professionals and original fictional players. Relationships track respect, trust, friendship, rivalry and chemistry separately, with stored memories that later dialogue refers to.
 
@@ -92,7 +94,7 @@ npm run preview
 - 3D replays re-enact the stored shot snapshot (positions at the moment of the strike, the pass before it and the outcome); they are not a frame-by-frame recording, and are only captured in interactive / highlights modes.
 - Youth international squads are picked from players aged 21 or under for every youth tournament.
 - No reserve leagues: a "development squad" role means limited first-team minutes at a big club.
-- Match volume is coarser than real football: roughly 600 passes, 20 shots and 2.2–2.8 goals per match across both teams. Tackle and interception counts run higher than real football.
+- Match volume is coarser than real football: roughly 600 passes, 12 shots and 2.3–3.2 goals per match across both teams: players wait for better chances than in real football, so conversion is higher (inside the box xG is typically 0.2–0.45). Tackle and interception counts run higher than real football.
 - Squad registration rules, work permits, financial fair play and agents' fees are not modelled.
 - A week of world simulation takes around a second; full seasons simulated in one go take 20–30 seconds.
 - Stats within a season are attributed to the club a player ends the competition with, unless he moved to a different league.

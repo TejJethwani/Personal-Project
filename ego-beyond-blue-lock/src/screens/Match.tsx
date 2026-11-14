@@ -3,8 +3,10 @@ import type { Game } from '../engine/types';
 import { startUserMatch, finishUserMatch, userFixtureToday, nextUserFixture, userSide } from '../engine/sim';
 import { advance as advMatch, ratingOf, requestSub, subChance } from '../engine/match/engine';
 import { Replay3D, ReplayList } from '../ui/Replay3D';
+import { LivePitch } from '../ui/LivePitch';
+import { UltCutIn } from '../ui/UltCutIn';
 import { clockLabel } from '../engine/match/rules';
-import { S, type MatchState, type MPlayer, type Option, type Replay } from '../engine/match/model';
+import { S, type MatchState, type MPlayer, type Option, type Replay, type UltEvent } from '../engine/match/model';
 import { teamName, teamInfo, pickSheet, importance } from '../engine/match/setup';
 import { FLOW, abilityDef } from '../engine/abilities';
 import { fmtDate } from '../engine/competitions';
@@ -167,7 +169,7 @@ function PreMatch({ g }: { g: Game }) {
     lastDone = null;
     const ms = act((x) => startUserMatch(x, mode), false);
     if (!ms) return;
-    if (mode === 'sim') { advMatch(ms); const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; refresh(); }
+    if (mode === 'sim' || !ms.uc) { if (!ms.uc) toast('You are not in the matchday squad — the match is played without you.'); advMatch(ms); const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; refresh(); }
     else { advMatch(ms, undefined, 1); refresh(); autosave(); }
   };
   const known = oppSheet.xi.map((x) => w.players[x.pid]).filter((p) => p && g.career.rel[p.id] && (g.career.rel[p.id].mem.length || g.career.rivals.includes(p.id)));
@@ -213,13 +215,15 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
   const banner = useRef<{ x: string; i: number; at: number } | null>(null);
   const rat = useRef<{ last: number; delta: number; at: number; hist: number[] }>({ last: 6, delta: 0, at: -99, hist: [] });
   const ticks = useRef(0);
-  const [replay, setReplay] = useState<Replay | null>(null);
+  const [queue, setQueue] = useState<({ k: 'rp'; r: Replay } | { k: 'ult'; e: UltEvent })[]>([]);
+  const replay = queue[0] ?? null;
+  const seenUlt = useRef(ms.ults?.length ? ms.ults[ms.ults.length - 1].n : 0);
   const seenRp = useRef(ms.replays?.length ? ms.replays[ms.replays.length - 1].id : 0);
   const u = ms.uc!;
   const speed = g.settings.matchSpeed;
   const me = ms.pl[u.idx];
   const key = u.mode === 'key' || !me.on;
-  const delay = key ? 150 : speed >= 4 ? 120 : speed >= 2 ? 300 : 560;
+  const delay = key ? 130 : speed >= 4 ? 130 : speed >= 2 ? 300 : 560;
   const liveRating = me.used ? ratingOf(me, ms.score[me.t], ms.score[1 - me.t], 0) : 6;
   const run = (fn: () => void) => {
     const bx = ms.bx, by = ms.by;
@@ -234,12 +238,11 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
       if (e.x && (e.i >= 1 || e.p === u.idx || e.q === u.idx)) banner.current = { x: e.x, i: e.p === u.idx || e.q === u.idx ? Math.max(2, e.i) : e.i, at: ticks.current };
     }
     seen.current = ms.ev.length;
-    const rps = ms.replays ?? [];
-    if (rps.length && rps[rps.length - 1].id > seenRp.current) {
-      const r = rps[rps.length - 1];
-      seenRp.current = r.id;
-      if (u.mode !== 'sim' && !g.settings.reduceMotion && (r.res === 'goal' || r.sh === u.idx || r.xg >= 0.35 || r.res === 'post')) setReplay(r);
-    }
+    // every ultimate gets its cut-in and every shot zooms into the 3D view
+    const add: ({ k: 'rp'; r: Replay } | { k: 'ult'; e: UltEvent })[] = [];
+    for (const e of ms.ults ?? []) if (e.n > seenUlt.current) { seenUlt.current = e.n; add.push({ k: 'ult', e }); }
+    for (const r of ms.replays ?? []) if (r.id > seenRp.current) { seenRp.current = r.id; add.push({ k: 'rp', r }); }
+    if (add.length && u.mode !== 'sim' && !g.settings.reduceMotion) setQueue((q) => [...q, ...add.slice(-3)]);
     if (me.used) {
       const r = ratingOf(me, ms.score[me.t], ms.score[1 - me.t], 0);
       const R = rat.current;
@@ -256,14 +259,14 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
     if (paused || ms.pending) return;
     const t = setTimeout(() => run(() => {
       const before = ms.ev.length;
-      if (key) { for (let k = 0; k < 40 && !ms.done && !ms.pending; k++) { advMatch(ms, undefined, 1); if (ms.ev.slice(before).some((e) => e.i >= 2)) break; } }
+      if (key) { for (let k = 0; k < 7 && !ms.done && !ms.pending; k++) { advMatch(ms, undefined, 1); if (ms.ev.slice(before).some((e) => e.i >= 2)) break; } }
       else advMatch(ms, undefined, 1);
     }), delay);
     return () => clearTimeout(t);
   });
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.code === 'Space' && !ms.pending) { e.preventDefault(); setPaused((p) => !p); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [ms]);
   const pick = (id: string) => { setHover(-1); run(() => advMatch(ms, id, 1)); if (++dec.current % 4 === 0) autosave(); };
-  const simEnd = () => { u.mode = 'sim'; run(() => { if (ms.pending) advMatch(ms, ms.pending.options[0].id); else advMatch(ms); }); };
+  const simEnd = () => { u.mode = 'sim'; setQueue([]); run(() => { if (ms.pending) advMatch(ms, ms.pending.options[0].id); else advMatch(ms); }); };
   const events = ms.ev.filter((e) => e.x && (u.mode === 'key' ? e.i >= 1 : true)).slice(-70).reverse();
   const b = banner.current && ticks.current - banner.current.at < 6 ? banner.current : null;
   const poss = [0, 1].map((t) => ms.pl.filter((p) => p.t === t && p.used).reduce((s2, p) => s2 + p.s[S.PA], 0));
@@ -275,18 +278,17 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
         <div className="row small" style={{ marginTop: 6 }}><span className="muted" style={{ width: 34 }}>{Math.round(pp)}%</span><div className="grow bar" title="Possession (by passes)"><i style={{ width: `${pp}%`, background: ms.teams[0].col }} /></div><span className="muted right" style={{ width: 34 }}>{100 - Math.round(pp)}%</span></div>
         <div className="row wrap between small" style={{ marginTop: 8 }}>
           <span className="muted">{ms.poss === 0 ? ms.teams[0].name : ms.teams[1].name} in possession · {ms.restart ? 'dead ball' : ms.car >= 0 ? `${ms.pl[ms.car].nm} on the ball` : 'loose ball'}{ms.teams.map((T, t) => (T.starState === 1 ? <Chip key={t} k="y"> ★ {ms.pl[T.star].nm} {Math.max(0, Math.ceil(T.starEnd - ms.play))}s left</Chip> : null))}</span>
-          <span className="row wrap gap6">
-            <button className="btn sm" onClick={() => setPaused((p) => !p)} disabled={!!ms.pending}>{paused ? '▶ Resume' : '❚❚ Pause'}</button>
-            {[1, 2, 4].map((sp) => <button key={sp} className={`btn sm ${speed === sp ? 'pri' : ''}`} onClick={() => act((x) => { x.settings.matchSpeed = sp; }, false)}>{sp}×</button>)}
-            <button className={`btn sm ${u.mode === 'full' ? 'pri' : ''}`} onClick={() => { u.mode = 'full'; refresh(); }}>Full</button>
-            <button className={`btn sm ${u.mode === 'key' ? 'pri' : ''}`} onClick={() => { u.mode = 'key'; refresh(); }}>Highlights</button>
-            <button className="btn sm" onClick={simEnd}>Sim to end</button>
+          <span className="row wrap gap6 mtools">
+            <button className={`btn sm ${paused ? 'pri' : ''}`} onClick={() => setPaused((p) => !p)} disabled={!!ms.pending} title="Space">{paused ? '▶ Resume' : '❚❚ Pause'}</button>
+            <span className="seg" role="group" aria-label="Speed">{[1, 2, 4].map((sp) => <button key={sp} className={speed === sp ? 'on' : ''} onClick={() => act((x) => { x.settings.matchSpeed = sp; }, false)}>{sp}×</button>)}</span>
+            <span className="seg" role="group" aria-label="Mode"><button className={u.mode === 'full' ? 'on' : ''} onClick={() => { u.mode = 'full'; refresh(); }}>Full</button><button className={u.mode === 'key' ? 'on' : ''} onClick={() => { u.mode = 'key'; refresh(); }}>Highlights</button></span>
+            <button className="btn sm ghost" onClick={simEnd}>Sim to end ⏭</button>
           </span>
         </div>
       </div>
       <div className="matchgrid">
         <div className="col" style={{ gap: 10 }}>
-          {replay ? <Replay3D ms={ms} rp={replay} auto onClose={() => setReplay(null)} /> : <Pitch ms={ms} hover={hover} tick={delay} trail={trail.current} banner={b} />}
+          {replay?.k === 'ult' ? <UltCutIn ms={ms} ev={replay.e} onDone={() => setQueue((q) => q.slice(1))} /> : replay?.k === 'rp' ? <Replay3D key={replay.r.id} ms={ms} rp={replay.r} auto quick={replay.r.res !== 'goal' && replay.r.xg < 0.3 && replay.r.sh !== u.idx && !replay.r.ult} onClose={() => setQueue((q) => q.slice(1))} /> : <LivePitch ms={ms} hover={hover} tick={delay} banner={b} />}
           <Hud ms={ms} live={liveRating} delta={rat.current.delta} hist={rat.current.hist} />
         </div>
         <div className="col" style={{ gap: 10 }}>
@@ -337,6 +339,7 @@ function Post({ g, ms, notes }: { g: Game; ms: MatchState; notes: string[] }) {
 export function MatchCentre({ g }: { g: Game }) {
   const w = g.world;
   const ms = g.live as MatchState | null;
+  if (ms && !ms.uc) { advMatch(ms); const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; return <Post g={g} ms={ms} notes={notes} />; }
   if (ms) return <Live g={g} ms={ms} />;
   if (lastDone) return <Post g={g} ms={lastDone.ms} notes={lastDone.notes} />;
   if (w.stage <= 1 && userFixtureToday(g)) return <PreMatch g={g} />;

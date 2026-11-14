@@ -101,7 +101,7 @@ export function Creator() {
     if (errs.length) { toast(errs[0], true); return; }
     setStarting(true);
     await new Promise((r) => setTimeout(r, 30));
-    try { const g = newGame(cfg); if (cfg.skipNel) skipNel(g, cfg.proClub ?? ''); await saveGame(g, 'auto'); setGame(g); nav('hub'); }
+    try { const g = newGame(cfg.playAs ? { ...cfg, skipNel: false } : cfg); if (cfg.skipNel && !cfg.playAs) skipNel(g, cfg.proClub ?? ''); await saveGame(g, 'auto'); setGame(g); nav('hub'); }
     catch (e) { console.error(e); toast('Could not create the career: ' + (e as Error).message, true); setStarting(false); }
   };
   const team = NEL_TEAMS.find((t) => t.id === cfg.nelTeam)!;
@@ -211,7 +211,16 @@ export function Creator() {
                 {L.rows.trim().split('\n').map((r) => { const [short, name, , , rep] = r.split('|'); const id = `${L.id}_${short}`; const lvl = Math.round(38 + +rep * 0.5); const d = cur - lvl; return <button key={id} className={`opt ${cfg.proClub === id ? 'hot' : ''}`} style={{ padding: '6px 10px' }} onClick={() => up({ proClub: id })}><b style={{ fontSize: 15 }}>{name}</b><span className="tiny muted">squad level {lvl} · {d >= 4 ? 'you would be a star' : d >= -1 ? 'likely starter' : d >= -5 ? 'rotation' : 'fringe / development'}</span></button>; })}</div></details>)}
             </section>
             <section className="card"><h3>What skipping means</h3><ul className="small"><li>No NEL matches, bids, rankings or U-20 World Cup for you.</li><li>Your starting weapon, passives and dormant ultimate are unchanged.</li><li>You begin with no relationships: the Blue Lock cast will be opponents or team-mates you meet as a professional.</li><li>Your squad role depends on your OVR against the club's squad: {cur} OVR.</li></ul></section>
-          </div> : <div className="grid g2">
+          </div> : <><section className={`card mb ${cfg.playAs ? 'hot' : ''}`}><h3>Or take over an existing NEL player</h3>
+            <div className="row wrap">
+              <select value={cfg.playAs ?? ''} onChange={(e) => { const v = e.target.value; if (!v) return up({ playAs: undefined }); for (const t of NEL_TEAMS) { const r = [...(NEL_BLUELOCK[t.id] ?? []), ...(NEL_YOUTH[t.id] ?? [])].find((x) => x.name === v); if (r) up({ playAs: v, nelTeam: t.id, name: r.name }); } }} aria-label="Play as an existing player">
+                <option value="">Create my own egoist</option>
+                {NEL_TEAMS.map((t) => <optgroup key={t.id} label={t.name}>{[...(NEL_BLUELOCK[t.id] ?? []), ...(NEL_YOUTH[t.id] ?? [])].sort((a, b) => b.ovr - a.ovr).map((r) => <option key={r.name} value={r.name}>{r.name} — {r.pos} · {r.ovr} OVR (pot {r.pot})</option>)}</optgroup>)}
+              </select>
+              {cfg.playAs && <button className="btn sm ghost" onClick={() => up({ playAs: undefined })}>Clear</button>}
+            </div>
+            <p className="small muted" style={{ marginTop: 8 }}>{cfg.playAs ? <>You will play as <b className="blue">{cfg.playAs}</b>: his attributes, weapons, ultimate, personality and club are used as they are. Everything you set in the other creator tabs (body, appearance, rating, abilities) is ignored; game rules and difficulty still apply.</> : 'Pick Isagi, Kaiser or anyone else in the league to live their career instead of creating a player.'}</p>
+          </section><div className="grid g2">
           <div className="col">{NEL_TEAMS.map((t) => { const m = NEL_MASTERS[t.id]; const sq = [...(NEL_BLUELOCK[t.id] ?? []), ...(NEL_YOUTH[t.id] ?? [])]; const rivals = sq.filter((p) => p.pos === cfg.pos || p.pos2.includes(cfg.pos)).sort((a, b) => b.ovr - a.ovr); return (
             <button key={t.id} className={`opt ${cfg.nelTeam === t.id ? 'hot' : ''}`} onClick={() => up({ nelTeam: t.id })}><b>{t.name} <span className="muted" style={{ fontSize: 14 }}>· {NATIONS[t.nat].name} · master striker {m.name}</span></b>
               <span className="small">{t.identity}</span><br />
@@ -221,7 +230,7 @@ export function Creator() {
             <div className="tw" style={{ maxHeight: 460, overflowY: 'auto' }}><table><thead><tr><th>Player</th><th>Pos</th><th className="n">OVR</th><th className="n">POT</th><th>Source</th></tr></thead><tbody>
               {[...(NEL_BLUELOCK[team.id] ?? []), ...(NEL_YOUTH[team.id] ?? [])].sort((a, b) => b.ovr - a.ovr).map((p) => <tr key={p.name}><td>{p.name}</td><td>{p.pos}</td><td className="n num">{p.ovr}</td><td className="n">{p.pot}</td><td><Chip k={p.canon === 'canon' ? 'b' : p.canon === 'original' ? '' : 'w'}>{p.canon}</Chip></td></tr>)}
             </tbody></table></div></section>
-        </div>}
+        </div></>}
         </>}
         {step === 'rules' && <div className="grid g2">
           <section className="card"><h3>Difficulty & world</h3>

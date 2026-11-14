@@ -1,5 +1,5 @@
 /** Career creation: turns a creator configuration into a new Game. */
-import type { AbilityRef, Appearance, Career, CustomAbility, Foot, Game, Pos, Settings } from './types';
+import type { AbilityRef, Appearance, Career, CustomAbility, Foot, Game, Pos, Settings, World, Player } from './types';
 import { SCHEMA_VERSION } from './types';
 import { createWorld, rngOf, newPlayer, addToClub, assignNumbers } from './worldgen';
 import { calcOvr, makeAttrs, solveToTarget, N_ATTR } from './attributes';
@@ -25,6 +25,8 @@ export interface CareerConfig {
   skipNel?: boolean;
   /** club id to join when skipping ('' = let the game pick a club at your level) */
   proClub?: string;
+  /** take over an existing NEL player (full name, e.g. 'Yoichi Isagi') instead of creating one */
+  playAs?: string;
   settings: Settings;
 }
 
@@ -79,6 +81,40 @@ export function validateConfig(c: CareerConfig): string[] {
   return e;
 }
 
+function baseCareer(cfg: CareerConfig, w: World, p: Player, o: number): Career {
+  return {
+    pid: p.id, look: cfg.look, egoType: cfg.egoType, philosophy: cfg.philosophy, personality: cfg.personality, backstory: cfg.backstory,
+    mgrTrust: 50, discipline: 65, image: 0,
+    plan: [{ type: 'technical', focus: 'shooting' }, { type: 'position' }, { type: 'weapon' }, { type: 'tactical' }, { type: 'recovery' }, { type: 'match' }, { type: 'recovery' }],
+    intensity: 1, xp: new Array(N_ATTR).fill(0), xpSrc: {}, devLog: [], ovrLog: [{ s: w.season, day: 0, ovr: o }], learning: {}, reactions: [], custom: cfg.custom,
+    rel: {}, people: {
+      agent: { id: 'agent', name: 'Mirei Tanaka-Holt', role: 'agent', trait: 'pragmatic' },
+      journo1: { id: 'journo1', name: 'Daniel Okonkwo', role: 'journalist', org: 'The Touchline', trait: 'fair' },
+      journo2: { id: 'journo2', name: 'Claire Besson', role: 'journalist', org: 'Onze Mondial Daily', trait: 'provocative' },
+      journo3: { id: 'journo3', name: 'Kenji Arakawa', role: 'journalist', org: 'Blue Lock TV', trait: 'hype' },
+    },
+    inbox: [], nextInteraction: 1, social: { week: -1, used: 0 }, offers: [], nextOffer: 1, matches: [], statHist: [], timeline: [], flags: {},
+    instr: { stance: 1, press: 1, risk: 1 }, rivals: [], wages: 0, lastWageWeek: -1, digest: [],
+  };
+}
+/** Start a career as an existing NEL player: his attributes, abilities, club and personality are kept as they are. */
+function takeOver(cfg: CareerConfig, w: World, p: Player): Game {
+  const club = w.clubs[p.nelTeam!];
+  p.notable = true;
+  const o = calcOvr(p.a, p.pos);
+  const career = baseCareer(cfg, w, p, o);
+  career.look = lookFor(p.id);
+  career.flags.playAs = 1;
+  // weapons beyond the four-slot limit are not removed; an ultimate he already owns stays usable
+  const g: Game = { schema: SCHEMA_VERSION, id: 'c' + Date.now().toString(36) + (cfg.seed % 1000), created: new Date().toISOString(), name: p.name, edited: false, settings: { ...cfg.settings, nel: { ...cfg.settings.nel } }, world: w, career, live: null };
+  for (const id of club.squad) if (id !== p.id) relOf(g, id);
+  relOf(g, club.mgr.id);
+  initNel(g);
+  milestone(g, 'start', `Took control of ${p.name} (${o}-rated ${p.pos}) at ${club.name} for the Neo Egoist League.`);
+  addNews(g, 'nel', 'The Neo Egoist League begins', `Five clubs, ten matches, one ranking. Every performance will be valued in yen by the world's clubs — and only the top ${g.settings.nel.topN} of the Blue Lock ranking go to the U-20 World Cup. You are ${p.name} of ${club.name}.`, { imp: 3, me: true });
+  return g;
+}
+
 export function newGame(cfg: CareerConfig): Game {
   const w = createWorld(cfg.seed >>> 0);
   const rng = rngOf(w);
@@ -87,6 +123,8 @@ export function newGame(cfg: CareerConfig): Game {
   // one starting weapon; further weapons are unlocked in play and the ultimate starts dormant
   for (const id of cfg.weapons.slice(0, 1)) ab.push({ id, lv: 1, xp: 0 });
   for (const id of cfg.passives.slice(0, 3)) ab.push({ id, lv: 1, xp: 0 });
+  const existing = cfg.playAs ? Object.values(w.players).find((x) => x.name === cfg.playAs && !!x.nelTeam && x.origin !== 'master') : undefined;
+  if (existing) return takeOver(cfg, w, existing);
   const o = calcOvr(cfg.attrs, cfg.pos);
   const p = newPlayer(w, rng, { name: cfg.name.trim() || 'Player One', nat: cfg.nat, pos: cfg.pos, pos2: cfg.pos2.filter((x) => x !== cfg.pos), age: cfg.age, ovr: o, pot: cfg.pot, origin: 'user', ab, foot: cfg.foot });
   p.a = cfg.attrs.slice();
