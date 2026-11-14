@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchState, Replay } from '../engine/match/model';
 import type { Game } from '../engine/types';
 import { lookFor } from '../engine/career';
-import { lookColours } from './kit';
+import { lookColours, type FaceSpec } from './kit';
 import { ULT_STYLE, ULT_NAME } from './UltCutIn';
 
 type V3 = [number, number, number];
@@ -68,7 +68,7 @@ function line(ctx: CanvasRenderingContext2D, c: Cam, a: V3, b: V3): void {
 }
 
 
-interface Face { skin: string; hair: string; style: number; beard: boolean }
+interface Face extends FaceSpec { capP?: Path2D; topP?: Path2D }
 interface Pose { rot?: number; lift?: number; kick?: number; arms?: number; crouch?: number; front?: boolean; happy?: boolean; ring?: string; num?: number; alpha?: number;
   /** lean in world space: unit direction on the ground and angle from vertical (drawn correctly from any camera) */
   lean?: { dx: number; dz: number; a: number };
@@ -139,39 +139,55 @@ function drawPlayer(ctx: CanvasRenderingContext2D, c: Cam, X: number, Z: number,
   ctx.fillStyle = gr;
   ctx.beginPath(); ctx.roundRect(-0.24 * s, hip - 0.72 * s, 0.48 * s, 0.58 * s, 0.08 * s); ctx.fill();
   if (o.num && s > 15) { ctx.fillStyle = lum(col) > 0.6 ? '#111' : '#fff'; ctx.font = `700 ${Math.round(0.3 * s)}px 'Barlow Condensed', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(String(o.num), 0, hip - 0.32 * s); }
-  // ── head with a face
-  const hy = hip - 0.88 * s, r = 0.16 * s;
+  // ── head: the same face as the player's portrait (portrait geometry scaled onto the head)
+  const hy = hip - 0.9 * s, r = 0.17 * s;
   const front = o.front !== false;
-  if (f.style === 2) { ctx.fillStyle = f.hair; ctx.fillRect(-r * 1.1, hy - r * 0.3, r * 2.2, r * 1.9); }
-  if (f.style === 4) { ctx.fillStyle = f.hair; ctx.beginPath(); ctx.arc(0, hy - r * 0.15, r * 1.42, 0, 6.3); ctx.fill(); }
-  ctx.fillStyle = f.skin; ctx.fillRect(-r * 0.35, hy + r * 0.6, r * 0.7, r * 0.7);
-  ctx.fillStyle = front || f.style === 3 ? f.skin : f.hair;
-  ctx.beginPath(); ctx.arc(0, hy, r, 0, 6.3); ctx.fill();
-  if (f.style !== 3) {
-    ctx.fillStyle = f.hair;
-    if (front) { ctx.beginPath(); ctx.arc(0, hy - r * 0.08, r * 1.04, Math.PI * 1.02, Math.PI * 1.98); ctx.quadraticCurveTo(0, hy - r * 0.62, -r * 1.02, hy - r * 0.14); ctx.fill(); }
-    if (f.style === 1) { ctx.beginPath(); for (let i = -2; i <= 2; i++) { ctx.moveTo(i * r * 0.42 - r * 0.3, hy - r * 0.72); ctx.lineTo(i * r * 0.5, hy - r * (1.55 - Math.abs(i) * 0.14)); ctx.lineTo(i * r * 0.42 + r * 0.3, hy - r * 0.72); } ctx.fill(); }
-    if (f.style === 5) ctx.fillRect(-r * 0.24, hy - r * 1.5, r * 0.48, r * 0.75);
-  }
-  if (front && r > 2.4) {
-    if (f.beard) { ctx.fillStyle = f.hair; ctx.globalAlpha *= 0.85; ctx.beginPath(); ctx.arc(0, hy + r * 0.1, r * 0.98, 0.15, Math.PI - 0.15); ctx.quadraticCurveTo(0, hy + r * 0.25, r * 0.95, hy + r * 0.25); ctx.fill(); ctx.globalAlpha = o.alpha ?? 1; }
-    if (r > 4.2) {
+  ctx.fillStyle = f.skin; ctx.fillRect(-r * 0.32, hy + r * 0.55, r * 0.64, r * 0.75);
+  ctx.save();
+  ctx.translate(0, hy); ctx.scale(r / 28, r / 28); ctx.translate(-50, -48);
+  const hs = shade(f.hair, -0.25);
+  if (!f.bald && f.long) { ctx.fillStyle = hs; ctx.fillRect(50 - f.fw - 5, 44, 2 * f.fw + 10, 44); }
+  if (!f.bald && f.big) { ctx.fillStyle = hs; ctx.beginPath(); ctx.ellipse(50, 40, f.fw + 14, 31, 0, 0, 6.3); ctx.fill(); }
+  if (f.knot) { ctx.fillStyle = hs; ctx.beginPath(); ctx.arc(50, 12, 8, 0, 6.3); ctx.fill(); }
+  ctx.fillStyle = f.skin;
+  ctx.beginPath(); ctx.ellipse(50 - f.fw, 50, 4, 7, 0, 0, 6.3); ctx.ellipse(50 + f.fw, 50, 4, 7, 0, 0, 6.3); ctx.fill();
+  ctx.fillStyle = front || f.bald ? f.skin : f.hair;
+  ctx.beginPath(); ctx.ellipse(50, 48, f.fw, 30, 0, 0, 6.3); ctx.fill();
+  if (front && r > 2.2) {
+    if (f.beard === 1 || f.beard === 3 || f.beard === 5) { ctx.fillStyle = f.hair; const ga = ctx.globalAlpha; ctx.globalAlpha = ga * (f.beard === 1 ? 0.28 : 0.92); ctx.beginPath(); ctx.ellipse(50, 48, f.fw - 0.5, 29.5, 0, 0.18, Math.PI - 0.18); ctx.quadraticCurveTo(50, f.beard === 5 ? 76 : 60, 50 + (f.fw - 0.5) * Math.cos(0.18), 48 + 29.5 * Math.sin(0.18)); ctx.fill(); ctx.globalAlpha = ga; }
+    if (f.beard === 2 || f.beard === 6) { ctx.fillStyle = f.hair; ctx.beginPath(); ctx.moveTo(43, 70); ctx.quadraticCurveTo(50, f.beard === 2 ? 84 : 78, 57, 70); ctx.fill(); }
+    if (f.beard === 4) { ctx.fillStyle = f.hair; ctx.fillRect(41, 61, 18, 3.4); }
+    if (r > 3.6) {
       for (const sd of [-1, 1]) {
-        if (o.glow) { const gg = ctx.createRadialGradient(sd * r * 0.38, hy, 0, sd * r * 0.38, hy, r * 0.75); gg.addColorStop(0, o.glow); gg.addColorStop(1, o.glow + '00'); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(sd * r * 0.38, hy, r * 0.75, 0, 6.3); ctx.fill(); }
-        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(sd * r * 0.38, hy + r * 0.02, r * 0.2, r * (o.happy ? 0.1 : o.glow ? 0.11 : 0.15), 0, 0, 6.3); ctx.fill();
-        ctx.fillStyle = o.glow ?? '#16181d'; ctx.beginPath(); ctx.arc(sd * r * 0.38, hy + r * 0.03, r * (o.glow ? 0.12 : 0.09), 0, 6.3); ctx.fill();
-        ctx.strokeStyle = shade(f.hair === '#e8e8ee' ? '#888888' : f.hair, -0.2); ctx.lineWidth = Math.max(1, r * 0.11); ctx.beginPath();
-        if (o.glow) { ctx.moveTo(sd * r * 0.14, hy - r * 0.16); ctx.lineTo(sd * r * 0.62, hy - r * 0.4); }
-        else { ctx.moveTo(sd * r * 0.16, hy - r * (o.happy ? 0.3 : 0.2)); ctx.lineTo(sd * r * 0.6, hy - r * (o.happy ? 0.36 : 0.3)); }
-        ctx.stroke();
+        const ex = 50 + sd * 11;
+        if (o.glow) { const gg = ctx.createRadialGradient(ex, 49, 0, ex, 49, 16); gg.addColorStop(0, o.glow); gg.addColorStop(1, o.glow + '00'); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(ex, 49, 16, 0, 6.3); ctx.fill(); }
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(ex, 49, 6.4, o.happy ? 3 : o.glow ? 3.2 : 4.4, 0, 0, 6.3); ctx.fill();
+        ctx.fillStyle = o.glow ?? f.eye; ctx.beginPath(); ctx.arc(ex, 49, 3.3, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(ex, 49, 1.4, 0, 6.3); ctx.fill();
+        ctx.strokeStyle = lum(f.hair) > 0.7 ? '#9aa0ad' : f.hair; ctx.lineWidth = f.brows === 3 ? 4.2 : f.brows === 4 ? 1.8 : 2.8; ctx.lineCap = 'round'; ctx.beginPath();
+        const ang = o.glow || f.brows === 1 ? -3.4 : f.brows === 2 ? 2.4 : o.happy ? 1.2 : 0;
+        ctx.moveTo(ex - sd * 6.5, 41 - ang * 0.9 * -1 * 0 + (ang < 0 ? 2.6 : ang > 0 ? -1.5 : 0)); ctx.lineTo(ex + sd * 6.5, 41 + (ang < 0 ? -2.6 : ang > 0 ? 1 : 0)); ctx.stroke(); ctx.lineCap = 'butt';
       }
-      ctx.strokeStyle = '#7a2f2f'; ctx.fillStyle = '#4a1414'; ctx.lineWidth = Math.max(1, r * 0.09);
+      ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(48, 58); ctx.quadraticCurveTo(50, 61, 52, 58); ctx.stroke();
+      ctx.strokeStyle = '#7a2f2f'; ctx.fillStyle = '#4a1414'; ctx.lineWidth = 2;
       ctx.beginPath();
-      if (o.happy) { ctx.arc(0, hy + r * 0.36, r * 0.34, 0.1, Math.PI - 0.1); ctx.closePath(); ctx.fill(); }
-      else if (o.glow) { ctx.moveTo(-r * 0.26, hy + r * 0.48); ctx.quadraticCurveTo(r * 0.05, hy + r * 0.6, r * 0.3, hy + r * 0.4); ctx.stroke(); }
-      else { ctx.moveTo(-r * 0.24, hy + r * 0.5); ctx.quadraticCurveTo(0, hy + r * 0.58, r * 0.24, hy + r * 0.5); ctx.stroke(); }
-    } else { ctx.fillStyle = o.glow ?? '#16181d'; ctx.fillRect(-r * 0.5, hy - r * 0.05, r * 0.3, r * 0.26); ctx.fillRect(r * 0.2, hy - r * 0.05, r * 0.3, r * 0.26); }
+      if (o.happy) { ctx.moveTo(43, 65); ctx.quadraticCurveTo(50, 77, 57, 65); ctx.closePath(); ctx.fill(); }
+      else if (o.glow) { ctx.moveTo(43, 67); ctx.quadraticCurveTo(51, 70, 58, 64); ctx.stroke(); }
+      else if (f.mouth === 2) { ctx.moveTo(43, 68); ctx.quadraticCurveTo(50, 65, 57, 68); ctx.stroke(); }
+      else { ctx.moveTo(43, 66); ctx.quadraticCurveTo(50, f.mouth === 1 ? 66 : 70, 57, 66); ctx.stroke(); }
+      if (f.acc === 2) { ctx.strokeStyle = '#dfe7ff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(39, 49, 8.5, 0, 6.3); ctx.moveTo(69.5, 49); ctx.arc(61, 49, 8.5, 0, 6.3); ctx.moveTo(47.5, 49); ctx.lineTo(52.5, 49); ctx.stroke(); }
+      if (f.acc === 7) { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(61, 49, 8, 6.5, 0, 0, 6.3); ctx.fill(); }
+      if (f.acc === 8) { ctx.fillStyle = '#e8edf5'; ctx.beginPath(); ctx.ellipse(50, 62, f.fw - 4, 13, 0, 0, Math.PI); ctx.fill(); }
+    } else { ctx.fillStyle = o.glow ?? '#16181d'; ctx.fillRect(36, 46, 7, 6); ctx.fillRect(57, 46, 7, 6); }
   }
+  if (!f.bald) {
+    ctx.fillStyle = f.hair;
+    if (f.capP && front) { const ga = ctx.globalAlpha; ctx.globalAlpha = ga * f.capOp; ctx.fill(f.capP); ctx.globalAlpha = ga; }
+    if (f.topP) ctx.fill(f.topP);
+  }
+  if (f.acc === 1 || f.acc === 3) { ctx.fillStyle = f.acc === 1 ? '#fff' : col; ctx.fillRect(50 - f.fw - 1, 34, 2 * f.fw + 2, 5); }
+  if (f.acc === 5) { ctx.fillStyle = '#c1272d'; ctx.beginPath(); ctx.moveTo(50 - f.fw - 2, 38); ctx.quadraticCurveTo(50, 26, 50 + f.fw + 2, 38); ctx.lineTo(50 + f.fw + 2, 30); ctx.quadraticCurveTo(50, 18, 50 - f.fw - 2, 30); ctx.fill(); }
+  ctx.restore();
   ctx.restore();
   ctx.globalAlpha = 1;
 }
@@ -189,16 +205,20 @@ function lum(hex: string): number {
   return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
 }
 
+const FALLBACK_FACE: Face = { skin: '#e0ac86', hair: '#16181d', fw: 26, cap: null, top: null, capOp: 1, long: false, big: false, knot: false, bald: false, eye: '#2b2b2b', brows: 0, beard: 0, acc: 0, mouth: 0 };
 const RES_LABEL: Record<Replay['res'], string> = { goal: 'GOAL', save: 'SAVED', off: 'OFF TARGET', post: 'OFF THE WOODWORK', block: 'BLOCKED' };
 
 // ── finish types: each has its own trajectory, body shape, keeper reaction and camera ──
 type PoseK = 'std' | 'bicycle' | 'scissor' | 'dive' | 'slide' | 'heel' | 'leap' | 'chip';
-interface Flair { name: string; arc: number; curl: number; wob: number; speed: number; pose: PoseK; gk: 'dive' | 'rush' | 'early' | 'stand'; cam: 'side' | 'net' | 'low' | 'chase' | 'orbit'; postIn?: boolean; fire?: boolean; chipH?: number }
+interface Flair { top?: boolean; name: string; arc: number; curl: number; wob: number; speed: number; pose: PoseK; gk: 'dive' | 'rush' | 'early' | 'stand'; cam: 'side' | 'net' | 'low' | 'chase' | 'orbit'; postIn?: boolean; fire?: boolean; chipH?: number }
 const FL = (name: string, o: Partial<Flair> = {}): Flair => ({ name, arc: 0.35, curl: 0.5, wob: 0, speed: 1, pose: 'std', gk: 'dive', cam: 'side', ...o });
 export function pickFlair(rp: Replay): Flair {
   const f = pickFlair0(rp);
   // ultimates are shown from the side so their effects stay in view
   if (rp.ult && f.cam === 'net') f.cam = 'side';
+  // a keeper who has come out or stands still can only be beaten, never "save" from where he is not
+  if (rp.res === 'save' || rp.res === 'block') { f.gk = 'dive'; f.chipH = undefined; if (f.arc > 1.5) f.arc = 0.6; if (f.speed < 0.9) f.speed = 1; }
+  if (rp.res !== 'goal') { f.top = false; f.postIn = false; }
   return f;
 }
 function pickFlair0(rp: Replay): Flair {
@@ -210,11 +230,14 @@ function pickFlair0(rp: Replay): Flair {
   if (rp.v === 'fk') return FL('Free-kick curler', { curl: d * 0.1, arc: d * 0.09, cam: 'chase' });
   if (rp.v === 'header') return d < 8 && r < 55 ? FL('Diving header', { pose: 'dive', cam: 'low', arc: 0.1 }) : FL('Towering header', { pose: 'leap', arc: 0.2, cam: r < 50 ? 'side' : 'net' });
   if (rp.v === 'volley') return r < 36 && d < 17 ? FL('Bicycle kick', { pose: 'bicycle', cam: 'orbit', arc: 0.8 }) : r < 68 ? FL('Scissor volley', { pose: 'scissor', cam: 'low', arc: 0.5 }) : FL('Volley', { arc: 0.6, speed: 1.2 });
-  if (d > 18) return r < 26 ? FL('Knuckleball', { wob: 1, arc: d * 0.03, curl: 0, cam: 'chase' }) : r < 52 ? FL('Rocket', { speed: 1.5, arc: 0.3, curl: 0.2, fire: true, cam: 'chase' }) : r < 78 ? FL('Curler', { curl: d * 0.12, arc: d * 0.06, cam: 'chase' }) : FL('Dipping strike', { arc: d * 0.13, curl: d * 0.03, cam: 'chase' });
+  if (d > 18 && r < 20) return FL('Banana shot', { curl: d * 0.26, arc: d * 0.085, cam: 'chase', top: true, speed: 0.9 });
+  if (d > 18) return r < 36 ? FL('Knuckleball', { wob: 1, arc: d * 0.03, curl: 0, cam: 'chase' }) : r < 56 ? FL('Rocket', { speed: 1.5, arc: 0.3, curl: 0.2, fire: true, cam: 'chase' }) : r < 82 ? FL('Curler', { curl: d * 0.15, arc: d * 0.07, cam: 'chase', top: true }) : FL('Dipping strike', { arc: d * 0.13, curl: d * 0.03, cam: 'chase' });
   if (rp.gz > 0.68 && ag > 0.58) return FL('Top bins', { cam: 'net', curl: 0.9, arc: 0.5 });
   if (ag > 0.8 && goal && r < 65) return FL('In off the post', { postIn: true, cam: 'net', curl: 1.1 });
   if (ag < 0.24 && rp.gz < 0.32 && d < 15) return FL('Through the keeper\'s legs', { gk: 'stand', cam: 'low', arc: 0.02, curl: 0 });
   if (d > 8 && d < 17 && r < 24) return FL('Chip over the keeper', { arc: 2.6, speed: 0.62, gk: 'rush', pose: 'chip', chipH: 1.7 });
+  if (d > 9 && r >= 24 && r < 44) return FL('Curled into the top corner', { curl: 2.4 + d * 0.14, arc: 1.0, top: true, cam: r % 2 ? 'side' : 'net', speed: 0.9 });
+  if (d > 7 && r >= 44 && r < 54) return FL('Outside of the boot', { curl: -(2 + d * 0.12), arc: 0.7, top: r % 2 === 0, cam: 'side' });
   if (d < 6.5 && r < 42) return FL('Sliding finish', { pose: 'slide', cam: 'low', arc: 0.05 });
   if (d < 9 && r < 62) return FL('Back-heel flick', { pose: 'heel', arc: 0.1, speed: 0.8, cam: 'low' });
   if (rp.v === 'power') return FL('Power drive', { fire: true, speed: 1.35, arc: 0.2, curl: 0.1 });
@@ -239,9 +262,10 @@ const CELE = ['Knee slide', 'Arms-wide run', 'Backflip', 'Point to the sky', 'Ju
 
 interface Scene {
   rp: Replay; long: boolean; dir: number; goalX: number; shot: V3; passFrom: V3 | null; end: V3; after: V3; h0: number; fl: Flair;
-  tP0: number; tPass: number; tStrike: number; tFlight: number; tCele: number; tEnd: number; side: number; cele: number; celeDir: V3; quick: boolean; tIntro: number;
+  tP0: number; tPass: number; tStrike: number; tFlight: number; tCele: number; tEnd: number; side: number; cele: number; celeDir: V3; quick: boolean; tIntro: number; tDrib: number; blk: number; drib: number[]; dribL: number; dribA: number;
 }
-function buildScene(rp: Replay, quick = false): Scene {
+function buildScene(rp: Replay, quick = false, ms?: MatchState): Scene {
+  const foe = (i: number) => (ms?.pl[i] ? ms.pl[i].t !== rp.t : (i < 11) !== (rp.sh < 11));
   const fl = pickFlair(rp);
   const dir = rp.t === 0 ? 1 : -1;
   const goalX = rp.t === 0 ? 105 : 0;
@@ -249,13 +273,23 @@ function buildScene(rp: Replay, quick = false): Scene {
   const long = rp.d > 18 && rp.v !== 'pen';
   const h0 = rp.v === 'header' ? 1.95 : rp.v === 'volley' || rp.v.startsWith('dag') ? 0.9 : 0.11;
   const sg = rp.gy >= 0 ? 1 : -1;
-  let end: V3, after: V3;
+  let end: V3, after: V3, blk = -1;
   const gz = fl.chipH ?? 0.15 + rp.gz * 2.1;
   if (rp.res === 'goal' && fl.postIn) { end = [goalX, Math.min(2.2, gz), 34 + sg * 3.58]; after = [goalX + dir * 1.7, 0.12, 34 + sg * 1.2]; }
+  else if (rp.res === 'goal' && fl.top) { end = [goalX, 2.16, 34 + sg * 3.32]; after = [goalX + dir * 1.7, 0.4, 34 + sg * 2.6]; }
   else if (rp.res === 'goal') { end = [goalX, gz, 34 + rp.gy * 3.3]; after = [goalX + dir * 1.7, 0.12, 34 + rp.gy * 3.4]; }
   else if (rp.res === 'save') { end = [goalX - dir * 0.95, Math.max(0.25, gz * 0.95), 34 + rp.gy * 3.2]; after = Math.abs(rp.gy) < 0.3 ? [goalX - dir * 2.2, 0.3, 34 + rp.gy * 3.2] : [goalX - dir * 2.5, rp.gz > 0.6 ? 3.4 : 0.6, 34 + sg * (5.5 + Math.abs(rp.gy) * 3)]; }
   else if (rp.res === 'post') { end = [goalX, Math.min(2.3, gz), 34 + sg * 3.66]; after = [goalX - dir * 5, 0.11, 34 + sg * 6]; }
-  else if (rp.res === 'block') { const m: V3 = [lerp(sx, goalX, 0.3), 0.7, lerp(sz, 34, 0.3)]; end = m; after = [m[0] - dir * 3, 0.11, m[2] + sg * 5]; }
+  else if (rp.res === 'block') {
+    // the blocker: the recorded one, else the nearest outfield opponent between the ball and the goal
+    let bi = rp.blk != null && rp.blk >= 0 && rp.pl.some((x) => x[0] === rp.blk) ? rp.blk : -1;
+    if (bi < 0) { let bd = 1e9; for (const x of rp.pl) { if (x[0] === rp.gk || x[0] === rp.sh || !foe(x[0])) continue; const dd = Math.hypot(x[1] * 1.05 - sx, x[2] * 0.68 - sz); if ((goalX - x[1] * 1.05) * dir < (goalX - sx) * dir + 2 && dd < bd) { bd = dd; bi = x[0]; } } }
+    blk = bi;
+    const bp = rp.pl.find((x) => x[0] === bi);
+    const L = Math.hypot(goalX - sx, 34 - sz) || 1;
+    const tp = bp ? Math.max(0.12, Math.min(0.55, (((bp[1] * 1.05 - sx) * (goalX - sx) + (bp[2] * 0.68 - sz) * (34 - sz)) / (L * L)))) : 0.3;
+    const m: V3 = [lerp(sx, goalX, tp), 0.75, lerp(sz, 34, tp)]; end = m; after = [m[0] - dir * 2.5, 0.11, m[2] + sg * 6];
+  }
   else { const over = rp.gz > 0.55; end = over ? [goalX, 2.44 + 0.5 + rp.gz * 1.6, 34 + rp.gy * 3] : [goalX, gz, 34 + sg * (3.66 + 0.7 + Math.abs(rp.gy) * 2.6)]; after = add(end, [dir * 7, over ? 0.6 : -gz * 0.8, sg * 1]); }
   const passFrom: V3 | null = rp.fx >= 0 ? [rp.fx * 1.05, 0.11, rp.fy * 0.68] : null;
   const tPass = passFrom ? (quick ? 0.7 : 0.95) : 0;
@@ -266,7 +300,13 @@ function buildScene(rp: Replay, quick = false): Scene {
   const tCele = tStrike + tFlight + 1.0;
   const side = sz < 34 ? -1 : 1;
   const celeDir = norm([dir * 0.25, 0, side * 1]);
-  return { rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, fl, tP0, tPass, tStrike, tFlight, tCele, tEnd: hasCele ? tCele + 3.0 : tStrike + tFlight + (quick ? 1.0 : 1.7), side, tIntro: quick ? 0 : rp.ult ? 1.9 : long || fl.cam === 'chase' ? 1.1 : 0, cele: ((((rp.id + 1) * 2654435761 + rp.min * 40503 + rp.sh * 97) >>> 9) >>> 0) % CELE.length, celeDir, quick };
+  return { rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, fl, tP0, tPass, tStrike, tFlight, tCele, tEnd: hasCele ? tCele + 3.0 : tStrike + tFlight + (quick ? 1.0 : 1.7), side, tIntro: quick ? 0 : rp.ult ? 1.9 : long || fl.cam === 'chase' ? 1.1 : 0, blk, ...dribSetup(rp, quick, sx, sz, foe), cele: ((((rp.id + 1) * 2654435761 + rp.min * 40503 + rp.sh * 97) >>> 9) >>> 0) % CELE.length, celeDir, quick };
+}
+/** Dribbling ultimates open with the run itself: who gets beaten, how far the run is, how wide the weave. */
+function dribSetup(rp: Replay, quick: boolean, sx: number, sz: number, foe: (i: number) => boolean): { tDrib: number; drib: number[]; dribL: number; dribA: number } {
+  if (quick || (rp.ult !== 'trance' && rp.ult !== 'sprint' && rp.ult !== 'chain')) return { tDrib: 0, drib: [], dribL: 0, dribA: 0 };
+  const opp = rp.pl.filter((x) => x[0] !== rp.gk && x[0] !== rp.sh && foe(x[0])).map((x) => ({ i: x[0], d: Math.hypot(x[1] * 1.05 - sx, x[2] * 0.68 - sz) })).sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.i);
+  return rp.ult === 'sprint' ? { tDrib: 2.0, drib: opp, dribL: 30, dribA: 0.7 } : rp.ult === 'chain' ? { tDrib: 2.2, drib: opp, dribL: 20, dribA: 1.6 } : { tDrib: 3.0, drib: opp, dribL: 21, dribA: 2.3 };
 }
 function ballAt(sc: Scene, t: number): { p: V3; u: number; phase: 0 | 1 | 2 | 3 } {
   const { rp, fl } = sc;
@@ -376,10 +416,19 @@ function ultFx(ctx: CanvasRenderingContext2D, cam: Cam, sc: Scene, ms: MatchStat
 function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchState, sc: Scene, tRaw: number, trail: V3[], faces: Face[]): void {
   const { rp, dir, goalX, fl } = sc;
   const intro = tRaw < sc.tIntro ? tRaw / sc.tIntro : -1; // 0..1 during the close-up that opens ultimates and long-range strikes
-  const t = Math.max(0, tRaw - sc.tIntro);
+  const dribU = intro < 0 && sc.tDrib > 0 && tRaw < sc.tIntro + sc.tDrib ? (tRaw - sc.tIntro) / sc.tDrib : -1; // 0..1 through the dribble of a dribbling ultimate
+  const t = Math.max(0, tRaw - sc.tIntro - sc.tDrib);
   const b = ballAt(sc, t);
   const goalC: V3 = [goalX, 1.1, 34];
   const sdir = norm(sub([goalX, 0, 34], [sc.shot[0], 0, sc.shot[2]]));
+  const perpD: V3 = [-sdir[2], 0, sdir[0]];
+  const start0: V3 = [sc.shot[0] - sdir[0] * (rp.v === 'pen' ? 0.5 : 3.65), 0, sc.shot[2] - sdir[2] * (rp.v === 'pen' ? 0 : 3.65)];
+  /** where the dribbler is at progress u of the run, and where each beaten defender waits */
+  const dribAt = (u: number): V3 => add(add(start0, mul(sdir, -sc.dribL * (1 - u))), mul(perpD, sc.dribA * Math.sin(u * 3 * Math.PI) * (1 - u * 0.25)));
+  const dribDef = (k: number): { u: number; p: V3 } => { const u = (k * 2 + 1) / 6; return { u, p: add(add(start0, mul(sdir, -sc.dribL * (1 - u))), mul(perpD, rp.ult === 'sprint' ? (k % 2 ? 1.6 : -1.6) : 0)) }; };
+  const pre = sc.tDrib > 0 && (intro >= 0 || dribU >= 0);
+  const dPos = pre ? dribAt(Math.max(0, dribU)) : start0;
+  if (pre) { b.p = [dPos[0] + sdir[0] * 0.65 + perpD[0] * Math.sin(tRaw * 11) * 0.12, 0.11, dPos[2] + sdir[2] * 0.65 + perpD[2] * Math.sin(tRaw * 11) * 0.12]; b.phase = 0; }
   const impact = t - sc.tStrike - sc.tFlight;
   const tc = rp.res === 'goal' && !sc.quick ? t - sc.tCele : -1;
   const cele = tc >= 0 ? celeState(sc, tc) : null;
@@ -390,10 +439,15 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
   const usC = rp.ult ? ULT_STYLE[rp.ult] : null;
   if (intro >= 0) {
     // close on the striker's face, pushing in
-    const st: V3 = [sc.shot[0] - sdir[0] * (rp.v === 'pen' ? 0.5 : 3.65), 0, sc.shot[2] - sdir[2] * (rp.v === 'pen' ? 0 : 3.65)];
+    const st: V3 = dPos;
     const sway = Math.sin(intro * 2.2) * 0.5;
     const pos: V3 = [st[0] + sdir[0] * lerp(3.3, 2.1, ease(intro)) - sdir[2] * sway, lerp(1.9, 1.62, intro), st[2] + sdir[2] * lerp(3.3, 2.1, ease(intro)) + sdir[0] * sway];
     cam = mkCam(pos, [st[0], 1.55, st[2]], H * lerp(1.5, 2.1, ease(intro)), W, H);
+  } else if (dribU >= 0) {
+    // tracking shot from in front of the dribbler: his face, the ball and every defender he leaves behind
+    const side = sc.side || 1;
+    const pos = add(add(dPos, mul(sdir, lerp(8.5, 6.5, dribU))), [perpD[0] * -4.2 * side, lerp(2.6, 1.7, dribU), perpD[2] * -4.2 * side]);
+    cam = mkCam(pos, add(dPos, [0, 1.0, 0]), H * 1.12, W, H);
   } else if (cele) {
     const z = ease(c01(tc / 2.6));
     const pos = add(add(cele.pos, mul(sc.celeDir, lerp(8.5, 5.2, z))), [dir * -1.6, lerp(2.1, 1.5, z), 0]);
@@ -403,10 +457,15 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
     const ch = c01((t - (sc.tStrike - 0.85)) / 0.85);
     const a = Math.atan2(-sdir[2], -sdir[0]) + sc.side * lerp(1.5, 0.5, ease(ch));
     cam = mkCam([sc.shot[0] + Math.cos(a) * 5.2, 0.9, sc.shot[2] + Math.sin(a) * 5.2], [sc.shot[0], 1.25, sc.shot[2]], H * 1.25, W, H);
-  } else if ((usC || sc.long || fl.cam === 'chase') && fu > 0.55 && impact < 0.7 && rp.res !== 'block') {
-    // cut: behind the net as the ball arrives
-    const pos: V3 = [goalX + dir * 4.6, 1.9 + shake * Math.sin(tRaw * 90), 34 - rp.gy * 2.2 + shake * Math.cos(tRaw * 70)];
-    cam = mkCam(pos, lerp3([sc.shot[0], 1, sc.shot[2]], b.p, 0.6), H * 1.15, W, H);
+  } else if ((usC || sc.long || fl.cam === 'chase') && fu > 0.5 && rp.res !== 'block') {
+    // cut: behind the net as the ball arrives, held until the celebration so the goal is always seen going in
+    const pos: V3 = [goalX + dir * 5.4, 2.2 + shake * Math.sin(tRaw * 90), 34 - Math.sign(sc.end[2] - 34 || 1) * 1.6 + shake * Math.cos(tRaw * 70)];
+    cam = mkCam(pos, lerp3([sc.shot[0], 1, sc.shot[2]], [b.p[0], Math.min(2.2, b.p[1]), b.p[2]], impact > 0 ? 0.92 : 0.75), H * 1.05, W, H);
+  } else if (usC && fu > 0) {
+    // ultimate strike: a wide side-on frame that holds both the striker and the whole goal
+    const mid = lerp3([sc.shot[0], 0, sc.shot[2]], goalC, 0.5);
+    const dist = Math.max(15, rp.d * 0.95 + 6);
+    cam = mkCam([mid[0] - perpD[0] * dist * sc.side * -1 - sdir[0] * 3, 4.2, mid[2] - perpD[2] * dist * sc.side * -1 - sdir[2] * 3], [mid[0], 1.2, mid[2]], H * 1.05, W, H);
   } else if (fl.cam === 'chase' || sc.long) {
     const back = lerp(10, 6, ease(fu));
     const anchor: V3 = b.phase >= 2 ? [b.p[0], 0, b.p[2]] : [sc.shot[0], 0, sc.shot[2]];
@@ -487,6 +546,11 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
     let fdx = p.t === 0 ? 1 : -1, fdz = 0;
     if (isSh) {
       if (cele) { X = cele.pos[0]; Z = cele.pos[2]; Object.assign(pose, cele.pose); pose.happy = true; fdx = sc.celeDir[0]; fdz = sc.celeDir[2]; if (cele.pose.kick) { pose.runPh = t * 15; pose.kick = 0; } }
+      else if (pre) {
+        X = dPos[0]; Z = dPos[2]; fdx = sdir[0]; fdz = sdir[2];
+        if (usC) pose.glow = usC.col;
+        if (dribU >= 0) { pose.runPh = tRaw * 17; const lean = Math.cos(dribU * 3 * Math.PI); pose.lean = { dx: perpD[0] * Math.sign(lean || 1), dz: perpD[2] * Math.sign(lean || 1), a: Math.abs(lean) * (rp.ult === 'sprint' ? 0.12 : 0.34) + (rp.ult === 'sprint' ? 0 : 0) }; if (rp.ult === 'sprint') pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; }
+      }
       else {
         if (rp.v === 'pen') { X = sc.shot[0] - dir * 0.5; Z = 34; } else { X = sc.shot[0] - sdir[0] * 0.45; Z = sc.shot[2] - sdir[2] * 0.45; }
         const run = c01((sc.tStrike - 0.22 - t) / 0.9);
@@ -541,6 +605,27 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
         if (impact > 0.15 && dd >= 1 && lat > 0.7) { const fall = c01((impact - 0.15) / 0.35); pose.lean = { dx: 0, dz: sgn, a: lerp(a, 1.5, fall) }; pose.lift = (pose.lift ?? 0) * (1 - fall); }
       }
       if (rp.res === 'goal' && impact > 0.9 && !cele && fl.gk !== 'dive' && fl.gk !== 'early') pose.crouch = 0.5;
+    } else if (sc.tDrib > 0 && sc.drib.includes(idx)) {
+      // a defender in the path of the dribbling ultimate: set, lunge, beaten
+      const k = sc.drib.indexOf(idx), dd = dribDef(k), u = pre ? Math.max(0, dribU) : 1;
+      X = dd.p[0]; Z = dd.p[2];
+      const side = Math.sign(Math.sin(dd.u * 3 * Math.PI)) || 1; // the side the dribbler goes past on
+      fdx = -sdir[0]; fdz = -sdir[2];
+      const rel = u - dd.u;
+      if (rp.ult === 'sprint') { if (rel > -0.06) { fdx = sdir[0]; fdz = sdir[2]; pose.runPh = tRaw * 12 + k; pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; const ch = Math.min(1, Math.max(0, rel) * 1.2); X += sdir[0] * ch * 4; Z += sdir[2] * ch * 4; pose.arms = 4; } else { pose.crouch = 0.3; pose.arms = 2; } }
+      else if (rel < -0.09) { pose.crouch = 0.32; pose.arms = 2; }
+      else if (rel < 0.03) { const w = c01((rel + 0.09) / 0.12); pose.strike = w * 0.8; pose.lean = { dx: perpD[0] * -side, dz: perpD[2] * -side, a: w * 0.55 }; pose.arms = 2; X += perpD[0] * -side * w * 0.9; Z += perpD[2] * -side * w * 0.9; }
+      else { const w = c01((rel - 0.03) / 0.1); X += perpD[0] * -side * 0.9; Z += perpD[2] * -side * 0.9; pose.lean = { dx: perpD[0] * -side, dz: perpD[2] * -side, a: lerp(0.55, 1.45, w) }; pose.arms = 2; }
+    } else if (rp.res === 'block' && idx === sc.blk) {
+      // the blocker throws himself into the line of the shot — the ball stops on him
+      const w = ease(c01((t - (sc.tStrike - 0.7)) / (0.7 + sc.tFlight * 0.8)));
+      const tx = sc.end[0] + sdir[0] * 0.3, tz = sc.end[2] + sdir[2] * 0.3;
+      X = lerp(X, tx, w); Z = lerp(Z, tz, w);
+      fdx = -sdir[0]; fdz = -sdir[2];
+      if (w < 1 && w > 0.02) pose.runPh = t * 15;
+      if (fu > 0.35) { pose.runPh = undefined; pose.arms = 2; pose.strike = c01((fu - 0.35) / 0.65) * 0.8; pose.lean = { dx: -sdir[2] * sc.side, dz: sdir[0] * sc.side, a: Math.sin(c01((fu - 0.35) / 0.9) * Math.PI) * 0.55 }; }
+      if (impact > 0) { pose.lean = { dx: sdir[0], dz: sdir[2], a: Math.min(0.5, impact * 1.2) }; pose.arms = 4; }
+      pose.ring = 'rgba(255,209,102,.9)';
     } else if (p.t !== rp.t) {
       const k = ease(c01(t / sc.tStrike)) * 0.9;
       const dx = sc.shot[0] - X, dz = sc.shot[2] - Z, dd = Math.sqrt(dx * dx + dz * dz) || 1;
@@ -564,15 +649,17 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
     pose.fx = fdx; pose.fz = fdz;
     pose.front = frontOf(fdx, fdz);
     pose.num = p.num;
-    pose.ring = p.user ? '#3df2ff' : isSh && !cele ? 'rgba(255,255,255,.75)' : undefined;
+    pose.ring = p.user ? '#3df2ff' : isSh && !cele ? 'rgba(255,255,255,.75)' : pose.ring;
     const q = proj(cam, [X, 0, Z]);
     const col = isGk ? (lum(ms.teams[p.t].col) > 0.5 ? '#16a34a' : '#f5d90a') : ms.teams[p.t].col;
     const col2 = isGk ? '#1b1b1b' : ms.teams[p.t].col2 || '#111827';
-    const face = faces[idx] ?? { skin: '#e0ac86', hair: '#16181d', style: 0, beard: false };
+    const face = faces[idx] ?? FALLBACK_FACE;
     // afterimages for the dribbling ultimates
-    if (isSh && !cele && (rp.ult === 'trance' || rp.ult === 'sprint') && t < sc.tStrike + 0.2) for (let gi = 1; gi <= 3; gi++) { const gx = X - sdir[0] * gi * 1.1, gz2 = Z - sdir[2] * gi * 1.1 + (rp.ult === 'trance' ? (gi % 2 ? 0.7 : -0.7) : 0); items.push({ z: proj(cam, [gx, 0, gz2]).z, draw: () => drawPlayer(ctx, cam, gx, gz2, ULT_STYLE[rp.ult!]?.col ?? col, col2, face, { ...pose, ring: undefined, alpha: 0.34 - gi * 0.08 }) }); }
+    if (isSh && !cele && (rp.ult === 'trance' || rp.ult === 'sprint') && dribU >= 0) for (let gi = 1; gi <= 4; gi++) { const gp = dribAt(Math.max(0, dribU - gi * 0.035)); items.push({ z: proj(cam, gp).z, draw: () => drawPlayer(ctx, cam, gp[0], gp[2], ULT_STYLE[rp.ult!]?.col ?? col, col2, face, { ...pose, ring: undefined, glow: undefined, alpha: 0.4 - gi * 0.08 }) }); }
+    else if (isSh && !cele && (rp.ult === 'trance' || rp.ult === 'sprint') && t < sc.tStrike + 0.2) for (let gi = 1; gi <= 3; gi++) { const gx = X - sdir[0] * gi * 1.1, gz2 = Z - sdir[2] * gi * 1.1 + (rp.ult === 'trance' ? (gi % 2 ? 0.7 : -0.7) : 0); items.push({ z: proj(cam, [gx, 0, gz2]).z, draw: () => drawPlayer(ctx, cam, gx, gz2, ULT_STYLE[rp.ult!]?.col ?? col, col2, face, { ...pose, ring: undefined, alpha: 0.34 - gi * 0.08 }) }); }
     if (intro >= 0 && !isSh && q.z < 6.5) continue; // nobody walks through the close-up
     if (intro >= 0 && !isSh) pose.alpha = 0.55;
+    if (dribU >= 0 && !isSh && !sc.drib.includes(idx) && q.z < 5) continue;
     items.push({ z: q.z, draw: () => drawPlayer(ctx, cam, X, Z, col, col2, face, pose) });
   }
   items.push({ z: proj(cam, [goalX, 1.2, 34]).z + 0.2, draw: () => {
@@ -645,8 +732,8 @@ export function Replay3D({ ms, rp, onClose, auto, quick, g }: { ms: MatchState; 
   const ref = useRef<HTMLCanvasElement>(null);
   const [run, setRun] = useState(0);
   const [stage, setStage] = useState(0); // 0 playing, 1 result shown, 2 celebration, 3 finished
-  const sc = buildScene(rp, quick);
-  const faces = useMemo<Face[]>(() => ms.pl.map((p) => { const wp = g?.world.players[p.id]; const mine = !!g && p.id === g.career.pid; return lookColours(mine ? g!.career.look : lookFor(p.id), mine && !g!.career.flags.playAs ? undefined : wp?.hair); }), [ms, g]);
+  const sc = buildScene(rp, quick, ms);
+  const faces = useMemo<Face[]>(() => ms.pl.map((p) => { const wp = g?.world.players[p.id]; const mine = !!g && p.id === g.career.pid; const f: Face = lookColours(mine ? g!.career.look : lookFor(p.id), mine && !g!.career.flags.playAs ? undefined : wp?.hair); try { if (f.cap) f.capP = new Path2D(f.cap); if (f.top) f.topP = new Path2D(f.top); } catch { /* no Path2D: hair is drawn as a cap only */ } return f; }), [ms, g]);
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
@@ -661,10 +748,10 @@ export function Replay3D({ ms, rp, onClose, auto, quick, g }: { ms: MatchState; 
       const w = cv.clientWidth, h = cv.clientHeight;
       if (w < 40 || h < 30) { raf = requestAnimationFrame(frame); return; }
       if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-      const total = sc.tEnd + sc.tIntro;
-      const tr = Math.min(total, (now - t0) / 1000), t = tr - sc.tIntro;
+      const total = sc.tEnd + sc.tIntro + sc.tDrib;
+      const tr = Math.min(total, (now - t0) / 1000), t = tr - sc.tIntro - sc.tDrib;
       if (tr !== last) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); render(ctx, w, h, ms, sc, tr, trail, faces); last = tr; }
-      const ns = tr >= total ? 3 : t < 0 ? -1 : rp.res === 'goal' && !sc.quick && t >= sc.tCele ? (t >= sc.tCele + 1.5 ? 2.5 : 2) : t >= sc.tStrike + sc.tFlight ? 1 : 0;
+      const ns = tr >= total ? 3 : tr < sc.tIntro ? -1 : t < 0 ? 0 : rp.res === 'goal' && !sc.quick && t >= sc.tCele ? (t >= sc.tCele + 1.5 ? 2.5 : 2) : t >= sc.tStrike + sc.tFlight ? 1 : 0;
       if (ns !== st) { st = ns; setStage(ns); }
       if (tr < total) raf = requestAnimationFrame(frame);
       else if (auto && onClose && !closed) { closed = true; setTimeout(onClose, quick ? 250 : 700); }
@@ -683,7 +770,7 @@ export function Replay3D({ ms, rp, onClose, auto, quick, g }: { ms: MatchState; 
         <div><b>{sh?.nm}</b>{as ? <span className="muted"> · assist {as.nm}</span> : null}</div>
         <div className="small">{stage >= 2 && stage < 3 ? `Celebration — ${CELE[sc.cele]}` : `${sc.fl.name} · ${Math.round(rp.d)} m · xG ${rp.xg.toFixed(2)} · chance ${Math.round(rp.p * 100)}%`}</div>
       </div>
-      {stage === 1 && <div className={`rp-res ${rp.res}`} key={run}>{RES_LABEL[rp.res]}{rp.res === 'goal' ? <small>{ms.teams[0].abbr} {rp.sc[0]}–{rp.sc[1]} {ms.teams[1].abbr}</small> : null}</div>}
+      {stage === 1 && <div className={`rp-res ${rp.res}`} key={run}>{rp.res === 'block' && sc.blk >= 0 && ms.pl[sc.blk] ? `BLOCKED BY ${ms.pl[sc.blk].nm.toUpperCase()}` : RES_LABEL[rp.res]}{rp.res === 'goal' ? <small>{ms.teams[0].abbr} {rp.sc[0]}–{rp.sc[1]} {ms.teams[1].abbr}</small> : null}</div>}
       {stage === -1 && <div className="rp-say" key={'i' + run} style={us ? { borderColor: us.col } : undefined}><i>{us ? sh?.nm : 'Commentary'}</i><b>{us ? `“${ULT_LINES[rp.ult!]?.[0] ?? 'Watch.'}”` : LONG_LINES[rp.id % LONG_LINES.length].replace('{n}', sh?.nm ?? 'He').replace('{d}', String(Math.round(rp.d)))}</b></div>}
       {us && stage >= 2 && stage < 3 && <div className="rp-say low" key={'p' + stage + run} style={{ borderColor: us.col }}><i>{stage === 2 ? 'Commentary' : sh?.nm}</i><b>{stage === 2 ? ULT_LINES[rp.ult!]?.[1] : `“${ULT_LINES[rp.ult!]?.[2] ?? ''}”`}</b></div>}
       {stage >= 2 && stage < 3 && <div className="rp-cele" key={'c' + run}><b>{sh?.nm}</b><span>{ms.teams[0].abbr} {rp.sc[0]}–{rp.sc[1]} {ms.teams[1].abbr} · {rp.min}'</span></div>}

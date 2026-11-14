@@ -1100,10 +1100,11 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
   else {
     const e = ms.ev.slice(ev0).find((x) => x.k === 'shot' || x.k === 'pen_miss');
     if (e?.k === 'shot') rp.res = e.q === -1 ? (/POST!|woodwork|crossbar denies/.test(e.x) ? 'post' : 'off') : e.q === rp.gk ? 'save' : 'block';
+    if (rp.res === 'block' && e) rp.blk = e.q;
   }
   { // where the ball is aimed, made consistent with what happened: goals find the corners, saves stay within the keeper's reach
     const r1 = ((h >>> 3) % 997) / 997, r2 = ((h >>> 13) % 991) / 991, r3 = ((h >>> 21) % 983) / 983, sg = rp.gy >= 0 ? 1 : -1;
-    if (rp.res === 'goal') { rp.gy = sg * (0.42 + 0.5 * r1); rp.gz = r2 < 0.62 ? 0.04 + 0.3 * r3 : 0.6 + 0.32 * r3; }
+    if (rp.res === 'goal') { rp.gy = sg * (0.42 + 0.5 * r1); rp.gz = r2 < 0.48 ? 0.04 + 0.3 * r3 : 0.6 + 0.34 * r3; }
     else if (rp.res === 'save') { rp.gy = sg * (0.12 + 0.62 * r1); rp.gz = 0.08 + 0.72 * r2; }
   }
   rp.sc = [ms.score[0], ms.score[1]];

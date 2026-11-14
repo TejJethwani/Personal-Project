@@ -88,6 +88,7 @@ export interface Replay {
   ab?: string; // weapon name used
   clock?: number;
   fr?: number; // preview only: forces the finish-type roll
+  blk?: number; // who blocked the shot
 }
 /** An ultimate being unleashed — the match centre plays a custom cut-in animation for each. */
 export interface UltEvent { n: number; key: string; name: string; idx: number; t: number; x: number; y: number; min: number }
