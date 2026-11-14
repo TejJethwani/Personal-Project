@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Decision, MatchState, Option } from '../engine/match/model';
 
-export interface Marker { x: number; y: number; opts: Option[]; label: string; kind: 'mate' | 'goal' | 'move' | 'self' }
+export interface Marker { x: number; y: number; opts: Option[]; label: string; kind: 'mate' | 'goal' | 'move' | 'self'; idx: number }
 const SHORT: Record<string, string> = { behind: 'IN BEHIND', blind: 'BLINDSIDE', near: 'NEAR POST', far: 'FAR POST', short: 'COME SHORT', overlap: 'OVERLAP', hold: 'HOLD', cut: 'CUT LANE', tackle: 'TACKLE', press: 'PRESS', contain: 'CONTAIN', carry: 'CARRY', dribble: 'TAKE ON', shoot: 'SHOOT' };
 /** Where on the pitch each option of a decision "lives", so it can be tapped or swiped towards. */
 export function markersFor(ms: MatchState, d: Decision | null): Marker[] {
@@ -20,11 +20,14 @@ export function markersFor(ms: MatchState, d: Decision | null): Marker[] {
   const out: Marker[] = [];
   const add = (x: number, y: number, o: Option, label: string, kind: Marker['kind']) => {
     x = Math.max(2, Math.min(98, x)); y = Math.max(3, Math.min(97, y));
-    const m = out.find((q) => Math.abs(q.x - x) + Math.abs(q.y - y) < 3 && q.kind === kind);
-    if (m) m.opts.push(o); else out.push({ x, y, opts: [o], label, kind });
+    const idx = kind === 'mate' ? o.tgt : kind === 'self' ? u : -1;
+    const m = out.find((q) => (idx >= 0 ? q.idx === idx : Math.abs(q.x - x) + Math.abs(q.y - y) < 3) && q.kind === kind);
+    if (m) m.opts.push(o); else out.push({ x, y, opts: [o], label, kind, idx });
   };
   for (const o of d.options) {
     const seg = o.id.split(':');
+    if (o.id === 'run:call') { add(me.x, me.y, o, 'CALL FOR IT', 'self'); continue; }
+    if (o.id === 'run:shoot' && ms.car >= 0) { add(goalX, 50, o, 'TELL HIM: SHOOT', 'goal'); continue; }
     const base = seg[0] === 'run' || seg[0] === 'def' ? seg[1] : o.id === 'ult:predator' ? 'behind' : o.id === 'ult:curtain' ? 'tackle' : seg[0];
     if (o.id.startsWith('flow') || o.kind === 'meta') continue;
     if (d.kind === 'penalty') { add(goalX, o.id.includes('chip') ? 50 : o.id.includes('power') ? 44 : 56, o, o.id.includes('chip') ? 'CHIP' : o.id.includes('power') ? 'POWER' : 'PLACE', 'goal'); continue; }
@@ -57,12 +60,14 @@ export function markersFor(ms: MatchState, d: Decision | null): Marker[] {
 const best = (m: Marker) => m.opts.reduce((a, b) => (b.p > a.p ? b : a));
 const pcol = (p: number) => (p >= 0.7 ? '#2ee59d' : p >= 0.45 ? '#ffd166' : '#ff6b81');
 
-interface Snap { step: number; pos: Float32Array; on: Uint8Array; ball: [number, number]; car: number; high: boolean; poss: number }
+interface Snap { sig: number; step: number; pos: Float32Array; on: Uint8Array; ball: [number, number]; car: number; high: boolean; poss: number }
 function snapOf(ms: MatchState): Snap {
   const n = ms.pl.length;
   const pos = new Float32Array(n * 2), on = new Uint8Array(n);
   for (let i = 0; i < n; i++) { pos[i * 2] = ms.pl[i].x; pos[i * 2 + 1] = ms.pl[i].y; on[i] = ms.pl[i].on ? 1 : 0; }
-  return { step: ms.steps, pos, on, ball: [ms.bx, ms.by], car: ms.car, high: ms.bh > 0, poss: ms.poss };
+  let sig = ms.steps * 31 + ms.car + ms.bx * 3 + ms.by;
+  for (let i = 0; i < n; i++) if (on[i]) sig += pos[i * 2] * (i + 1) + pos[i * 2 + 1] * 1.7;
+  return { sig: Math.round(sig * 10), step: ms.steps, pos, on, ball: [ms.bx, ms.by], car: ms.car, high: ms.bh > 0, poss: ms.poss };
 }
 const lum = (hex: string) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return 0.3; const v = parseInt(m[1], 16); return (0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255; };
 
@@ -76,6 +81,8 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
   const geo = useRef({ pad: 8, sx: 1, sy: 1 });
   if (!ms.pending && menu) setMenu(null);
   const toPitch = (e: { clientX: number; clientY: number }) => { const r = cv.current!.getBoundingClientRect(); const G = geo.current; return { x: (e.clientX - r.left - G.pad) / G.sx, y: (e.clientY - r.top - G.pad) / G.sy, px: e.clientX - r.left, py: e.clientY - r.top }; };
+  /** Where a marker is on screen right now: markers on players follow the drawn (interpolated) player. */
+  const shownOf = (m: Marker): [number, number] => { const P = st.current?.shown.pos; return m.idx >= 0 && P ? [P[m.idx * 2], P[m.idx * 2 + 1]] : [m.x, m.y]; };
   const choose = (m: Marker, px: number, py: number) => {
     if (!onPick) return;
     if (m.opts.length === 1) { setMenu(null); onPick(m.opts[0].id); }
@@ -91,23 +98,24 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
     const len = Math.hypot((q.x - d.sx) * 1.05, (q.y - d.sy) * 0.68);
     if (len < 4) { // a tap: nearest marker
       let bm: Marker | null = null, bd = 9;
-      for (const m of M) { const dd = Math.hypot((m.x - q.x) * 1.05, (m.y - q.y) * 0.68); if (dd < bd) { bd = dd; bm = m; } }
+      for (const m of M) { const [sx2, sy2] = shownOf(m); const dd = Math.hypot((sx2 - q.x) * 1.05, (sy2 - q.y) * 0.68); if (dd < bd) { bd = dd; bm = m; } }
       if (bm) choose(bm, q.px, q.py); else setMenu(null);
       return;
     }
     // a swipe: the marker whose direction from your player best matches the gesture
-    const me = ms.pl[ms.uc!.idx];
+    const me = { x: st.current!.shown.pos[ms.uc!.idx * 2] ?? ms.pl[ms.uc!.idx].x, y: st.current!.shown.pos[ms.uc!.idx * 2 + 1] ?? ms.pl[ms.uc!.idx].y };
     const vx = (q.x - d.sx) * 1.05, vy = (q.y - d.sy) * 0.68;
     let bm: Marker | null = null, bs = 0.55;
-    for (const m of M) { if (m.kind === 'self') continue; const mx = (m.x - me.x) * 1.05, my = (m.y - me.y) * 0.68; const ml = Math.hypot(mx, my); if (ml < 1) continue; const cs = (mx * vx + my * vy) / (ml * len); if (cs > bs) { bs = cs; bm = m; } }
+    for (const m of M) { if (m.kind === 'self') continue; const [sx2, sy2] = shownOf(m); const mx = (sx2 - me.x) * 1.05, my = (sy2 - me.y) * 0.68; const ml = Math.hypot(mx, my); if (ml < 1) continue; const cs = (mx * vx + my * vy) / (ml * len); if (cs > bs) { bs = cs; bm = m; } }
     if (bm) choose(bm, q.px, q.py);
   };
 
   // a new engine state: start interpolating from what is on screen right now
   if (!st.current) { const s = snapOf(ms); st.current = { from: s, to: s, t0: 0, dur: 1, shown: s, trail: null }; }
-  if (st.current.to.step !== ms.steps || st.current.to.car !== ms.car) {
+  const now0 = snapOf(ms);
+  if (st.current.to.sig !== now0.sig) {
     const S = st.current;
-    const to = snapOf(ms);
+    const to = now0;
     const jump = Math.abs(to.step - S.to.step) > 12;
     const from: Snap = { ...S.shown, pos: S.shown.pos.slice(), on: S.shown.on.slice(), ball: [S.shown.ball[0], S.shown.ball[1]] };
     // players who were not on the pitch (or a big time skip) appear in place instead of sliding
@@ -168,7 +176,7 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
         if (S.from.car === car) { bx = tx + Math.sin(now / 90) * 0.25; by = ty; }
         else { const e = 1 - (1 - k) * (1 - k); bx = S.from.ball[0] + (tx - S.from.ball[0]) * e; by = S.from.ball[1] + (ty - S.from.ball[1]) * e; lift = S.to.high ? Math.sin(Math.PI * k) : 0; }
       } else { bx = S.from.ball[0] + (S.to.ball[0] - S.from.ball[0]) * k; by = S.from.ball[1] + (S.to.ball[1] - S.from.ball[1]) * k; lift = S.to.high ? Math.sin(Math.PI * k) * 0.8 : 0; }
-      S.shown = { step: S.to.step, pos: (() => { const a = new Float32Array(n * 2); for (let i = 0; i < n; i++) { a[i * 2] = px[i]; a[i * 2 + 1] = py[i]; } return a; })(), on: S.to.on, ball: [bx, by], car, high: S.to.high, poss: S.to.poss };
+      S.shown = { sig: -1, step: S.to.step, pos: (() => { const a = new Float32Array(n * 2); for (let i = 0; i < n; i++) { a[i * 2] = px[i]; a[i * 2 + 1] = py[i]; } return a; })(), on: S.to.on, ball: [bx, by], car, high: S.to.high, poss: S.to.poss };
       // ── pass trail
       if (S.trail) {
         const age = (now - S.trail.t) / 900;
@@ -217,7 +225,7 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
         const dg = live.current.drag;
         for (const mk of MK) {
           const o = best(mk), col = pcol(o.p);
-          const x = X(mk.x), y = Y(mk.y);
+          const x = mk.idx >= 0 ? X(px[mk.idx]) : X(mk.x), y = mk.idx >= 0 ? Y(py[mk.idx]) : Y(mk.y);
           const rr = Math.max(15, W * 0.024);
           if (mk.kind === 'move' || mk.kind === 'goal') {
             ctx.strokeStyle = col; ctx.globalAlpha = 0.75; ctx.lineWidth = 2.5; ctx.setLineDash(mk.kind === 'goal' ? [] : [7, 5]); ctx.lineDashOffset = -now / 50;

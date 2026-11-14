@@ -94,7 +94,7 @@ function markedMan(p: Player): number {
   let g = 0, ap = 0;
   for (const k in p.ss) { g += p.ss[k][S.G]; ap += p.ss[k][S.APP]; }
   if (ap < 4) return 0;
-  return clamp((g / ap - 0.55) * 1.6, 0, 1.1);
+  return clamp((g / ap - 0.5) * 2.2, 0, 1.6);
 }
 function mkPlayer(w: World, p: Player, t: 0 | 1, slot: { pos: Pos; x: number; y: number } | null, mult: number, scale: number): MPlayer {
   const cond = mult * (0.9 + 0.1 * (p.fit / 100)) * (1 + (p.form - 6.6) * 0.006 + (p.morale - 60) * 0.0004) * (0.97 + 0.03 * (p.sharp / 100));

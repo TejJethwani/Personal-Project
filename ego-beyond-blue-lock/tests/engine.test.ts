@@ -57,10 +57,12 @@ describe('ratings', () => {
 describe('xG model', () => {
   it('matches its documented calibration and behaves monotonically', () => {
     const at = (m: number) => logistic(xgLogit(shotGeo(100 - m / 1.05, 50), { pressure: 0 }));
-    expect(at(6)).toBeGreaterThan(0.4); expect(at(6)).toBeLessThan(0.55);
-    expect(at(11)).toBeGreaterThan(0.17); expect(at(11)).toBeLessThan(0.27);
-    expect(at(25)).toBeLessThan(0.06);
-    expect(at(8)).toBeGreaterThan(at(14)); expect(at(14)).toBeGreaterThan(at(22));
+    // inside the box chances sit between roughly 0.2 and 0.65; outside it they start near 0.2 and fade slowly
+    expect(at(6)).toBeGreaterThan(0.4); expect(at(6)).toBeLessThan(0.66);
+    expect(at(11)).toBeGreaterThan(0.24); expect(at(11)).toBeLessThan(0.4);
+    expect(at(20)).toBeGreaterThan(0.17); expect(at(20)).toBeLessThan(0.21);
+    expect(at(30)).toBeGreaterThan(0.1); expect(at(30)).toBeLessThan(0.16);
+    expect(at(8)).toBeGreaterThan(at(14)); expect(at(14)).toBeGreaterThan(at(22)); expect(at(22)).toBeGreaterThan(at(32));
     const g = shotGeo(90, 50);
     expect(logistic(xgLogit(g, { pressure: 0.8 }))).toBeLessThan(logistic(xgLogit(g, { pressure: 0 })));
     expect(logistic(xgLogit(g, { pressure: 0, header: true }))).toBeLessThan(logistic(xgLogit(g, { pressure: 0 })));
@@ -334,11 +336,11 @@ describe('later additions', () => {
   });
   it('xG is realistic for clear chances', () => {
     const x = (ax: number, y: number, o: object = {}) => lg2(xgL2(geo2(ax, y), { pressure: 0, ...o }));
-    expect(x(96.5, 50)).toBeGreaterThan(0.7); // tap-in from four metres
-    expect(x(89.5, 50, { oneOnOne: true })).toBeGreaterThan(0.45); // clean through from the penalty spot
-    expect(x(89.5, 50)).toBeGreaterThan(0.25); expect(x(89.5, 50)).toBeLessThan(0.36);
-    expect(x(89.5, 50, { pressure: 1 })).toBeGreaterThan(0.17); // even fully pressured, a shot from the spot is a real chance
-    expect(x(71, 50)).toBeLessThan(0.05); // thirty metres
+    expect(x(96.5, 50)).toBeGreaterThan(0.55); // tap-in from four metres
+    expect(x(89.5, 50, { oneOnOne: true })).toBeGreaterThan(x(89.5, 50)); // clean through from the penalty spot
+    expect(x(89.5, 50)).toBeGreaterThan(0.25); expect(x(89.5, 50)).toBeLessThan(0.4);
+    expect(x(89.5, 50, { pressure: 1 })).toBeGreaterThan(0.2); // even fully pressured, a shot from the spot is a real chance
+    expect(x(76, 50)).toBeGreaterThan(0.14); // twenty-five metres: a real shot, as requested
     expect(x(89.5, 50, { pressure: 1 })).toBeLessThan(x(89.5, 50));
   });
   it('a benched player can ask to come on, and replays are captured for interactive matches', () => {

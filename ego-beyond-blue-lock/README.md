@@ -79,6 +79,14 @@ npm run preview
 
 **Accounts** – create an account or sign in from the main menu; save slots are scoped to the signed-in account. Accounts are local to the browser (the game has no server): they keep people's careers apart on one device but do not sync between devices. A built-in administrator account opens an admin panel that can edit the loaded career (attributes, abilities, club, any player, every rule) and manage accounts and saves.
 
+**Ultimates** – usable once per match without Flow from any attacking touch; a user's ultimate finishes the move itself and scores about nine times in ten. Each plays as a multi-angle 3D cutscene (close-up with a line of dialogue, charge-up orbit, strike, behind-the-net cut, celebration with commentary).
+
+**Chance and xG agree** – the percentage on a shot is its xG adjusted only for the finisher against the keeper and for how tightly a prolific scorer is marked. Outside the box a shot is worth about 0.2 at the edge of the area (0.13 at 30 m); inside it chances sit between about 0.2 and 0.65.
+
+**Off the ball** – a chosen run moves your player at once and visibly differs by type; you can also call for the pass where you stand or tell the man on the ball to shoot.
+
+**Awards night** – routine recognition (Team/Player of the Week, Round, Month) stays out of the career timeline. Season awards split into rankings decided by one number (Golden Boot, Golden Shoe, Iron Man…) and judged awards weighing several things (Golden Glove, Playmaker, Manager of the Season, Ballon d'Or…); the ceremony runs a league gala then a world gala, with the Ballon d'Or counted down from 30th to the podium. A weekly newspaper reports results and award favourites, and the hub shows the Team of the Week on a pitch.
+
 **Play as an existing player** – in the creator's *Team & Start* step you can take over any NEL player (Isagi, Kaiser, …) with his attributes, weapons, ultimate and club instead of creating your own.
 
 **People** – about 3,600 tracked players: the Blue Lock cast, master strikers, baseline professionals and original fictional players. Relationships track respect, trust, friendship, rivalry and chemistry separately, with stored memories that later dialogue refers to.
@@ -101,7 +109,7 @@ npm run preview
 - 3D replays re-enact the stored shot snapshot (positions at the moment of the strike, the pass before it and the outcome); they are not a frame-by-frame recording, and are only captured in interactive / highlights modes.
 - Youth international squads are picked from players aged 21 or under for every youth tournament.
 - No reserve leagues: a "development squad" role means limited first-team minutes at a big club.
-- Match volume is coarser than real football: roughly 600 passes, 12 shots and 2.3–3.2 goals per match across both teams: players wait for better chances than in real football, so conversion is higher (inside the box xG is typically 0.2–0.45). Tackle and interception counts run higher than real football.
+- Match volume is coarser than real football: roughly 600–670 passes, 8 shots and 2.2–3.3 goals per match across both teams: xG is deliberately generous (see above), so players take far fewer, better shots than in real football and about 40% of them go in. Tackle and interception counts run higher than real football.
 - Squad registration rules, work permits, financial fair play and agents' fees are not modelled.
 - A week of world simulation takes around a second; full seasons simulated in one go take 20–30 seconds.
 - Stats within a season are attributed to the club a player ends the competition with, unless he moved to a different league.

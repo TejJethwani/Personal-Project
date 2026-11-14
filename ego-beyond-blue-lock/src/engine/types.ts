@@ -235,7 +235,9 @@ export type AwardType =
   | 'tourn_best' | 'tourn_boot' | 'champion'
   | 'totm' | 'def_s' | 'mid_s' | 'fwd_s' | 'signing_s'
   | 'golden_shoe' | 'world_def' | 'world_mid' | 'world_fwd' | 'world_scorer' | 'world_playmaker'
-  | 'tourn_xi' | 'tourn_young' | 'tourn_glove';
+  | 'tourn_xi' | 'tourn_young' | 'tourn_glove'
+  | 'potm_king' | 'dribbler' | 'ballwinner' | 'ironman' | 'manager_s' | 'breakout' | 'veteran'
+  | 'world_manager' | 'world_club' | 'world_dribbler' | 'world_ballwinner' | 'world_veteran' | 'world_breakout' | 'world_potm';
 
 export interface AwardNom { pid: string; name: string; club: string; clubName: string; line: string; score: number }
 export interface AwardXI { pid: string; name: string; pos: Pos; club: string; clubName: string; rat: number }
@@ -253,10 +255,12 @@ export interface Award {
   xi?: AwardXI[];
   form?: string;
   why: string;
+  /** 'rank' = decided by one published number (shown as a ranking); 'vote' = judged on several things (presented with suspense) */
+  mode?: 'rank' | 'vote';
   me?: boolean; // involves the user
 }
 
-export type NewsCat = 'match' | 'transfer' | 'award' | 'nel' | 'bid' | 'world' | 'club' | 'intl' | 'rivalry' | 'career' | 'injury' | 'manager' | 'record' | 'youth';
+export type NewsCat = 'match' | 'transfer' | 'award' | 'nel' | 'bid' | 'world' | 'club' | 'intl' | 'rivalry' | 'career' | 'injury' | 'manager' | 'record' | 'youth' | 'paper';
 export interface News {
   id: number;
   s: number;

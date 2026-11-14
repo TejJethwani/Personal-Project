@@ -4,7 +4,8 @@
  * xG is the probability that an AVERAGE finisher beats an AVERAGE goalkeeper from the same
  * shot context. It is a logistic function of shot geometry and situation:
  *
- *   logit(xG) = -1.00 + 1.60·θ − 0.10·d + Σ modifiers
+ *   logit(xG) = -0.55 + 1.60·θ − 0.10·d + Σ modifiers        (inside the penalty area)
+ *   xG = 0.20·e^(−(d−18)/30)·(1 − 0.3·p)                   (outside the area: ≈0.20 at 18 m, 0.16 at 25 m, 0.13 at 30 m)
  *
  *   θ  = angle (radians) subtended by the goal mouth (7.32 m) from the shot location
  *   d  = distance (metres) from the shot location to the centre of the goal
@@ -46,15 +47,27 @@ export function shotGeo(ax: number, y: number): ShotGeo {
 }
 
 export function xgLogit(g: ShotGeo, o: { header?: boolean; volley?: boolean; pressure: number; oneOnOne?: boolean; rebound?: boolean; cutback?: boolean }): number {
-  let l = -1.0 + 1.6 * g.theta - 0.1 * g.d;
+  // Outside the penalty area the model is deliberately generous (game feel): about 0.20 from the
+  // edge of the box, fading slowly with distance, and only mildly reduced by pressure.
+  if (g.d > 16.5) {
+    let x = 0.2 * Math.exp(-(g.d - 18) / 30) * (1 - 0.3 * o.pressure);
+    if (o.volley) x *= 0.8;
+    if (o.header) x *= 0.3;
+    if (o.oneOnOne) x *= 1.3;
+    return logit(Math.min(0.3, Math.max(0.02, x)));
+  }
+  let l = -0.9 + 1.6 * g.theta - 0.1 * g.d;
   if (o.header) l -= 1.0;
   if (o.volley) l -= 0.35;
   l -= 0.5 * o.pressure;
-  if (o.oneOnOne) l += 1.25;
+  if (o.oneOnOne) l += 0.7;
   if (o.rebound) l += 0.45;
   if (o.cutback) l += 0.35;
   if (g.d < 5.5 && !o.header) l += 0.35;
-  return l;
+  // inside the box a shot on a sensible angle is never worth less than a long shot
+  // open-play chances inside the box are compressed into roughly 0.2–0.65: nothing in the box is hopeless, nothing is automatic
+  const x = 1 / (1 + Math.exp(-l));
+  return logit(o.header ? 0.08 + 0.5 * x : 0.16 + 0.5 * x);
 }
 export const PENALTY_XG = 0.76;
 export const logistic = (l: number) => 1 / (1 + Math.exp(-l));

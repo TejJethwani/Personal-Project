@@ -9,6 +9,7 @@ import { fmtYenShort, fmtWage, ordinal } from '../engine/util';
 import { weeklyGrowth } from '../engine/development';
 import { S } from '../engine/match/model';
 import { nav } from '../store/game';
+import { TotwPitch, latestTotw, Paper } from '../ui/Totw';
 import { continueGame } from '../ui/flow';
 import { Bar, Card, Chip, ClubBadge, ClubLink, Kpi, Ovr, PlayerAvatar, Rating } from '../ui/kit';
 
@@ -72,6 +73,10 @@ export function Hub({ g }: { g: Game }) {
           <div className="feed">{news.map((n) => <div key={n.id} className={`it i${n.imp}`} style={{ gridTemplateColumns: '54px 1fr' }}><span className="tiny dim">{n.date}</span><div><b className="small">{n.title}</b></div></div>)}</div>
         </Card>
       </div>
+      {(() => { const tw = latestTotw(g, w.phase === 'nel' ? 'nel' : leagueId); const paper = [...w.news].reverse().filter((n) => n.cat === 'paper'); return (tw || paper.length > 0) && <div className="grid g2 mt">
+        {tw && <Card title={`${tw.title} — ${tw.period}`} right={<span className="tiny muted">{tw.compName} · {tw.form}</span>} className={tw.me ? 'hot' : ''}><TotwPitch g={g} a={tw} />{tw.me && <p className="small blue mt">You made the eleven.</p>}</Card>}
+        <Card title="This week's paper" right={<button className="btn sm ghost" onClick={() => nav('news')}>All editions</button>}><Paper items={paper} limit={3} /></Card>
+      </div>; })()}
       {c.digest.length > 0 && <Card title="Since you last looked" className="mt"><ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{[...new Set(c.digest)].slice(0, 8).map((d, i) => <li key={i}>{d}</li>)}</ul></Card>}
     </>
   );

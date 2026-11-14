@@ -42,6 +42,7 @@ export function Settings({ g }: { g: Game }) {
             <label className="f">Default match speed<select value={s.matchSpeed} onChange={(e) => set({ matchSpeed: +e.target.value })}>{[1, 2, 4].map((v) => <option key={v} value={v}>{v}×</option>)}</select></label>
           </div>
           <label className="row mt"><input type="checkbox" checked={s.showProb} onChange={(e) => set({ showProb: e.target.checked })} /><span>Show numerical probabilities on match choices (advanced)</span></label>
+          <label className="row mt"><input type="checkbox" checked={s.touch !== false} onChange={(e) => set({ touch: e.target.checked })} /><span>Touch controls: tap team-mates and swipe runs directly on the pitch</span></label>
           <label className="row mt"><input type="checkbox" checked={s.autoFlow} onChange={(e) => set({ autoFlow: e.target.checked })} /><span>Enter Flow automatically when the meter fills</span></label>
           <label className="row mt"><input type="checkbox" checked={s.reduceMotion} onChange={(e) => set({ reduceMotion: e.target.checked })} /><span>Reduce motion (also follows your system setting)</span></label>
         </Card>

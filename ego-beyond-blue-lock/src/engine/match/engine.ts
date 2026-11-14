@@ -106,11 +106,12 @@ function shape(ms: MatchState): void {
         y = 50 + (p.by - 50) * (inPoss && bAx > 68 && p.line >= 2 ? wide * 0.62 : wide) + (by - 50) * ys;
         if (inPoss && bAx > 70 && p.line === 2) x += 5; // midfielders arrive at the edge of the box
         if (p.run) {
-          if (p.run === RUN.BEHIND || p.run === RUN.BLIND || p.run === RUN.PRED) x += 9;
-          else if (p.run === RUN.SHORT) x -= 7;
+          if (p.run === RUN.BEHIND || p.run === RUN.PRED) x += p.user ? 13 : 9;
+          else if (p.run === RUN.BLIND) { x += p.user ? 7 : 9; if (p.user) y += y < 50 ? 9 : -9; }
+          else if (p.run === RUN.SHORT) { x -= p.user ? 10 : 7; if (p.user) y += (by - y) * 0.45; }
           else if (p.run === RUN.NEAR) { x += 8; y += (by - y) * 0.5; }
           else if (p.run === RUN.FAR) { x += 8; y += (100 - by - y) * 0.4; }
-          else if (p.run === RUN.OVERLAP) x += 12;
+          else if (p.run === RUN.OVERLAP) { x += 12; if (p.user) y += y < 50 ? -8 : 8; }
         }
         if (p.beat > 0 && !inPoss) x += 7;
         if (p.user && ms.uc) x += (ms.uc.instr.stance - 1) * (inPoss ? 3 : 4);
@@ -573,9 +574,9 @@ function liveRating(p: MPlayer): number { return ratingOf(p, 0, 0, 0); }
 function riskLabel(p: number): string { return p >= 0.8 ? 'Safe' : p >= 0.58 ? 'Moderate' : p >= 0.35 ? 'Risky' : 'Audacious'; }
 
 /** Global finishing offset applied to the xG logit (calibrated so league-wide goals ≈ xG). */
-const SHOT_OFFSET = 0.17;
+const SHOT_OFFSET = 0;
 /** Utility cost of shooting: higher values make players wait for better chances (fewer, better shots). */
-const SHOT_COST = 0.09;
+const SHOT_COST = 0.27;
 function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number; v: number }[] } | null, ult: string): { xg: number; p: number; d: number; theta: number } {
   const t = c.t;
   const cax = ax(t, ms.bx);
@@ -587,7 +588,7 @@ function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number;
   }
   let press = v === 'fk' ? 0.35 : ms.press;
   // attention: a striker who keeps shooting gets marked tighter. It lowers his real chance but not the chance quality (xG).
-  const attn = v !== 'fk' ? Math.min(3, c.mk + c.s[S.SH] * 0.13 + c.s[S.XG] * 0.3 + c.s[S.G] * 0.75) : 0;
+  const attn = v !== 'fk' ? Math.min(0.7, c.mk * 0.5 + c.s[S.SH] * 0.04 + c.s[S.G] * 0.18) : 0;
   if (v === 'first' || v === 'header' || v === 'volley') press *= 0.8; // defenders have less time to close a first-time strike
   if (v === 'placed' && ms.arr !== ARR.SET) press = Math.min(1, press + 0.12); // taking a touch invites pressure
   const header = v === 'header', volley = v === 'volley';
@@ -595,7 +596,7 @@ function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number;
   const xl = xgLogit(g, { header, volley, pressure: press, oneOnOne: one, rebound: ms.arr === ARR.REBOUND, cutback: v === 'first' && ms.arr === ARR.GROUND });
   const xg = logistic(xl);
   const gk = gkOf(ms, 1 - t);
-  let l = xl - SHOT_OFFSET - 1.1 * attn + cz(shotSk(ms, c, v) - gkSk(gk)) / 42 + c.m[GB] + ms.esc;
+  let l = xl - SHOT_OFFSET - attn + cz(shotSk(ms, c, v) - gkSk(gk)) / 60 + c.m[GB] + ms.esc;
   // composure wins back part of the pressure penalty
   const comp = clamp((at(ms, c, A.COM) - DQ[1 - c.t] - 6) / 110, -0.15, 0.32) + c.m[M.COMPOSURE] + c.m[M.SH_PRESS] + actBonus(act, M.SH_PRESS);
   l += 0.5 * press * clamp(comp, -0.15, 0.85);
@@ -654,7 +655,7 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   const disg = Math.min(0.8, c.m[M.PA_DISG] + actBonus(act, M.PA_DISG));
   const pres = ms.press * (1 - Math.min(0.85, c.m[M.PRESS_RES] + c.m[M.COMPOSURE]));
   let l: number;
-  if (kind === 'through') l = -0.1 + c.m[M.PA_THROUGH] + actBonus(act, M.PA_THROUGH) + c.m[M.VISION] + actBonus(act, M.VISION) + (at(ms, c, A.VIS) - 65) / 30;
+  if (kind === 'through') l = 0.4 + c.m[M.PA_THROUGH] + actBonus(act, M.PA_THROUGH) + c.m[M.VISION] + actBonus(act, M.VISION) + (at(ms, c, A.VIS) - 65) / 30;
   else if (kind === 'cross') {
     const def = no.i >= 0 ? ms.pl[no.i] : null;
     l = -0.7 + c.m[M.PA_CROSS] + actBonus(act, M.PA_CROSS) + (at(ms, c, A.CRO) - 65) / 22 + (def ? (airSk(ms, mate) - airSk(ms, def)) / 18 + mate.m[M.AERIAL] - def.m[M.AERIAL] : 0.5);
@@ -669,7 +670,9 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   if (tax < cax0 - 3) l += 0.6;
   else if (tax > cax0 + 8) l -= (tax - cax0 - 8) * 0.03; // the further forward, the harder the pass
   if (tax > 66 && !mate.open && kind !== 'cutback') l -= ((tax - 66) / 34) * 1.5; // congestion around the box
-  if (tax > 74) l -= Math.min(4, mate.mk * 0.8 + mate.s[S.SH] * 0.4 + mate.s[S.XG] * 1.2 + mate.s[S.G] * 0.9); // defences double up on whoever keeps shooting
+  const free = mate.open && lr.r < 0.35;
+  if (tax > 74) l -= Math.min(2, mate.mk * 1.2 + mate.s[S.SH] * 0.12 + mate.s[S.G] * 0.7) * (free ? 0.45 : 1); // a man who keeps scoring is marked tighter
+  if (free) l += 0.7; // a free man with a clear lane is a simple ball
   if (c.user && ms.uc) { l += ms.uc.forgive + (mate.chem - 50) / 100 * 0.6 + (ms.uc.dominion > ms.play ? 0.5 : 0); }
   else if (mate.user) l += (mate.chem - 50) / 100 * 0.4;
   return { p: clamp(sig(l), 0.03, 0.985), lane: lr.i };
@@ -708,14 +711,15 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       const add = (v: string, id: string, label: string, detail: string, ab = '') => {
         const act = ab ? actFor(ms, c, ab as ActCtx) : null;
         const s = shotCalc(ms, c, v, act, '');
-        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 22 ? 0.5 : 1) - SHOT_COST - c.s[S.SH] * 0.02 - c.s[S.XG] * 0.05 - c.s[S.G] * 0.03, -1, v);
+        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 16.5 ? 0.75 : 1) - SHOT_COST - c.s[S.SH] * 0.04 - c.s[S.XG] * 0.06 - c.s[S.G] * 0.1 - c.mk * 0.12, -1, v);
         if (act) { o.ab = act.id; o.sta = act.sta; o.hot = true; }
         if (full) { o.label = label; o.detail = detail + ` (${Math.round(g.d)} m, xG ${s.xg.toFixed(2)})`; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, s.p * 2.4)); }
         return o;
       };
       if (ms.note === 'fk') add('fk', 'shoot:fk', 'Shoot from the free kick', 'Over or around the wall.');
       else if (fresh && ms.bh >= 1 && cax > 80) {
-        if (ms.bh === 2) { add('header', 'shoot:header', 'Head it at goal', 'Attack the ball in the air.'); if (full && actFor(ms, c, 'aerial')) add('header', 'shoot:header:ab', `${actFor(ms, c, 'aerial')!.name}`, 'Trigger your aerial weapon.', 'aerial'); }
+        if (ms.bh === 2) { const st = canUlt(ms, c, 'sky'); if (st) { const o = add('header', 'ult:sky', 'Sky Tyrant', 'Rise above everyone and bury the header.'); o.ab = st.id; o.sta = 6; o.hot = true; }
+          add('header', 'shoot:header', 'Head it at goal', 'Attack the ball in the air.'); if (full && actFor(ms, c, 'aerial')) add('header', 'shoot:header:ab', `${actFor(ms, c, 'aerial')!.name}`, 'Trigger your aerial weapon.', 'aerial'); }
         else add('volley', 'shoot:volley', 'Volley first time', 'Strike it out of the air.');
         if (full && actFor(ms, c, 'shot_air')) add('volley', 'shoot:air:ab', actFor(ms, c, 'shot_air')!.name, 'Kill the ball and finish in one motion.', 'shot_air');
       } else if (fresh) {
@@ -775,7 +779,7 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
     const d = dist(ms.bx, ms.by, m.x, m.y);
     if (d < 3 || d > 58) continue;
     const max = ax(t, m.x);
-    let raw = ev(max, m.y) - m.s[S.SH] * 0.012 - m.s[S.XG] * 0.04 - m.s[S.G] * 0.02 - (d > 34 ? 0.006 : 0) + (m.open ? 0.03 : 0) + (m.req > 0 ? 0.015 * (1.25 - c.ego / 100) * (0.6 + m.trust / 120) : 0);
+    let raw = ev(max, m.y) - m.s[S.SH] * 0.02 - m.s[S.XG] * 0.04 - m.s[S.G] * 0.06 - m.mk * 0.07 - (d > 34 ? 0.006 : 0) + (m.open ? 0.03 : 0) + (m.req > 0 ? 0.015 * (1.25 - c.ego / 100) * (0.6 + m.trust / 120) : 0);
     if (m.user && !c.user) raw *= 0.82 + m.trust / 300;
     if (ms.uc && c.user && ms.uc.combo === mi) raw += 0.01;
     if (isGk) raw = (d < 30 ? 0.02 : 0.012) + ev(max, m.y) * 0.4;
@@ -971,6 +975,11 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       if (c.fl >= FLOW.max && c.flEnd <= ms.play) { const o = opt('meta', 'flow:enter', 1, 0, -1, ''); o.hot = true; o.label = 'ENTER FLOW'; o.detail = 'Your meter is full. Flow sharpens your key attributes for several minutes, then crashes.'; o.intent = 'Awaken'; o.risk = 'Safe'; }
     }
   }
+  if (full && c.user && ms.note !== 'pen' && ax(c.t, ms.bx) > 52 && !OPTS.some((o) => o.id.startsWith('ult:') && o.id !== 'ult:dominion')) {
+    const ur = anyUlt(ms, c);
+    if (ur) { const d = abilityDef(ur.id)!; const o = opt('shoot', 'ult:go', ULT_GOAL, 0, -1, ''); o.ab = ur.id; o.sta = 7; o.hot = true; o.label = d.name; o.detail = d.desc.split('. ')[0] + '.'; o.intent = 'Score'; o.risk = 'Ultimate'; }
+  }
+  if (full && c.user) for (let k = 0; k < OPTS.length; k++) { const o = OPTS[k]; if (o.id.startsWith('ult:') && o.id !== 'ult:dominion') { o.p = Math.max(o.p, ULT_GOAL); if (!o.detail.includes('ULTIMATE')) o.detail += ' ULTIMATE — finishes the move itself and almost always scores.'; o.intent = 'Score'; o.risk = 'Ultimate'; } }
   return OPTS;
 }
 
@@ -1092,6 +1101,11 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
     const e = ms.ev.slice(ev0).find((x) => x.k === 'shot' || x.k === 'pen_miss');
     if (e?.k === 'shot') rp.res = e.q === -1 ? (/POST!|woodwork|crossbar denies/.test(e.x) ? 'post' : 'off') : e.q === rp.gk ? 'save' : 'block';
   }
+  { // where the ball is aimed, made consistent with what happened: goals find the corners, saves stay within the keeper's reach
+    const r1 = ((h >>> 3) % 997) / 997, r2 = ((h >>> 13) % 991) / 991, r3 = ((h >>> 21) % 983) / 983, sg = rp.gy >= 0 ? 1 : -1;
+    if (rp.res === 'goal') { rp.gy = sg * (0.42 + 0.5 * r1); rp.gz = r2 < 0.62 ? 0.04 + 0.3 * r3 : 0.6 + 0.32 * r3; }
+    else if (rp.res === 'save') { rp.gy = sg * (0.12 + 0.62 * r1); rp.gz = 0.08 + 0.72 * r2; }
+  }
   rp.sc = [ms.score[0], ms.score[1]];
   const lu = LAST_ULT.get(ms);
   if (!rp.ult && lu && lu.key && ms.steps - lu.step <= 6 && ms.pl[lu.idx]?.t === c.t) rp.ult = lu.key;
@@ -1190,6 +1204,17 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
   else if (o.ab) { const d = abilityDef(o.ab); if (d?.act) act = actFor(ms, c, d.act.ctx); }
   ms.note = ms.note === 'pen' || ms.note === 'fk' || ms.note === 'fkc' ? ms.note : '';
 
+  if (ult === 'go') { // the generic ultimate trigger: whatever the ultimate is, it finishes the move
+    const ur = anyUlt(ms, c);
+    if (ur) {
+      const key = abilityDef(ur.id)?.ult ?? '';
+      spendUlt(ms, c, ur.id, 7);
+      let sh = c, from = -1;
+      if (key === 'puppet' || key === 'chain') { let bi = -1, bv = -1; const on = ms.teams[t].on; for (let k = 0; k < on.length; k++) { const q = ms.pl[on[k]]; if (q === c || q.line < 2) continue; const v2 = q.line * 20 + q.ovr; if (v2 > bv) { bv = v2; bi = on[k]; } } if (bi >= 0) { c.s[S.PA]++; c.s[S.PC]++; touch(c); if (key === 'puppet') { sh = ms.pl[bi]; from = ci; } else from = bi; } }
+      ultStrike(ms, rng, sh, key, from, key === 'sky' ? 'header' : key === 'sprint' ? 'power' : from >= 0 ? 'first' : 'placed');
+      return;
+    }
+  }
   switch (o.kind) {
     case 'shoot': {
       if (!user && !ult && !act && c.ab.length && c.st > 35) {
@@ -1205,11 +1230,14 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       }
       const v = o.v;
       if (act) useAbility(ms, c, act.id, act.sta, true);
-      if (ult === 'dag') { const u = ultOf(c, 'dag')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, v, null, 'dag', o.p); break; }
+      if (ult === 'dag') { const u = ultOf(c, 'dag')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, v, null, 'dag', user ? Math.max(o.p, ULT_GOAL) : o.p); break; }
+      if (ult === 'sky') { const u = ultOf(c, 'sky')!; spendUlt(ms, c, u.id, 6); ms.note = ''; resolveShot(ms, rng, c, 'header', null, 'sky', user ? ULT_GOAL : Math.max(o.p, 0.5)); break; }
       if (ult === 'zero') { const u = ultOf(c, 'zero')!; spendUlt(ms, c, u.id, 7); }
       const wasPen = ms.note === 'pen';
       ms.note = '';
-      resolveShot(ms, rng, c, wasPen ? 'pen' : v, act, ult, wasPen || ult === 'zero' ? o.p : -1);
+      const dom = !!user && !!ms.uc && ms.uc.dominion > ms.play && !wasPen && !ult;
+      if (dom) ms.uc!.dominion = 0;
+      resolveShot(ms, rng, c, wasPen ? 'pen' : v, act, dom ? 'dominion' : ult, ult === 'zero' ? (user ? Math.max(o.p, ULT_GOAL) : o.p) : dom ? Math.max(o.p, 0.82) : wasPen ? o.p : -1);
       break;
     }
     case 'pass': case 'through': case 'cross': case 'cutback': {
@@ -1221,6 +1249,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       if (!user && !act && c.ab.length && c.st > 35 && (kind === 'through' || kind === 'cross')) { const a = actFor(ms, c, kind === 'through' ? 'pass_through' : 'cross'); if (a && rng.chance(0.5)) act = a; }
       let p = o.p;
       if (act) { useAbility(ms, c, act.id, act.sta, false); if (!user) p = passCalc(ms, c, m, kind, tx, ty, act).p; }
+      if (ult === 'puppet' && user) { const u = ultOf(c, 'puppet')!; spendUlt(ms, c, u.id, 5); c.s[S.PA]++; c.s[S.PC]++; touch(c); ms.note = ''; ultStrike(ms, rng, m, 'puppet', ci, 'first'); break; }
       if (ult === 'puppet') { const u = ultOf(c, 'puppet')!; spendUlt(ms, c, u.id, 5); kind = 'through'; tx = m.x + (t === 0 ? 8 : -8); m.open = true; m.run = RUN.BEHIND; m.runT = 2; }
       const d = dist(ms.bx, ms.by, tx, ty);
       const lob = o.v === 'lob';
@@ -1302,13 +1331,14 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       if (ult === 'trance') {
         const u = ultOf(c, 'trance')!; spendUlt(ms, c, u.id, 10);
         c.s[S.DA]++; touch(c); M2.time(ms, 7, 0, 0);
-        if (rng.next() < o.p) {
+        if (user || rng.next() < o.p) {
           c.s[S.DC] += 1; c.s[S.DA] += 2; c.s[S.DC] += 2;
           nd.beat = 3;
           const D = ms.teams[1 - t].on; let n = 0;
           for (let k = 0; k < D.length && n < 2; k++) { const q = ms.pl[D[k]]; if (q.line === 1 && q !== nd) { q.beat = 2; n++; } }
           ms.bx = t === 0 ? 87 : 13; ms.by = 42 + rng.next() * 16; ms.arr = ARR.SET; ms.from = -1;
           flowGain(ms, c, 14, 'dribble', nd);
+          if (user) ultStrike(ms, rng, c, 'trance', -1);
         } else { c.s[S.LOST]++; nd.s[S.TKA]++; nd.s[S.TKW]++; emit(ms, 'dribble', 1 - t, ni, ci, 0, say(ms, 'dribble_fail', c.nm, nd.nm), 1); turnoverTo(ms, ni, ms.bx, ms.by); }
         break;
       }
@@ -1348,7 +1378,8 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       if (ult === 'sprint') {
         const u = ultOf(c, 'sprint')!; spendUlt(ms, c, u.id, 14);
         M2.time(ms, 8, 0, 0);
-        if (rng.next() < o.p) { ms.bx = t === 0 ? 80 : 20; ms.by = clamp(ms.by + (50 - ms.by) * 0.5, 5, 95); ms.arr = ARR.SET; ms.from = -1; const D = ms.teams[1 - t].on; for (let k = 0; k < D.length; k++) { const q = ms.pl[D[k]]; if (q.line === 2) q.beat = 2; } flowGain(ms, c, 10, 'dribble'); c.s[S.DA]++; c.s[S.DC]++; }
+        if (user) { c.s[S.DA]++; c.s[S.DC]++; ultStrike(ms, rng, c, 'sprint', -1, 'power'); }
+        else if (rng.next() < o.p) { ms.bx = t === 0 ? 80 : 20; ms.by = clamp(ms.by + (50 - ms.by) * 0.5, 5, 95); ms.arr = ARR.SET; ms.from = -1; const D = ms.teams[1 - t].on; for (let k = 0; k < D.length; k++) { const q = ms.pl[D[k]]; if (q.line === 2) q.beat = 2; } flowGain(ms, c, 10, 'dribble'); c.s[S.DA]++; c.s[S.DC]++; }
         else if (nd) { c.s[S.DA]++; c.s[S.LOST]++; nd.s[S.TKA]++; nd.s[S.TKW]++; emit(ms, 'dribble', 1 - t, ms.nd, ci, 0, say(ms, 'dribble_fail', c.nm, nd.nm), 1); turnoverTo(ms, ms.nd, ms.bx, ms.by); }
         break;
       }
@@ -1386,6 +1417,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       else if (react) c.st = Math.max(1, c.st - 4);
       c.s[S.PA]++; m.s[S.PA]++; touch(c); touch(m);
       M2.time(ms, 5 * tempo + rng.next() * 1.5, 0, 0);
+      if (ult === 'chain' && user) { c.s[S.PC]++; m.s[S.PC]++; ms.seqPasses += 2; ultStrike(ms, rng, c, 'chain', mi, 'first'); break; }
       if (rng.next() < o.p) {
         c.s[S.PC]++; m.s[S.PC]++; ms.seqPasses += 2;
         if (nd) nd.beat = 2;
@@ -1497,6 +1529,23 @@ function doTackle(ms: MatchState, rng: Rng, nd: MPlayer, c: MPlayer, p: number, 
   return 0;
 }
 
+const URGE = new WeakMap<MatchState, { idx: number; step: number }>();
+const PRED = new WeakMap<MatchState, number>();
+/** Chance that a user's ultimate ends in a goal. */
+const ULT_GOAL = 0.9;
+/** The user's ultimate finishes the move itself: the ball is put on a plate and struck. */
+/** The user's ultimate if it can be used now (any kind). */
+function anyUlt(ms: MatchState, p: MPlayer): { id: string; lv: number } | null {
+  for (let i = 0; i < p.ab.length; i++) { const d = abilityDef(p.ab[i].id); if (d?.kind === 'ultimate' && d.ult) return canUlt(ms, p, d.ult); }
+  return null;
+}
+function ultStrike(ms: MatchState, rng: Rng, sh: MPlayer, key: string, from: number, v = 'placed'): void {
+  const t = sh.t;
+  ms.car = ms.pl.indexOf(sh); ms.poss = t as 0 | 1; ms.from = from;
+  ms.bx = t === 0 ? 88.5 : 11.5; ms.by = 43 + rng.next() * 14; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
+  sh.x = ms.bx; sh.y = ms.by;
+  resolveShot(ms, rng, sh, v, null, key, ULT_GOAL);
+}
 function startRun(ms: MatchState, p: MPlayer, type: number, bonus: number, rng: Rng | null, pFixed = -1): number {
   const t = p.t;
   const mk = nearestOpp(ms, t, p.x, p.y);
@@ -1530,10 +1579,16 @@ function offPhase(ms: MatchState, rng: Rng): number {
   if (u && ms.choice != null) {
     const me = ms.pl[u.idx];
     const ch = ms.choice; ms.choice = null;
+    if (ch === 'run:shoot') { const pr = clamp(0.55 + me.trust / 260 + (c.ego - 50) / 250, 0.15, 0.9); if (rng.next() < pr) URGE.set(ms, { idx: ms.car, step: ms.steps }); me.run = RUN.HOLD; me.runT = 2; emit(ms, 'call', t, u.idx, ms.car, 0, `${me.nm} screams at ${c.nm} to shoot!`, 1); }
+    else if (ch === 'run:call') { me.run = RUN.HOLD; me.runT = 3; me.req = 4; me.open = rng.next() < clamp(0.35 + nearestOpp(ms, t, me.x, me.y).d / 12, 0.2, 0.92); emit(ms, 'call', t, u.idx, ms.car, 0, `${me.nm} calls for it to feet.`, 0); }
     const map: Record<string, number> = { 'run:behind': RUN.BEHIND, 'run:blind': RUN.BLIND, 'run:short': RUN.SHORT, 'run:near': RUN.NEAR, 'run:far': RUN.FAR, 'run:overlap': RUN.OVERLAP, 'run:hold': RUN.HOLD };
     if (ch === 'ult:predator') {
       const pe = ultOf(me, 'predator')!; spendUlt(ms, me, pe.id, 6);
       me.run = RUN.PRED; me.runT = 3; me.open = true; me.req = 3;
+      if (u.mode !== 'sim') { // the pass comes at once and the finish is all but certain
+        c.s[S.PA]++; c.s[S.PC]++; touch(c);
+        ultStrike(ms, rng, me, 'predator', ms.pl.indexOf(c), 'first'); PRED.set(ms, ms.steps);
+      }
     } else if (ch.startsWith('run:blind:ab') || ch.startsWith('run:behind:ab')) {
       const act = actFor(ms, me, 'run');
       const type = ch.startsWith('run:blind') ? RUN.BLIND : RUN.BEHIND;
@@ -1542,8 +1597,11 @@ function offPhase(ms: MatchState, rng: Rng): number {
     } else if (map[ch] != null) {
       const type = map[ch];
       if (type === RUN.HOLD) { me.run = RUN.HOLD; me.runT = 2; me.open = false; u.discipline += 1; u.disciplineN++; }
-      else { startRun(ms, me, type, u.forgive, rng); me.req = type === RUN.SHORT ? 3 : 2; if (type === RUN.SHORT || type === RUN.OVERLAP) { u.discipline += 1; u.disciplineN++; } }
+      else { startRun(ms, me, type, u.forgive, rng); me.runT += 2; me.req = type === RUN.SHORT ? 3 : 2; if (type === RUN.SHORT || type === RUN.OVERLAP) { u.discipline += 1; u.disciplineN++; } }
     }
+    if (PRED.get(ms) === ms.steps) return 2;
+    // the run happens now, not a step later: move the player at once so the choice is visible
+    shape(ms); pressure(ms);
   }
   // AI runs
   if (cax > 38) {
@@ -1579,6 +1637,8 @@ function offPhase(ms: MatchState, rng: Rng): number {
         opts.push(mk('run:far', 'Peel to the far post', 'Hang off the back of the defence.', 'Meet the cross', startRun(ms, me, RUN.FAR, u.forgive, null)));
       }
       if (me.pos === 'LB' || me.pos === 'RB' || me.pos === 'LM' || me.pos === 'RM') opts.push(mk('run:overlap', 'Overlap', 'Go around the outside to give width.', 'Stretch them', startRun(ms, me, RUN.OVERLAP, u.forgive, null)));
+      opts.push(mk('run:call', 'Call for the pass where you are', `Stay put, show your feet and demand the ball. ${c.nm} decides whether to trust you.`, 'Get on the ball', clamp(0.35 + nearestOpp(ms, t, me.x, me.y).d / 12, 0.2, 0.92)));
+      if (cax > 62) opts.push(mk('run:shoot', `Tell ${c.nm} to shoot`, 'Shout for the shot. Whether he listens depends on his trust in you and his own ego.', 'Force the issue', clamp(0.55 + me.trust / 260 + (c.ego - 50) / 250, 0.15, 0.9)));
       opts.push(mk('run:short', 'Come short and call for it', `Show for the ball to feet. ${c.nm} decides whether to trust you.`, 'Get on the ball', 0.85));
       opts.push(mk('run:hold', 'Hold your position', 'Keep the team\'s shape and pin your marker.', 'Stay disciplined', 0.95));
       const pe = canUlt(ms, me, 'predator');
@@ -1601,6 +1661,8 @@ function actPhase(ms: MatchState, rng: Rng): number {
   const opts = buildOptions(ms, c, isUser);
   if (!opts.length) { ms.bx = clamp(ms.bx + (c.t === 0 ? 4 : -4), 2, 98); machineOf(ms).time(ms, 3, 0, 0); return 0; }
   let chosen: Option | null = null;
+  const urge = URGE.get(ms);
+  if (urge && urge.idx === ms.car && ms.steps - urge.step <= 1 && !isUser) { URGE.delete(ms); const sh = opts.filter((o) => o.kind === 'shoot').sort((a, b) => b.p - a.p)[0]; if (sh) chosen = sh; }
   if (isUser && u) {
     if (ms.choice != null) {
       const ch = ms.choice; ms.choice = null;
@@ -1694,7 +1756,9 @@ function stepOnce(ms: MatchState, rng: Rng): void {
     ms.stage = 2;
   }
   if (ms.stage === 2) {
-    if (offPhase(ms, rng) === 1) return;
+    const r2 = offPhase(ms, rng);
+    if (r2 === 1) return;
+    if (r2 === 2) { ms.stage = 0; ms.steps++; tick(ms, rng, c0, p0); return; }
     ms.stage = 3;
   }
   if (ms.stage === 3) {

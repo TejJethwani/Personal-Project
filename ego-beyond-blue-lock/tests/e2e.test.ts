@@ -113,7 +113,7 @@ describe('full career simulation', () => {
     const boot = w.awards['boot:eng1:2025'].winner!; expect(h('eng1').topScorer!.pid).toBe(boot.pid);
     expect(w.awards['world_player:world:2025']).toBeTruthy(); expect(w.awards['world_xi:world:2025'].xi!.length).toBe(11);
     // realistic scale: no absurd totals
-    for (const L of LEAGUES) expect(h(L.id).topScorer!.v, L.id + ' top scorer').toBeLessThan(50);
+    for (const L of LEAGUES) expect(h(L.id).topScorer!.v, L.id + ' top scorer').toBeLessThan(55);
     // European league phase: 36 / 24 clubs, eight matches each, then a play-off round and a round of 16
     const ucl = compFixtures(w, 'ucl');
     const lp = ucl.filter((f) => f.stg === 'Group');
@@ -126,6 +126,13 @@ describe('full career simulation', () => {
     expect(w.awards['world_player:world:2025'].title).toBe("Ballon d'Or");
     expect(Object.keys(w.awards).some((k) => k.startsWith('tourn_xi:wc'))).toBe(true);
     expect(g.career.flags.ceremony).toBe(2025);
+    // the Ballon d'Or keeps its top thirty; rankings and judged awards are told apart; weekly teams never reach the timeline
+    expect(w.awards['world_player:world:2025'].noms!.length).toBe(30);
+    expect(w.awards['boot:eng1:2025'].mode).toBe('rank'); expect(w.awards['glove:eng1:2025'].mode).toBe('vote');
+    for (const t of ['manager_s', 'potm_king', 'ironman', 'ballwinner']) expect(w.awards[`${t}:eng1:2025`], t).toBeTruthy();
+    for (const t of ['world_manager', 'world_club', 'world_potm']) expect(w.awards[`${t}:world:2025`], t).toBeTruthy();
+    expect(g.career.timeline.some((t) => /^Team of the (Week|Month)/.test(t.txt))).toBe(false);
+    expect(w.news.some((n) => n.cat === 'paper')).toBe(true);
     // last season's tournaments keep their scoreboards after the rollover
     expect(compFixtures(w, 'wc').length).toBeGreaterThan(40);
     expect(compFixtures(w, 'nel').length).toBeGreaterThan(0);

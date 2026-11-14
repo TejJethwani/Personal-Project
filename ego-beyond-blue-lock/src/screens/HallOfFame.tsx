@@ -161,7 +161,7 @@ export function HallOfFame({ g }: { g: Game }) {
       </section>}
 
       {tab === 'timeline' && <section className="hof-sec"><div className="hof-kicker">Milestones</div><h2>THE <span className="gold">TIMELINE</span></h2>
-        <div className="hof-time">{c.timeline.map((t, i) => <div key={i} className={t.type}><span>{t.date}</span><p>{t.txt}</p></div>)}</div>
+        <div className="hof-time">{c.timeline.filter((t) => !/^(Team of the (Week|Round|Month)|Player of the (Week|Round)|Goal of the Month)\b/.test(t.txt)).map((t, i) => <div key={i} className={t.type}><span>{t.date}</span><p>{t.txt}</p></div>)}</div>
       </section>}
 
       {tab === 'results' && <section className="hof-sec"><div className="hof-kicker">Results · {played.length} on record</div><h2>EVERY RESULT ON <span className="red">RECORD</span></h2>

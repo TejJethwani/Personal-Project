@@ -320,3 +320,45 @@ body.rm .cer-lights i, body.rm .cer-win .burst, body.rm .cer-nom.roll { animatio
 .replay3d .rp-cele { position: absolute; left: 0; right: 0; top: 11%; text-align: center; pointer-events: none; animation: rpres .45s both; font-family: 'Barlow Condensed', sans-serif; }
 .replay3d .rp-cele b { display: block; font-size: clamp(26px, 6vw, 60px); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; text-shadow: 0 0 34px rgba(61,242,255,.6), 0 4px 24px rgba(0,0,0,.8); line-height: .95; }
 .replay3d .rp-cele span { letter-spacing: .2em; color: #3df2ff; font-size: 14px; }
+
+.replay3d .rp-say { position: absolute; left: 50%; bottom: 20%; transform: translateX(-50%); max-width: 78%; background: rgba(3,5,12,.86); border-left: 4px solid #3df2ff; padding: 8px 18px 9px; color: #fff; animation: rpsay .35s cubic-bezier(.2,1.2,.4,1) both; pointer-events: none; text-align: left; }
+.replay3d .rp-say.low { bottom: calc(8.5% + 54px); }
+.replay3d .rp-say i { display: block; font-style: normal; font-family: 'Barlow Condensed', sans-serif; letter-spacing: .22em; text-transform: uppercase; font-size: 11.5px; opacity: .75; }
+.replay3d .rp-say b { font-family: 'Barlow Condensed', sans-serif; font-size: clamp(17px, 2.9vw, 28px); font-weight: 700; letter-spacing: .02em; line-height: 1.1; }
+@keyframes rpsay { from { opacity: 0; transform: translateX(-50%) translateY(14px); } to { opacity: 1; transform: translateX(-50%); } }
+.cer.world { background: radial-gradient(900px 500px at 50% 0%, rgba(61,242,255,.14), transparent 65%), linear-gradient(180deg, #06080f, #0a0d1a 60%, #05060b); }
+.cer-rank, .cer-roll { display: flex; flex-direction: column; gap: 6px; max-width: 760px; margin: 0 auto 20px; text-align: left; }
+.cer-row { display: grid; grid-template-columns: 44px auto 1fr; grid-template-areas: "pl face name" "pl face club" "pl face line"; column-gap: 12px; align-items: center; padding: 7px 14px; border: 1px solid rgba(246,215,122,.2); background: rgba(20,15,6,.78); animation: cerin .45s both; }
+.cer-row .pl { grid-area: pl; font-family: var(--disp); font-size: 30px; font-weight: 800; color: #b8891f; text-align: center; }
+.cer-row > :nth-child(2) { grid-area: face; }
+.cer-row b { grid-area: name; font-family: var(--disp); font-size: 21px; text-transform: uppercase; line-height: 1; }
+.cer-row i { grid-area: club; font-style: normal; font-size: 12px; color: #cbbf9f; }
+.cer-row em { grid-area: line; font-style: normal; font-size: 12px; color: #9c8f6d; }
+.cer-row.first { border-color: #f6d77a; box-shadow: 0 0 30px rgba(246,215,122,.25); padding: 12px 14px; }
+.cer-row.first b { font-size: 30px; color: #fff3c9; } .cer-row.first .pl { font-size: 46px; color: #f6d77a; }
+.cer-row.me { border-color: var(--cyan); }
+.cer-roll { min-height: 120px; }
+.cer-podium { display: flex; justify-content: center; align-items: flex-end; gap: 16px; margin: 6px 0 22px; flex-wrap: wrap; }
+.cer-pod { width: 210px; padding: 16px 10px; border: 1px solid rgba(246,215,122,.3); background: rgba(20,15,6,.82); display: flex; flex-direction: column; align-items: center; gap: 3px; animation: cerwin .7s cubic-bezier(.2,1.5,.4,1) both; }
+.cer-pod.p1 { width: 270px; border-color: #f6d77a; box-shadow: 0 0 50px rgba(246,215,122,.35); padding-bottom: 26px; }
+.cer-pod .pl { font-family: var(--disp); letter-spacing: .2em; color: #b8891f; font-size: 14px; } .cer-pod.p1 .pl { color: #f6d77a; font-size: 18px; }
+.cer-pod b { font-family: var(--disp); text-transform: uppercase; font-size: 24px; line-height: 1; margin-top: 6px; } .cer-pod.p1 b { font-size: 38px; color: #fff3c9; }
+.cer-pod i { font-style: normal; font-size: 12px; color: #cbbf9f; } .cer-pod em { font-style: normal; font-size: 11px; color: #9c8f6d; text-align: center; }
+.cer-pod.wait { animation: none; opacity: .55; } .cer-pod .q { font-family: var(--disp); font-size: 70px; color: #6d5a23; line-height: 1.2; }
+.cer-pod.me { border-color: var(--cyan); box-shadow: 0 0 40px rgba(61,242,255,.35); }
+/* team of the week pitch + newspaper */
+.totw { position: relative; background: repeating-linear-gradient(180deg, #0c3f1e 0 12.5%, #0f4a24 12.5% 25%); border: 1px solid #14502a; border-radius: 8px; padding: 14px 8px 10px; display: flex; flex-direction: column-reverse; gap: 12px; overflow: hidden; }
+.totw::before { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(232,246,236,.35); pointer-events: none; }
+.totw::after { content: ''; position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); border: 1px solid rgba(232,246,236,.3); border-radius: 50%; pointer-events: none; }
+.totw .ln { position: relative; display: flex; justify-content: space-around; gap: 4px; z-index: 1; }
+.totw .pl { display: flex; flex-direction: column; align-items: center; min-width: 0; flex: 1; max-width: 120px; }
+.totw .pl .rt { font-family: var(--disp); font-weight: 700; font-size: 15px; background: #0b1020; border: 1px solid var(--blue); color: #fff; padding: 0 7px; border-radius: 3px; margin-bottom: -6px; z-index: 1; }
+.totw .pl .nm { margin-top: 3px; background: rgba(4,8,16,.86); padding: 1px 7px; font-family: var(--disp); font-size: 14px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; border-radius: 2px; }
+.totw .pl .cb { font-size: 10.5px; color: #cfe9d6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.totw .pl.me .nm { background: var(--cyan); color: #021018; } .totw .pl.me .rt { border-color: var(--cyan); }
+.paper { background: #efe9da; color: #1a1712; padding: 14px 18px; border-radius: 3px; font-family: Georgia, 'Times New Roman', serif; }
+.paper .mast { font-family: Georgia, serif; font-weight: 700; font-size: 26px; letter-spacing: .02em; border-bottom: 3px double #1a1712; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: baseline; }
+.paper .mast span { font-size: 11px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; }
+.paper article { padding: 9px 0; border-bottom: 1px solid #c9c0aa; } .paper article:last-child { border-bottom: 0; }
+.paper h5 { margin: 0 0 3px; font-family: Georgia, serif; font-size: 18px; line-height: 1.15; text-transform: none; letter-spacing: 0; color: #1a1712; }
+.paper article.lead h5 { font-size: 25px; } .paper p { margin: 0; font-size: 13.5px; line-height: 1.4; color: #3a342a; } .paper .dt { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #7a705c; }

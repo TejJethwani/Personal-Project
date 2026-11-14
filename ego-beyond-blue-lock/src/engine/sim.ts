@@ -14,6 +14,7 @@ import { clockLabel } from './match/rules';
 import { afterNelRound, concludeNel, canonWinner, NEL_END_DAY, PROLOGUE_END_DAY } from './nel';
 import { onCompFinished, endSeason, rollover, startPro } from './season';
 import { weeklyAwards, monthlyAwards } from './awards';
+import { weeklyPress } from './press';
 import { aiTransferDay, generateUserOffers, renewalCheck, expireOffers, ensureUserHasOptions, openOffers, acceptOffer, managerChanges, buildOffer } from './transfers';
 import { runTraining, dailyRecovery, worldDevTick, userAgeing, payWages, applyMatchDevelopment } from './development';
 import { applyMatchRelations } from './relationships';
@@ -127,7 +128,7 @@ function evening(g: Game): void {
     const fs = compFixtures(w, 'nel');
     for (let rd = w.nel.round + 1; rd <= 5; rd++) { const r = fs.filter((f) => f.rd === rd); if (r.length && r.every((f) => f.played)) afterNelRound(g, rd); else break; }
   } else {
-    if (w.day % 7 === 6) weeklyAwards(g, weekOf(w.day));
+    if (w.day % 7 === 6) { weeklyAwards(g, weekOf(w.day)); weeklyPress(g, weekOf(w.day)); }
     if (w.day < SEASON_END_DAY && monthOf(w, w.day) !== monthOf(w, w.day + 1)) monthlyAwards(g, monthOf(w, w.day));
   }
 }

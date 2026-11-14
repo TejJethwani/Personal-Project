@@ -25,7 +25,10 @@ export function Scorers({ g, goals, side, align }: { g: Game; goals: [number, nu
   return <div className="small" style={{ textAlign: align, minHeight: 18 }}>{[...by.entries()].map(([pid, mins]) => <div key={pid}>{align === 'right' ? <>{g.world.players[pid]?.sn ?? 'Unknown'} <span className="muted">{mins.join(', ')}</span> ⚽</> : <>⚽ {g.world.players[pid]?.sn ?? 'Unknown'} <span className="muted">{mins.join(', ')}</span></>}</div>)}</div>;
 }
 
-function Scoreboard({ g, ms, live }: { g: Game; ms: MatchState; live: boolean }) {
+function Scoreboard({ g, ms: ms0, live, hide }: { g: Game; ms: MatchState; live: boolean; hide?: number }) {
+  // goals whose 3D sequence has not been shown yet are kept off the scoreboard so nothing is spoiled
+  const cut = hide ? ms0.goals.slice(0, Math.max(0, ms0.goals.length - hide)) : ms0.goals;
+  const ms = hide ? { ...ms0, goals: cut, score: [cut.filter((x) => x[1] === 0).length, cut.filter((x) => x[1] === 1).length] as [number, number] } as MatchState : ms0;
   const nel = ms.rules.kind === 'nel';
   return (
     <div className="score" style={{ alignItems: 'start' }}>
@@ -192,12 +195,6 @@ function PreMatch({ g }: { g: Game }) {
         <Card title={`${teamName(w, opp)} — ${oppSheet.form}`}><div className="small">{oppSheet.xi.map((x) => { const p = w.players[x.pid]; return <div key={x.pid} className="row between" style={{ padding: '1px 0' }}><span><span className="dim">{x.pos}</span> <PlayerLink g={g} id={p.id} />{g.career.rivals.includes(p.id) ? ' ⚔' : ''}</span><span className="num">{ovr(p)}</span></div>; })}</div>
           {known.length > 0 && <p className="small warn mt">You have history with: {known.map((p) => p.sn).join(', ')}.</p>}</Card>
       </div>
-      <Card title="Controls" className="mb">
-        <div className="grid g2">
-          <button className={`opt ${g.settings.touch !== false ? 'hot' : ''}`} onClick={() => act((x) => { x.settings.touch = true; }, false)}><b>☝ Touch the pitch</b><span className="small muted">Tap a team-mate to pass to him, tap the goal to shoot, and swipe from your player to choose a run or a defensive action. Every target shows its success chance on the pitch. The button list stays available too.</span></button>
-          <button className={`opt ${g.settings.touch === false ? 'hot' : ''}`} onClick={() => act((x) => { x.settings.touch = false; }, false)}><b>☰ Buttons only</b><span className="small muted">Choose every action from the decision list (keys 1–9 also work). The pitch only shows the play.</span></button>
-        </div>
-      </Card>
       <Card title="How do you want to play it?">
         <div className="grid g3">
           <button className="opt hot" onClick={() => start('full')}><b>Full interactive</b><span className="small muted">Watch every phase and make every decision your interaction-frequency setting allows — on the ball, off it and in defence.</span></button>
@@ -241,7 +238,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
     if (Math.abs(ms.bx - bx) + Math.abs(ms.by - by) > 4) trail.current = { x1: bx, y1: by, x2: ms.bx, y2: ms.by, k: ticks.current };
     for (let i = seen.current; i < ms.ev.length; i++) {
       const e = ms.ev[i];
-      if (e.k === 'goal') moment('GOAL', `${ms.teams[0].abbr} ${ms.score[0]}–${ms.score[1]} ${ms.teams[1].abbr}`);
+      if (e.k === 'goal' && (u.mode === 'sim' || g.settings.reduceMotion)) moment('GOAL', `${ms.teams[0].abbr} ${ms.score[0]}–${ms.score[1]} ${ms.teams[1].abbr}`); // otherwise the 3D view announces it when the ball actually goes in
       else if (e.k === 'flow' && e.p === u.idx) moment('FLOW', 'You are in the zone', 'flow');
       else if (e.k === 'star_on') moment('STAR CHANGE', ms.pl[e.p]?.nm);
       if (e.x && (e.i >= 1 || e.p === u.idx || e.q === u.idx)) banner.current = { x: e.x, i: e.p === u.idx || e.q === u.idx ? Math.max(2, e.i) : e.i, at: ticks.current };
@@ -251,7 +248,9 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
     const add: ({ k: 'rp'; r: Replay } | { k: 'ult'; e: UltEvent })[] = [];
     for (const e of ms.ults ?? []) if (e.n > seenUlt.current) { seenUlt.current = e.n; add.push({ k: 'ult', e }); }
     for (const r of ms.replays ?? []) if (r.id > seenRp.current) { seenRp.current = r.id; add.push({ k: 'rp', r }); }
-    if (add.length && u.mode !== 'sim' && !g.settings.reduceMotion) setQueue((q) => [...q, ...add.slice(-3)]);
+    // an ultimate that ends in a strike gets its whole cutscene in 3D; the 2D title card is only for the others
+    const shown = add.some((x) => x.k === 'rp' && x.r.ult) ? add.filter((x) => x.k !== 'ult') : add;
+    if (shown.length && u.mode !== 'sim' && !g.settings.reduceMotion) setQueue((q) => [...q, ...shown.slice(-3)]);
     if (me.used) {
       const r = ratingOf(me, ms.score[me.t], ms.score[1 - me.t], 0);
       const R = rat.current;
@@ -309,7 +308,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
   return (
     <>
       <div className="card mb" style={{ padding: '10px 16px' }}>
-        <Scoreboard g={g} ms={ms} live />
+        <Scoreboard g={g} ms={ms} live hide={queue.filter((q) => q.k === 'rp' && q.r.res === 'goal').length} />
         <div className="row small" style={{ marginTop: 6 }}><span className="muted" style={{ width: 34 }}>{Math.round(pp)}%</span><div className="grow bar" title="Possession (by passes)"><i style={{ width: `${pp}%`, background: ms.teams[0].col }} /></div><span className="muted right" style={{ width: 34 }}>{100 - Math.round(pp)}%</span></div>
         <div className="row wrap between small" style={{ marginTop: 8 }}>
           <span className="muted">{ms.poss === 0 ? ms.teams[0].name : ms.teams[1].name} in possession · {ms.restart ? 'dead ball' : ms.car >= 0 ? `${ms.pl[ms.car].nm} on the ball` : 'loose ball'}{ms.teams.map((T, t) => (T.starState === 1 ? <Chip key={t} k="y"> ★ {ms.pl[T.star].nm} {Math.max(0, Math.ceil(T.starEnd - ms.play))}s left</Chip> : null))}</span>
