@@ -9,6 +9,8 @@ import { openOffers } from './engine/transfers';
 import { continueGame, simWeeks, ceremonyDue } from './ui/flow';
 import { HallOfFame } from './screens/HallOfFame';
 import { Ceremony } from './screens/Ceremony';
+import { Admin } from './screens/Admin';
+import { isAdmin } from './storage/accounts';
 import { Menu } from './screens/Menu';
 import { Creator } from './screens/Creator';
 import { Hub } from './screens/Hub';
@@ -36,7 +38,7 @@ export function App() {
   const { g, ui } = useStore();
   const r = ui.route;
   useEffect(() => { document.body.classList.toggle('rm', !!g?.settings.reduceMotion); }, [g?.settings.reduceMotion]);
-  useEffect(() => { if (!g && r.name !== 'menu' && r.name !== 'create') nav('menu'); }, [g, r.name]);
+  useEffect(() => { if (!g && r.name !== 'menu' && r.name !== 'create' && r.name !== 'admin') nav('menu'); }, [g, r.name]);
   const overlays = (
     <>
       {ui.busy && <div className="busy" role="status"><div>{ui.busy}</div></div>}
@@ -44,6 +46,7 @@ export function App() {
       <div className="toastwrap" aria-live="polite">{ui.toasts.map((t) => <div key={t.id} className={`toast ${t.bad ? 'bad' : ''}`}>{t.text}</div>)}</div>
     </>
   );
+  if (r.name === 'admin') return <><Admin />{overlays}</>;
   if (!g || r.name === 'menu' || r.name === 'create') return <>{r.name === 'create' ? <Creator /> : <Menu />}{overlays}</>;
   const w = g.world;
   const me = w.players[g.career.pid];
@@ -85,6 +88,7 @@ export function App() {
             </button>
           ))}
           <div className="sep" />
+          {isAdmin() && <button onClick={() => nav('admin')}><Icon n="settings" />Admin panel</button>}
           <button onClick={() => nav('menu')}><Icon n="save" />Main Menu</button>
         </nav>
       </aside>

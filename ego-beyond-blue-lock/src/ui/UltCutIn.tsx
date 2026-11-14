@@ -17,6 +17,7 @@ export const ULT_STYLE: Record<string, { col: string; col2: string; tag: string 
   dominion: { col: '#3df2ff', col2: '#1ea7ff', tag: 'The whole pitch, read in advance' },
   predator: { col: '#ff4d4d', col2: '#ffd166', tag: 'Locked on' },
 };
+export const ULT_NAME: Record<string, string> = { dag: 'Dead Angle Genesis', zero: 'Zero-Frame Strike', trance: 'Monster Trance', puppet: 'Puppet-Master Pass', sky: 'Sky Tyrant', chain: 'Chain Reaction', sprint: 'God Sprint', curtain: 'Iron Curtain', dominion: 'Field Dominion', predator: "Predator's Eye" };
 const DUR = 2300;
 const e3 = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };

@@ -87,6 +87,7 @@ export interface Replay {
   ult?: string; // ultimate key used for the strike (dag, zero, sky, predator…)
   ab?: string; // weapon name used
   clock?: number;
+  fr?: number; // preview only: forces the finish-type roll
 }
 /** An ultimate being unleashed — the match centre plays a custom cut-in animation for each. */
 export interface UltEvent { n: number; key: string; name: string; idx: number; t: number; x: number; y: number; min: number }

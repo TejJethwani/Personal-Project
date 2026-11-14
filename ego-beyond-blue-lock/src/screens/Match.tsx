@@ -192,6 +192,12 @@ function PreMatch({ g }: { g: Game }) {
         <Card title={`${teamName(w, opp)} — ${oppSheet.form}`}><div className="small">{oppSheet.xi.map((x) => { const p = w.players[x.pid]; return <div key={x.pid} className="row between" style={{ padding: '1px 0' }}><span><span className="dim">{x.pos}</span> <PlayerLink g={g} id={p.id} />{g.career.rivals.includes(p.id) ? ' ⚔' : ''}</span><span className="num">{ovr(p)}</span></div>; })}</div>
           {known.length > 0 && <p className="small warn mt">You have history with: {known.map((p) => p.sn).join(', ')}.</p>}</Card>
       </div>
+      <Card title="Controls" className="mb">
+        <div className="grid g2">
+          <button className={`opt ${g.settings.touch !== false ? 'hot' : ''}`} onClick={() => act((x) => { x.settings.touch = true; }, false)}><b>☝ Touch the pitch</b><span className="small muted">Tap a team-mate to pass to him, tap the goal to shoot, and swipe from your player to choose a run or a defensive action. Every target shows its success chance on the pitch. The button list stays available too.</span></button>
+          <button className={`opt ${g.settings.touch === false ? 'hot' : ''}`} onClick={() => act((x) => { x.settings.touch = false; }, false)}><b>☰ Buttons only</b><span className="small muted">Choose every action from the decision list (keys 1–9 also work). The pitch only shows the play.</span></button>
+        </div>
+      </Card>
       <Card title="How do you want to play it?">
         <div className="grid g3">
           <button className="opt hot" onClick={() => start('full')}><b>Full interactive</b><span className="small muted">Watch every phase and make every decision your interaction-frequency setting allows — on the ball, off it and in defence.</span></button>
@@ -217,6 +223,9 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
   const ticks = useRef(0);
   const [queue, setQueue] = useState<({ k: 'rp'; r: Replay } | { k: 'ult'; e: UltEvent })[]>([]);
   const replay = queue[0] ?? null;
+  const [outcome, setOutcome] = useState<{ ok: boolean | null; title: string; text: string } | null>(null);
+  const hold = useRef(0);
+  const slow = useRef(0);
   const seenUlt = useRef(ms.ults?.length ? ms.ults[ms.ults.length - 1].n : 0);
   const seenRp = useRef(ms.replays?.length ? ms.replays[ms.replays.length - 1].id : 0);
   const u = ms.uc!;
@@ -257,15 +266,41 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
     if (replay) return;
     if (ms.done) { finish(); return; }
     if (paused || ms.pending) return;
+    const wait = Math.max(slow.current > 0 ? 520 : delay, hold.current - Date.now());
     const t = setTimeout(() => run(() => {
       const before = ms.ev.length;
-      if (key) { for (let k = 0; k < 7 && !ms.done && !ms.pending; k++) { advMatch(ms, undefined, 1); if (ms.ev.slice(before).some((e) => e.i >= 2)) break; } }
+      if (outcome && Date.now() >= hold.current) setOutcome(null);
+      if (slow.current > 0) { slow.current--; advMatch(ms, undefined, 1); }
+      else if (key) { for (let k = 0; k < 7 && !ms.done && !ms.pending; k++) { advMatch(ms, undefined, 1); if (ms.ev.slice(before).some((e) => e.i >= 2)) break; } }
       else advMatch(ms, undefined, 1);
-    }), delay);
+    }), wait);
     return () => clearTimeout(t);
   });
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.code === 'Space' && !ms.pending) { e.preventDefault(); setPaused((p) => !p); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [ms]);
-  const pick = (id: string) => { setHover(-1); run(() => advMatch(ms, id, 1)); if (++dec.current % 4 === 0) autosave(); };
+  const pick = (id: string) => {
+    setHover(-1);
+    const d = ms.pending;
+    const o = d?.options.find((x) => x.id === id);
+    const ev0 = ms.ev.length, sc0 = ms.score[0] + ms.score[1], rp0 = ms.replays?.length ?? 0;
+    run(() => advMatch(ms, id, 1));
+    if (++dec.current % 4 === 0) autosave();
+    if (!o || !d || ms.done) return;
+    // show what the choice led to, and hold the picture long enough to follow the ball
+    const mine = ms.poss === me.t;
+    const evs = ms.ev.slice(ev0).filter((e) => e.x && (e.p === u.idx || e.q === u.idx));
+    const text = evs.length ? evs[evs.length - 1].x : '';
+    const shot = (ms.replays?.length ?? 0) > rp0 || ms.score[0] + ms.score[1] !== sc0;
+    let res: { ok: boolean | null; title: string } | null = null;
+    if (shot || o.kind === 'meta' || d.kind === 'flow' || d.kind === 'penalty') res = null;
+    else if (d.kind === 'ball') {
+      if (o.tgt >= 0 && o.tgt !== u.idx) { const tn = ms.pl[o.tgt]?.nm ?? ''; res = mine ? { ok: true, title: o.kind === 'through' ? `THROUGH BALL FINDS ${tn.toUpperCase()}` : o.kind === 'cross' ? `CROSS MEETS ${tn.toUpperCase()}` : `PASS COMPLETE → ${tn.toUpperCase()}` } : { ok: false, title: o.kind === 'cross' ? 'CROSS CLEARED' : 'PASS CUT OUT' }; }
+      else if (o.kind === 'dribble') res = mine ? { ok: true, title: 'BEATEN HIM!' } : { ok: false, title: 'DISPOSSESSED' };
+      else res = mine ? { ok: true, title: o.kind === 'carry' ? 'GROUND MADE' : 'BALL KEPT' } : { ok: false, title: 'POSSESSION LOST' };
+    } else if (d.kind === 'defend') res = mine ? { ok: true, title: 'BALL WON!' } : ms.restart ? { ok: null, title: 'PLAY STOPPED' } : { ok: null, title: id.startsWith('tackle') ? 'CHALLENGE MISSED' : 'STILL DEFENDING' };
+    else if (d.kind === 'offball') res = ms.car === u.idx ? { ok: true, title: 'YOU ARE FOUND!' } : mine ? { ok: null, title: 'RUN MADE' } : { ok: false, title: 'MOVE BREAKS DOWN' };
+    if (!res) setOutcome(null);
+    if (res) { setOutcome({ ...res, text }); hold.current = Date.now() + (d.kind === 'ball' ? 1150 : 800); slow.current = 2; }
+  };
   const simEnd = () => { u.mode = 'sim'; setQueue([]); run(() => { if (ms.pending) advMatch(ms, ms.pending.options[0].id); else advMatch(ms); }); };
   const events = ms.ev.filter((e) => e.x && (u.mode === 'key' ? e.i >= 1 : true)).slice(-70).reverse();
   const b = banner.current && ticks.current - banner.current.at < 6 ? banner.current : null;
@@ -282,13 +317,14 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
             <button className={`btn sm ${paused ? 'pri' : ''}`} onClick={() => setPaused((p) => !p)} disabled={!!ms.pending} title="Space">{paused ? '▶ Resume' : '❚❚ Pause'}</button>
             <span className="seg" role="group" aria-label="Speed">{[1, 2, 4].map((sp) => <button key={sp} className={speed === sp ? 'on' : ''} onClick={() => act((x) => { x.settings.matchSpeed = sp; }, false)}>{sp}×</button>)}</span>
             <span className="seg" role="group" aria-label="Mode"><button className={u.mode === 'full' ? 'on' : ''} onClick={() => { u.mode = 'full'; refresh(); }}>Full</button><button className={u.mode === 'key' ? 'on' : ''} onClick={() => { u.mode = 'key'; refresh(); }}>Highlights</button></span>
+            <button className={`btn sm ${g.settings.touch !== false ? 'pri' : ''}`} onClick={() => act((x) => { x.settings.touch = x.settings.touch === false; }, false)} title="Tap team-mates and swipe runs on the pitch">☝ Touch</button>
             <button className="btn sm ghost" onClick={simEnd}>Sim to end ⏭</button>
           </span>
         </div>
       </div>
       <div className="matchgrid">
         <div className="col" style={{ gap: 10 }}>
-          {replay?.k === 'ult' ? <UltCutIn ms={ms} ev={replay.e} onDone={() => setQueue((q) => q.slice(1))} /> : replay?.k === 'rp' ? <Replay3D key={replay.r.id} ms={ms} rp={replay.r} auto quick={replay.r.res !== 'goal' && replay.r.xg < 0.3 && replay.r.sh !== u.idx && !replay.r.ult} onClose={() => setQueue((q) => q.slice(1))} /> : <LivePitch ms={ms} hover={hover} tick={delay} banner={b} />}
+          {replay?.k === 'ult' ? <UltCutIn ms={ms} ev={replay.e} onDone={() => setQueue((q) => q.slice(1))} /> : replay?.k === 'rp' ? <Replay3D key={replay.r.id} g={g} ms={ms} rp={replay.r} auto quick={replay.r.res !== 'goal' && replay.r.xg < 0.3 && replay.r.sh !== u.idx && !replay.r.ult} onClose={() => setQueue((q) => q.slice(1))} /> : <LivePitch ms={ms} hover={hover} tick={slow.current > 0 ? 520 : delay} banner={b} touch={g.settings.touch !== false} onPick={pick} outcome={outcome} />}
           <Hud ms={ms} live={liveRating} delta={rat.current.delta} hist={rat.current.hist} />
         </div>
         <div className="col" style={{ gap: 10 }}>
@@ -331,7 +367,7 @@ function Post({ g, ms, notes }: { g: Game; ms: MatchState; notes: string[] }) {
         <Card title="Next"><p className="small muted">Results elsewhere, awards and bids are processed when you continue.</p><button className="btn pri big" onClick={() => { lastDone = null; nav('hub'); continueGame(1); }}>Continue</button></Card>
       </div>
       <Card><Tabs tabs={[['rat', 'Player ratings'], ['stats', 'Team stats'], ['feed', 'Key events'], ['rep', `3D replays${ms.replays?.length ? ` (${ms.replays.length})` : ''}`]]} value={tab} onChange={setTab} />
-        {tab === 'rep' ? <ReplayList ms={ms} /> : tab === 'rat' ? <Ratings g={g} ms={ms} /> : tab === 'stats' ? <StatTable ms={ms} /> : <div>{ms.ev.filter((e) => e.i >= 2 && e.x).map((e, i) => <div key={i} className={`ev i${e.i}`}><span className="t">{clockLabel(ms.rules.kind, e.c, e.h ?? 1)}</span><span>{e.x}</span></div>)}</div>}</Card>
+        {tab === 'rep' ? <ReplayList ms={ms} g={g} /> : tab === 'rat' ? <Ratings g={g} ms={ms} /> : tab === 'stats' ? <StatTable ms={ms} /> : <div>{ms.ev.filter((e) => e.i >= 2 && e.x).map((e, i) => <div key={i} className={`ev i${e.i}`}><span className="t">{clockLabel(ms.rules.kind, e.c, e.h ?? 1)}</span><span>{e.x}</span></div>)}</div>}</Card>
     </>
   );
 }

@@ -386,4 +386,37 @@ describe('later additions', () => {
     ap2(g, (x) => x.world.phase === 'pro');
     expect(g.world.players[g.career.pid].club).toBeTruthy();
   });
+  it('accounts: sign up, wrong password, sign in, admin', async () => {
+    const acc = await import('../src/storage/accounts');
+    expect(acc._sha256('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(acc._sha256('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    expect(await acc.signUp('ab', 'pw')).toBeTruthy();
+    expect(await acc.signUp('Tej_1', 'secret')).toBeNull();
+    expect(acc.currentUser()).toBe('tej_1');
+    expect(await acc.signUp('tej_1', 'other')).toMatch(/taken/);
+    acc.signOut(); expect(acc.currentUser()).toBeNull();
+    expect(await acc.signIn('tej_1', 'nope')).toMatch(/Wrong/);
+    expect(await acc.signIn('TEJ_1', 'secret')).toBeNull();
+    expect(acc.isAdmin()).toBe(false);
+    expect(await acc.signIn('Adm!n', '000000')).toMatch(/Wrong/);
+    expect(await acc.signIn('Adm!n', '670912')).toBeNull();
+    expect(acc.isAdmin()).toBe(true);
+    acc.signOut(); expect(acc.isAdmin()).toBe(false);
+  });
+  it('saves are scoped to the signed-in account', async () => {
+    const acc = await import('../src/storage/accounts');
+    const idb = await import('../src/storage/idb');
+    acc.signOut();
+    await acc.signUp('owner_a', 'pass1');
+    const g = ng2(dc2(4471));
+    await idb.saveGame(g, 'auto');
+    expect((await idb.listSaves()).some((s) => s.careerId === g.id)).toBe(true);
+    acc.signOut();
+    expect((await idb.listSaves()).some((s) => s.careerId === g.id)).toBe(false);
+    await acc.signUp('owner_b', 'pass2');
+    expect((await idb.listSaves()).some((s) => s.careerId === g.id)).toBe(false);
+    await acc.signIn('Adm!n', '670912');
+    expect((await idb.listSaves()).some((s) => s.careerId === g.id)).toBe(true);
+    acc.signOut();
+  });
 });

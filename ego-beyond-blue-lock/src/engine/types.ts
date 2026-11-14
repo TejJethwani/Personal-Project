@@ -464,6 +464,8 @@ export interface Settings {
   autoFlow: boolean;
   matchSpeed: number;
   reduceMotion: boolean;
+  /** touch controls: tap team-mates / swipe runs directly on the pitch */
+  touch?: boolean;
   nel: NelRules;
   mode: 'balanced' | 'unrestricted';
 }

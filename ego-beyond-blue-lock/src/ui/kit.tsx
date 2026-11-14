@@ -151,6 +151,13 @@ function hairPaths(fw: number, style: number, fringe: number): { cap: string; to
   return { cap, top, back, capOpacity: style === 6 || style === 18 ? 0.38 : style === 5 ? 0.8 : 1 };
 }
 
+/** Skin / hair colours and a coarse hair shape for a look — used by the 3D match view to give players faces. */
+export function lookColours(look: Appearance, hair?: string): { skin: string; hair: string; style: number; beard: boolean; brows: number } {
+  const st = look.hair % HAIR_NAMES.length;
+  // 0 short, 1 spiky, 2 long, 3 bald, 4 big (afro / curly), 5 top (mohawk / knot)
+  const style = st === 15 ? 3 : [1, 9, 10, 21].includes(st) ? 1 : [2, 4, 11, 16, 19, 20].includes(st) ? 2 : [7, 13].includes(st) ? 4 : [6, 12, 17, 8].includes(st) ? 5 : 0;
+  return { skin: SKIN[look.skin % SKIN.length], hair: hair ?? look.hairHex ?? HAIR_COLS[look.hairCol % HAIR_COLS.length], style, beard: (look.beard ?? 0) >= 2, brows: look.brows % 5 };
+}
 /** Original layered-SVG avatar. NPC looks are generated deterministically from the player's id. */
 export function Avatar({ look, size = 64, kit = '#1ea7ff', hair }: { look: Appearance; size?: number; kit?: string; hair?: string }) {
   const skin = SKIN[look.skin % SKIN.length];

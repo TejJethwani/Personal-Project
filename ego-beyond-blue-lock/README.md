@@ -73,6 +73,12 @@ npm run preview
 
 **Hall of Fame** – a career portfolio (trophy cabinet, season campaigns, ledger, records, timeline, every recorded result). You can retire at any age from the Hall of Fame, Career History or Settings.
 
+**Controls** – every decision can be made from the list or directly on the pitch: tap a team-mate to pass, tap the goal to shoot, swipe from your player to pick a run or a defensive action (each target shows its success chance). After your action the match holds the picture and tells you what happened (pass complete, cut out, beaten him…).
+
+**3D view** – players have faces and hair; each shot is one of about twenty finish types (top bins, bicycle kick, diving header, chip, rocket, knuckleball, curler, Panenka, in off the post, through the keeper's legs…) with its own camera; goals end with one of seven celebrations; a goal that follows an ultimate is replayed with that ultimate's own 3D effects. Your ultimate can be used once per match without Flow. Weapons → Ultimate has a gallery of all of these.
+
+**Accounts** – create an account or sign in from the main menu; save slots are scoped to the signed-in account. Accounts are local to the browser (the game has no server): they keep people's careers apart on one device but do not sync between devices. A built-in administrator account opens an admin panel that can edit the loaded career (attributes, abilities, club, any player, every rule) and manage accounts and saves.
+
 **Play as an existing player** – in the creator's *Team & Start* step you can take over any NEL player (Isagi, Kaiser, …) with his attributes, weapons, ultimate and club instead of creating your own.
 
 **People** – about 3,600 tracked players: the Blue Lock cast, master strikers, baseline professionals and original fictional players. Relationships track respect, trust, friendship, rivalry and chemistry separately, with stored memories that later dialogue refers to.
@@ -91,6 +97,7 @@ npm run preview
 - Only the leagues listed above are simulated. Clubs relegated out of the simulated pyramid are swapped with clubs from the division below; if that happens to your club, a release clause lets you move.
 - International qualifying is not simulated: tournament fields are chosen from nation strength. Only your own nation plays friendlies in international breaks.
 - Continental competitions contain clubs from the seven simulated top divisions only. There is no third European competition.
+- Accounts are stored in the browser, not on a server: they are a convenience for sharing a device, not a security boundary, and the administrator credentials are embedded (hashed) in the client.
 - 3D replays re-enact the stored shot snapshot (positions at the moment of the strike, the pass before it and the outcome); they are not a frame-by-frame recording, and are only captured in interactive / highlights modes.
 - Youth international squads are picked from players aged 21 or under for every youth tournament.
 - No reserve leagues: a "development squad" role means limited first-team minutes at a big club.

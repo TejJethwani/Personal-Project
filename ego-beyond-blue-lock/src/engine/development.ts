@@ -161,7 +161,7 @@ export function weaponSlots(g: Game): { open: number; next: string } {
   const next = open === 1 ? 'Slot 2 opens when a weapon reaches level 2.' : open === 2 ? `Slot 3 opens with a level-3 weapon and 20 appearances (you have ${apps}).` : open === 3 ? `Slot 4 opens with a level-4 weapon and 60 appearances (you have ${apps}).` : 'All four weapon slots are open.';
   return { open, next };
 }
-export const ULT_NEED = { weaponLv: 3, flows: 5, apps: 12 };
+export const ULT_NEED = { weaponLv: 2, flows: 2, apps: 6 };
 /** The ultimate chosen at creation is dormant. It awakens only after real match experience. */
 export function ultimateStatus(g: Game): { id: string; awake: boolean; weaponLv: number; flows: number; apps: number; ready: boolean } {
   const p = g.world.players[g.career.pid];

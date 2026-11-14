@@ -260,13 +260,17 @@ function ultOf(p: MPlayer, key: string): { id: string; lv: number } | null {
   return null;
 }
 function canUlt(ms: MatchState, p: MPlayer, key: string): { id: string; lv: number } | null {
-  if (p.flEnd <= ms.play) return null;
+  // ultimates need Flow — except that the user may unleash theirs once per match without it
+  if (p.flEnd <= ms.play && !(p.user && p.ultN === 0)) return null;
   const u = ultOf(p, key);
   if (!u || p.ultN >= usesPerMatch(u.lv)) return null;
   return u;
 }
+/** The most recent ultimate of a match (not saved): a goal that follows it is replayed with that ultimate's effects. */
+const LAST_ULT = new WeakMap<MatchState, { key: string; idx: number; step: number }>();
 function spendUlt(ms: MatchState, p: MPlayer, id: string, sta: number): void {
   p.ultN++;
+  LAST_ULT.set(ms, { key: abilityDef(id)?.ult ?? '', idx: ms.pl.indexOf(p), step: ms.steps });
   if (ms.uc && ms.uc.mode !== 'sim') { const d = abilityDef(id); (ms.ults ??= []).push({ n: (ms.ults.length ? ms.ults[ms.ults.length - 1].n : 0) + 1, key: d?.ult ?? '', name: d?.name ?? 'Ultimate', idx: ms.pl.indexOf(p), t: p.t, x: p.x, y: p.y, min: goalMinute(ms) }); if (ms.ults.length > 12) ms.ults.shift(); }
   const left = p.flEnd - ms.play;
   p.flEnd = ms.play + Math.max(left * (1 - FLOW.ultimateShare), Math.min(left, 20));
@@ -1089,6 +1093,8 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
     if (e?.k === 'shot') rp.res = e.q === -1 ? (/POST!|woodwork|crossbar denies/.test(e.x) ? 'post' : 'off') : e.q === rp.gk ? 'save' : 'block';
   }
   rp.sc = [ms.score[0], ms.score[1]];
+  const lu = LAST_ULT.get(ms);
+  if (!rp.ult && lu && lu.key && ms.steps - lu.step <= 6 && ms.pl[lu.idx]?.t === c.t) rp.ult = lu.key;
   (ms.replays ??= []).push(rp); if (ms.replays.length > 60) ms.replays.shift();
 }
 function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id: string; sta: number; fx: { k: number; v: number }[] } | null, ult: string, pForce = -1): void {
@@ -1718,6 +1724,8 @@ export function advance(ms: MatchState, choice?: string, maxSteps = 1e9): void {
   let n = 0;
   const startSteps = ms.steps;
   while (!ms.done && !ms.pending && ms.steps - startSteps < maxSteps && n++ < 200000) stepOnce(ms, rng);
+  // keep the picture consistent between steps: whoever has the ball stands where the ball is
+  if (ms.car >= 0 && ms.pl[ms.car]?.on) { ms.pl[ms.car].x = ms.bx; ms.pl[ms.car].y = ms.by; }
   if (ms.done) finishMatch(ms);
 }
 

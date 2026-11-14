@@ -6,8 +6,56 @@
  *    when the receiver does;
  *  - a loose / dead ball simply interpolates.
  */
-import { useEffect, useRef } from 'react';
-import type { MatchState } from '../engine/match/model';
+import { useEffect, useRef, useState } from 'react';
+import type { Decision, MatchState, Option } from '../engine/match/model';
+
+export interface Marker { x: number; y: number; opts: Option[]; label: string; kind: 'mate' | 'goal' | 'move' | 'self' }
+const SHORT: Record<string, string> = { behind: 'IN BEHIND', blind: 'BLINDSIDE', near: 'NEAR POST', far: 'FAR POST', short: 'COME SHORT', overlap: 'OVERLAP', hold: 'HOLD', cut: 'CUT LANE', tackle: 'TACKLE', press: 'PRESS', contain: 'CONTAIN', carry: 'CARRY', dribble: 'TAKE ON', shoot: 'SHOOT' };
+/** Where on the pitch each option of a decision "lives", so it can be tapped or swiped towards. */
+export function markersFor(ms: MatchState, d: Decision | null): Marker[] {
+  const u = ms.uc?.idx ?? -1;
+  if (!d || u < 0) return [];
+  const me = ms.pl[u];
+  const dir = me.t === 0 ? 1 : -1, goalX = me.t === 0 ? 100 : 0, ownX = 100 - goalX;
+  const out: Marker[] = [];
+  const add = (x: number, y: number, o: Option, label: string, kind: Marker['kind']) => {
+    x = Math.max(2, Math.min(98, x)); y = Math.max(3, Math.min(97, y));
+    const m = out.find((q) => Math.abs(q.x - x) + Math.abs(q.y - y) < 3 && q.kind === kind);
+    if (m) m.opts.push(o); else out.push({ x, y, opts: [o], label, kind });
+  };
+  for (const o of d.options) {
+    const seg = o.id.split(':');
+    const base = seg[0] === 'run' || seg[0] === 'def' ? seg[1] : o.id === 'ult:predator' ? 'behind' : o.id === 'ult:curtain' ? 'tackle' : seg[0];
+    if (o.id.startsWith('flow') || o.kind === 'meta') continue;
+    if (d.kind === 'penalty') { add(goalX, o.id.includes('chip') ? 50 : o.id.includes('power') ? 44 : 56, o, o.id.includes('chip') ? 'CHIP' : o.id.includes('power') ? 'POWER' : 'PLACE', 'goal'); continue; }
+    if (o.tgt >= 0 && ms.pl[o.tgt]?.on && o.tgt !== u) { add(ms.pl[o.tgt].x, ms.pl[o.tgt].y, o, ms.pl[o.tgt].nm, 'mate'); continue; }
+    if (o.kind === 'shoot') { add(goalX, 50, o, 'SHOOT', 'goal'); continue; }
+    if (d.kind === 'ball') {
+      if (o.kind === 'dribble') add(me.x + dir * 9, me.y + (me.y < 50 ? 5 : -5), o, 'TAKE ON', 'move');
+      else if (o.kind === 'carry') add(me.x + dir * 11, me.y, o, 'CARRY', 'move');
+      else add(me.x, me.y, o, 'HOLD', 'self');
+    } else if (d.kind === 'offball') {
+      const side = ms.by < 50 ? -1 : 1;
+      if (base === 'behind') add(me.x + dir * 16, me.y, o, SHORT.behind, 'move');
+      else if (base === 'blind') add(me.x + dir * 9, me.y + (me.y < 50 ? 9 : -9), o, SHORT.blind, 'move');
+      else if (base === 'near') add(goalX - dir * 7, 50 + side * 7, o, SHORT.near, 'move');
+      else if (base === 'far') add(goalX - dir * 7, 50 - side * 9, o, SHORT.far, 'move');
+      else if (base === 'short') add(me.x + (ms.bx - me.x) * 0.55, me.y + (ms.by - me.y) * 0.55, o, SHORT.short, 'move');
+      else if (base === 'overlap') add(me.x + dir * 12, me.y < 50 ? me.y - 11 : me.y + 11, o, SHORT.overlap, 'move');
+      else if (base === 'cut') add(me.x + dir * 6, me.y + (50 - me.y) * 0.5, o, 'CUT INSIDE', 'move');
+      else add(me.x, me.y, o, 'HOLD', 'self');
+    } else if (d.kind === 'defend') {
+      if (base === 'tackle') add(ms.bx, ms.by, o, SHORT.tackle, 'goal');
+      else if (base === 'press') add(me.x + (ms.bx - me.x) * 0.6, me.y + (ms.by - me.y) * 0.6, o, SHORT.press, 'move');
+      else if (base === 'cut') add(ms.bx + (ownX - ms.bx) * 0.3, ms.by + (50 - ms.by) * 0.5, o, SHORT.cut, 'move');
+      else if (base === 'contain') add(me.x + (ownX - me.x) * 0.12, me.y, o, SHORT.contain, 'move');
+      else add(me.x, me.y, o, 'HOLD', 'self');
+    } else add(me.x, me.y, o, (o.label || 'OPTION').toUpperCase().slice(0, 12), 'self');
+  }
+  return out;
+}
+const best = (m: Marker) => m.opts.reduce((a, b) => (b.p > a.p ? b : a));
+const pcol = (p: number) => (p >= 0.7 ? '#2ee59d' : p >= 0.45 ? '#ffd166' : '#ff6b81');
 
 interface Snap { step: number; pos: Float32Array; on: Uint8Array; ball: [number, number]; car: number; high: boolean; poss: number }
 function snapOf(ms: MatchState): Snap {
@@ -18,11 +66,42 @@ function snapOf(ms: MatchState): Snap {
 }
 const lum = (hex: string) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return 0.3; const v = parseInt(m[1], 16); return (0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255; };
 
-export function LivePitch({ ms, tick, hover, banner }: { ms: MatchState; tick: number; hover: number; banner: { x: string; i: number } | null }) {
+export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: { ms: MatchState; tick: number; hover: number; banner: { x: string; i: number } | null; touch?: boolean; onPick?: (id: string) => void; outcome?: { ok: boolean | null; title: string; text: string } | null }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const st = useRef<{ from: Snap; to: Snap; t0: number; dur: number; shown: Snap; trail: { x1: number; y1: number; x2: number; y2: number; t: number } | null }>(null);
-  const live = useRef({ ms, hover, tick });
-  live.current = { ms, hover, tick };
+  const marks = touch ? markersFor(ms, ms.pending) : [];
+  const live = useRef({ ms, hover, tick, marks, drag: null as null | { x: number; y: number; sx: number; sy: number } });
+  live.current = { ...live.current, ms, hover, tick, marks };
+  const [menu, setMenu] = useState<{ x: number; y: number; opts: Option[]; label: string } | null>(null);
+  const geo = useRef({ pad: 8, sx: 1, sy: 1 });
+  if (!ms.pending && menu) setMenu(null);
+  const toPitch = (e: { clientX: number; clientY: number }) => { const r = cv.current!.getBoundingClientRect(); const G = geo.current; return { x: (e.clientX - r.left - G.pad) / G.sx, y: (e.clientY - r.top - G.pad) / G.sy, px: e.clientX - r.left, py: e.clientY - r.top }; };
+  const choose = (m: Marker, px: number, py: number) => {
+    if (!onPick) return;
+    if (m.opts.length === 1) { setMenu(null); onPick(m.opts[0].id); }
+    else setMenu({ x: px, y: py, opts: [...m.opts].sort((a, b) => b.p - a.p), label: m.label });
+  };
+  const down = (e: React.PointerEvent) => { if (!touch || !ms.pending) return; const q = toPitch(e); live.current.drag = { x: q.x, y: q.y, sx: q.x, sy: q.y }; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); };
+  const move = (e: React.PointerEvent) => { const d = live.current.drag; if (!d) return; const q = toPitch(e); d.x = q.x; d.y = q.y; };
+  const up = (e: React.PointerEvent) => {
+    const d = live.current.drag; live.current.drag = null;
+    if (!d || !touch || !ms.pending) return;
+    const q = toPitch(e);
+    const M = live.current.marks;
+    const len = Math.hypot((q.x - d.sx) * 1.05, (q.y - d.sy) * 0.68);
+    if (len < 4) { // a tap: nearest marker
+      let bm: Marker | null = null, bd = 9;
+      for (const m of M) { const dd = Math.hypot((m.x - q.x) * 1.05, (m.y - q.y) * 0.68); if (dd < bd) { bd = dd; bm = m; } }
+      if (bm) choose(bm, q.px, q.py); else setMenu(null);
+      return;
+    }
+    // a swipe: the marker whose direction from your player best matches the gesture
+    const me = ms.pl[ms.uc!.idx];
+    const vx = (q.x - d.sx) * 1.05, vy = (q.y - d.sy) * 0.68;
+    let bm: Marker | null = null, bs = 0.55;
+    for (const m of M) { if (m.kind === 'self') continue; const mx = (m.x - me.x) * 1.05, my = (m.y - me.y) * 0.68; const ml = Math.hypot(mx, my); if (ml < 1) continue; const cs = (mx * vx + my * vy) / (ml * len); if (cs > bs) { bs = cs; bm = m; } }
+    if (bm) choose(bm, q.px, q.py);
+  };
 
   // a new engine state: start interpolating from what is on screen right now
   if (!st.current) { const s = snapOf(ms); st.current = { from: s, to: s, t0: 0, dur: 1, shown: s, trail: null }; }
@@ -55,6 +134,7 @@ export function LivePitch({ ms, tick, hover, banner }: { ms: MatchState; tick: n
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const pad = Math.max(8, W * 0.022);
       const sx = (W - pad * 2) / 100, sy = (H - pad * 2) / 100;
+      geo.current = { pad, sx, sy };
       const X = (x: number) => pad + x * sx, Y = (y: number) => pad + y * sy;
       const k = Math.min(1, (now - S.t0) / S.dur);
       // ── pitch
@@ -130,6 +210,31 @@ export function LivePitch({ ms, tick, hover, banner }: { ms: MatchState; tick: n
       const bX = X(bx), bY = Y(by), br = Math.max(4, R * 0.5) * (1 + lift * 0.7);
       ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(bX + lift * 6, bY + 3 + lift * 9, br * 0.9, br * 0.5, 0, 0, 6.3); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.strokeStyle = '#10131a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(bX, bY - lift * 10, br, 0, 6.3); ctx.fill(); ctx.stroke();
+      // ── touch markers: tap a ring or swipe from your player towards it
+      const MK = live.current.marks;
+      if (MK.length && u >= 0) {
+        const mx0 = X(px[u]), my0 = Y(py[u]);
+        const dg = live.current.drag;
+        for (const mk of MK) {
+          const o = best(mk), col = pcol(o.p);
+          const x = X(mk.x), y = Y(mk.y);
+          const rr = Math.max(15, W * 0.024);
+          if (mk.kind === 'move' || mk.kind === 'goal') {
+            ctx.strokeStyle = col; ctx.globalAlpha = 0.75; ctx.lineWidth = 2.5; ctx.setLineDash(mk.kind === 'goal' ? [] : [7, 5]); ctx.lineDashOffset = -now / 50;
+            ctx.beginPath(); ctx.moveTo(mx0, my0); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+            const a = Math.atan2(y - my0, x - mx0); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.cos(a - 0.4) * 12, y - Math.sin(a - 0.4) * 12); ctx.lineTo(x - Math.cos(a + 0.4) * 12, y - Math.sin(a + 0.4) * 12); ctx.fill(); ctx.globalAlpha = 1;
+          }
+          const pulse = 1 + Math.sin(now / 220 + mk.x) * 0.08;
+          ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, rr * pulse, 0, 6.3); ctx.stroke();
+          ctx.fillStyle = 'rgba(4,8,16,.72)'; ctx.beginPath(); ctx.arc(x, y, rr * pulse - 1.5, 0, 6.3); if (mk.kind !== 'mate') ctx.fill();
+          const txt = `${Math.round(o.p * 100)}%`;
+          ctx.font = `700 ${Math.max(12, Math.round(rr * 0.7))}px 'Barlow Condensed', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          if (mk.kind === 'mate') { const w = ctx.measureText(txt).width + 8; ctx.fillStyle = 'rgba(4,8,16,.88)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y + rr + 2, w, 15, 3); ctx.fill(); ctx.fillStyle = col; ctx.fillText(txt, x, y + rr + 10); }
+          else { ctx.fillStyle = col; ctx.fillText(txt, x, y - 3); ctx.font = `600 9px 'Barlow Condensed', sans-serif`; ctx.fillStyle = '#dfe7f7'; ctx.fillText(mk.label.slice(0, 11), x, y + rr * 0.48); }
+          if (o.hot) { ctx.strokeStyle = '#ff2d75'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, rr * pulse + 4, 0, 6.3); ctx.stroke(); }
+        }
+        if (dg) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X(dg.sx), Y(dg.sy)); ctx.lineTo(X(dg.x), Y(dg.y)); ctx.stroke(); }
+      }
       // ── attack direction tags
       ctx.font = `600 12px 'Barlow Condensed', sans-serif`; ctx.textBaseline = 'top';
       ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillText(`${m.teams[0].abbr} ▶`, pad + 6, pad + 5);
@@ -142,8 +247,15 @@ export function LivePitch({ ms, tick, hover, banner }: { ms: MatchState; tick: n
 
   return (
     <div className="pitchwrap livepitch">
-      <canvas ref={cv} role="img" aria-label={`Pitch view. ${ms.teams[0].name} attack right, ${ms.teams[1].name} attack left.`} />
-      {banner && <div className={`pbanner i${banner.i}`} aria-live="polite">{banner.x}</div>}
+      <canvas ref={cv} onPointerDown={down} onPointerMove={move} onPointerUp={up} style={touch && ms.pending ? { touchAction: 'none', cursor: 'pointer' } : undefined} role="img" aria-label={`Pitch view. ${ms.teams[0].name} attack right, ${ms.teams[1].name} attack left.`} />
+      {outcome && <div className={`poutcome ${outcome.ok === true ? 'ok' : outcome.ok === false ? 'bad' : ''}`} role="status"><b>{outcome.title}</b>{outcome.text && <span>{outcome.text}</span>}</div>}
+      {touch && ms.pending && !menu && <div className="ptouchhint">Tap a ring — or swipe from your player — to choose</div>}
+      {menu && <div className="ptouchmenu" style={{ left: Math.min(Math.max(8, menu.x - 90), (cv.current?.clientWidth ?? 300) - 190), top: Math.max(8, menu.y - 20) }}>
+        <div className="h">{menu.label}</div>
+        {menu.opts.map((o) => <button key={o.id} className={o.hot ? 'hot' : ''} onClick={() => { setMenu(null); onPick?.(o.id); }}><span>{o.label || o.id}</span><b style={{ color: pcol(o.p) }}>{Math.round(o.p * 100)}%</b></button>)}
+        <button className="x" onClick={() => setMenu(null)}>Cancel</button>
+      </div>}
+      {banner && !outcome && <div className={`pbanner i${banner.i}`} aria-live="polite">{banner.x}</div>}
     </div>
   );
 }
