@@ -330,7 +330,7 @@ export function worldAwards(g: Game): string[] {
     shoe.sort((a, b) => b.pts - a.pts || a.line[S.SEC] - b.line[S.SEC]);
     withLine('European Golden Shoe', 'golden_shoe', shoe, (c) => { const x = c as (typeof shoe)[number]; return `${x.g} league goals (${x.lg}) = ${x.pts} points`; }, 'League goals multiplied by the league coefficient (×2 top five leagues, ×1.5 next tier, ×1 others).');
   }
-  const xi = bestXI(g, cands.slice(0, 250));
+  const xi = bestXI(g, [...cands.slice(0, 250), ...cands.filter((c) => c.p.pos === "GK").slice(0, 5)]);
   if (xi.xi.length === 11) { const a = giveAward(g, { id: `world_xi:world:${w.season}`, type: 'world_xi', title: 'World Eleven', comp: 'world', compName: 'World Football', period, xi: xi.xi, form: xi.form, why: `The best eleven in world football, arranged in a ${xi.form}.` }); if (a) ids.push(a.id); }
   const goals = (w.acc.goals.__season ?? []).sort((a, b) => b.spec - a.spec);
   if (goals.length) {

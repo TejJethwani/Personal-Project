@@ -362,3 +362,36 @@ body.rm .cer-lights i, body.rm .cer-win .burst, body.rm .cer-nom.roll { animatio
 .paper article { padding: 9px 0; border-bottom: 1px solid #c9c0aa; } .paper article:last-child { border-bottom: 0; }
 .paper h5 { margin: 0 0 3px; font-family: Georgia, serif; font-size: 18px; line-height: 1.15; text-transform: none; letter-spacing: 0; color: #1a1712; }
 .paper article.lead h5 { font-size: 25px; } .paper p { margin: 0; font-size: 13.5px; line-height: 1.4; color: #3a342a; } .paper .dt { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #7a705c; }
+/* ── 3D dialogue scenes & in-match banter ── */
+.cut3d { position: relative; border-radius: 12px; overflow: hidden; background: #05070c; border: 1px solid var(--line2); }
+.cut3d canvas { width: 100%; aspect-ratio: 16 / 8; display: block; }
+.cut-top { position: absolute; top: 10px; left: 12px; font-family: var(--disp); font-weight: 700; letter-spacing: .08em; }
+.cut-say { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); width: min(86%, 640px); background: rgba(3,5,12,.88); border-left: 4px solid var(--cyan); padding: 8px 16px 10px; animation: rpsay .3s both; }
+.cut-say.other { border-left-color: var(--ego); } .cut-say.reporter { border-left-color: var(--gold); }
+.cut-say i { display: block; font-style: normal; font-family: var(--disp); letter-spacing: .2em; text-transform: uppercase; font-size: 11.5px; color: var(--muted); }
+.cut-say b { font-family: var(--disp); font-size: clamp(16px, 2.6vw, 25px); line-height: 1.12; font-weight: 600; }
+.cut-ui { padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; background: #0a0f1c; }
+.cut-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; flex: 1; }
+@media (max-width: 760px) { .cut-choices { grid-template-columns: 1fr; } .cut-say { top: 48%; } }
+.pbanter { position: absolute; left: 10px; top: 10px; max-width: min(78%, 460px); display: flex; gap: 10px; align-items: flex-start; background: rgba(4,8,16,.92); border: 1px solid var(--ego); border-radius: 10px 10px 10px 2px; padding: 8px 12px 8px 8px; animation: rpsay2 .3s both; pointer-events: none; z-index: 4; }
+.pbanter .who { font-family: var(--disp); letter-spacing: .12em; text-transform: uppercase; font-size: 11.5px; color: #ff8fb5; }
+.pbanter b { font-family: var(--disp); font-size: 18px; line-height: 1.1; font-weight: 600; display: block; }
+@keyframes rpsay2 { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+/* ── newspaper ── */
+.npaper { background: #efe9da; color: #1a1712; padding: 20px 26px 26px; font-family: Georgia, 'Times New Roman', serif; border-radius: 3px; box-shadow: 0 12px 50px rgba(0,0,0,.5); }
+.npaper .mast { text-align: center; border-bottom: 4px double #1a1712; padding-bottom: 8px; margin-bottom: 4px; }
+.npaper .mast h1 { font-family: Georgia, serif; font-size: clamp(34px, 6vw, 66px); letter-spacing: .01em; text-transform: none; margin: 0; color: #1a1712; font-weight: 700; }
+.npaper .mast .sub { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; border-top: 1px solid #1a1712; margin-top: 6px; padding-top: 4px; color: #1a1712; }
+.npaper .lead { border-bottom: 1px solid #b9b09a; padding: 14px 0; }
+.npaper .lead h2 { font-family: Georgia, serif; font-size: clamp(26px, 4.4vw, 46px); line-height: 1.02; text-transform: none; letter-spacing: 0; margin: 0 0 8px; color: #1a1712; }
+.npaper .lead p { font-size: 16px; line-height: 1.5; columns: 2; column-gap: 26px; margin: 0; color: #2c271f; }
+.npaper .cols { columns: 3; column-gap: 24px; column-rule: 1px solid #c9c0aa; padding-top: 12px; }
+.npaper article { break-inside: avoid; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid #c9c0aa; }
+.npaper .kick { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #8a2a1c; }
+.npaper h5 { font-family: Georgia, serif; font-size: 19px; line-height: 1.12; margin: 2px 0 4px; text-transform: none; letter-spacing: 0; color: #1a1712; }
+.npaper article p { margin: 0; font-size: 13.5px; line-height: 1.42; color: #3a342a; }
+.npaper article.me h5 { text-decoration: underline; text-decoration-color: #8a2a1c; }
+@media (max-width: 900px) { .npaper .cols { columns: 2; } .npaper .lead p { columns: 1; } }
+@media (max-width: 560px) { .npaper .cols { columns: 1; } .npaper { padding: 14px; } }
+
+.npaper .link { color: #1a1712; text-decoration: underline; font-size: 12px; }

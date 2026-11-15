@@ -122,6 +122,7 @@ export function Admin() {
       {g && tab === 'world' && <Card title="Edit any player">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a player by name (2+ letters)" style={{ width: '100%', maxWidth: 420 }} aria-label="Search player" />
         <div className="row wrap gap6 mt">{found.map((p) => <button key={p.id} className={`btn sm ${sel === p.id ? 'pri' : ''}`} onClick={() => setSel(p.id)}>{p.name} · {p.pos} {ovr(p)}</button>)}</div>
+        {sel && g.world.players[sel] && sel !== g.career.pid && <div className="row wrap mt"><button className="btn sm" disabled={g.career.rivals.includes(sel)} onClick={() => { edit((x) => { if (!x.career.rivals.includes(sel)) x.career.rivals.push(sel); const r = (x.career.rel[sel] ??= { resp: 50, trust: 35, friend: 12, rival: 0, chem: 25, met: x.world.abs, last: -99, mem: [], flags: {}, uses: {}, shared: 0, vs: 0 }); r.rival = Math.max(r.rival, 60); }); toast('Declared as your rival.'); }}>{g.career.rivals.includes(sel) ? 'Already a rival' : 'Make him my rival'}</button>{g.career.rivals.includes(sel) && <button className="btn sm ghost" onClick={() => edit((x) => { x.career.rivals = x.career.rivals.filter((r) => r !== sel); })}>Remove rivalry</button>}</div>}
         {sel && g.world.players[sel] && <div className="mt"><PlayerEdit key={sel} g={g} pid={sel} /></div>}
       </Card>}
       {g && s && tab === 'rules' && <div className="grid g2">

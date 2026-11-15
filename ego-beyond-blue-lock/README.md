@@ -87,6 +87,16 @@ npm run preview
 
 **Awards night** – routine recognition (Team/Player of the Week, Round, Month) stays out of the career timeline. Season awards split into rankings decided by one number (Golden Boot, Golden Shoe, Iron Man…) and judged awards weighing several things (Golden Glove, Playmaker, Manager of the Season, Ballon d'Or…); the ceremony runs a league gala then a world gala, with the Ballon d'Or counted down from 30th to the podium. A weekly newspaper reports results and award favourites, and the hub shows the Team of the Week on a pitch.
 
+**Match simulator** – from the main menu: any two clubs, NEL sides or national teams, editable team sheets (formation and every slot), one match with ratings, stats and 3D replays, or 100 simulations with outcome shares and common scores. It never touches a save.
+
+**Goalkeepers** – choose GK in the creator. Every shot at your goal is your decision (set and react, guess a side, rush out, stay big), each with its save chance; goalkeeping attributes grow from training and from saves and clean sheets.
+
+**Nations and qualifying** – all 211 FIFA nations (India, Pakistan, China, Thailand, Fiji…, with their own name pools). In the season before a World Cup, qualifying groups in all six confederations are played in the international breaks; your nation's ties are real matches when you are called up, and the 32 finalists come out of the tables.
+
+**Rivals** – rivalries form from matches (two players deciding the same game, a keeper who keeps getting beaten by the same striker) or can be declared (up to five). Each keeps a head-to-head and a duel record; winning the duel brings reputation and extra development. Before a match against a rival there is a 3D tunnel face-off (answer cold, fiery or respectful — it changes the Flow you start with), opponents talk during matches, and rival matches or big nights end with a 3D post-match interview whose answer shapes your image, coach trust and the rivalry. More than 500 lines of original banter across eight personality types plus named Blue Lock characters.
+
+**The Touchline** – the news is a weekly newspaper with a lead story and columns. When a season ends, only the stories about you are kept.
+
 **Play as an existing player** – in the creator's *Team & Start* step you can take over any NEL player (Isagi, Kaiser, …) with his attributes, weapons, ultimate and club instead of creating your own.
 
 **People** – about 3,600 tracked players: the Blue Lock cast, master strikers, baseline professionals and original fictional players. Relationships track respect, trust, friendship, rivalry and chemistry separately, with stored memories that later dialogue refers to.
@@ -101,7 +111,6 @@ npm run preview
 
 ## Known limitations
 
-- Goalkeeper careers are not supported; the user plays any of the twelve outfield positions.
 - Only the leagues listed above are simulated. Clubs relegated out of the simulated pyramid are swapped with clubs from the division below; if that happens to your club, a release clause lets you move.
 - International qualifying is not simulated: tournament fields are chosen from nation strength. Only your own nation plays friendlies in international breaks.
 - Continental competitions contain clubs from the seven simulated top divisions only. There is no third European competition.

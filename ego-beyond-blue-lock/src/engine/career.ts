@@ -78,7 +78,7 @@ export function validateConfig(c: CareerConfig): string[] {
   if (!c.name.trim()) e.push('Enter a player name.');
   if (c.attrs.length !== N_ATTR) e.push('Attribute sheet is incomplete.');
   if (c.attrs.some((v) => !Number.isInteger(v) || v < 1 || v > 99)) e.push('Attributes must be whole numbers from 1 to 99.');
-  if (c.pos === 'GK') e.push('Goalkeeper careers are not supported — choose an outfield position.');
+
   if (c.pot < calcOvr(c.attrs, c.pos)) e.push('Potential cannot be lower than the current OVR.');
   if (!c.weapons.length) e.push('Choose a main weapon.');
   for (const id of [...c.weapons, ...c.passives, c.ultimate]) if (id && !abilityDef(id) && !c.custom.some((x) => x.id === id)) e.push(`Unknown ability: ${id}`);

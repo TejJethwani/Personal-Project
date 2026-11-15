@@ -248,6 +248,8 @@ export function rollover(g: Game): void {
   pruneAwards(g);
   const pruned = pruneRetired(g);
   w.season++;
+  // yesterday's papers: once a season is over only the stories about the user are kept
+  w.news = w.news.filter((n) => n.me || n.s >= w.season);
   w.day = 0; w.stage = 0;
   // drop relationship entries for people who no longer exist
   for (const id of Object.keys(g.career.rel)) if (!w.players[id] && !g.career.people[id] && !Object.values(w.clubs).some((c) => c.mgr.id === id)) delete g.career.rel[id];

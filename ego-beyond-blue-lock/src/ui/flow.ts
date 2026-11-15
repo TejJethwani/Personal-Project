@@ -26,6 +26,7 @@ export async function simWeeks(weeks: number): Promise<void> {
       if (st.kind === 'club') { why = 'You must choose a club to continue.'; break; }
       if (st.kind === 'summary' || st.kind === 'retired' || st.kind === 'live') { why = st.label; break; }
       if (ceremonyDue(x)) { why = 'The awards ceremony is waiting.'; break; }
+      { const me2 = x.world.players[x.career.pid]; const ending = me2.con && me2.con.until === x.world.season && x.career.offers.some((o) => o.status === 'open' && o.club === me2.club); if (ending && !x.career.flags['renewSeen:' + x.world.season]) { act((y) => { y.career.flags['renewSeen:' + y.world.season] = 1; }, false); why = 'Your contract ends this season and your club has offered a new one — see Transfers.'; break; } }
       setBusy(`Simulating — week ${Math.min(weeks, Math.floor((weeks * 7 - (target - x.world.abs)) / 7) + 1)} of ${weeks}`);
       await new Promise((r) => setTimeout(r, 8));
       if (st.kind === 'match') {

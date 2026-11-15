@@ -10,6 +10,7 @@ import { continueGame, simWeeks, ceremonyDue } from './ui/flow';
 import { HallOfFame } from './screens/HallOfFame';
 import { Ceremony } from './screens/Ceremony';
 import { Admin } from './screens/Admin';
+import { MatchSim } from './screens/MatchSim';
 import { isAdmin } from './storage/accounts';
 import { Menu } from './screens/Menu';
 import { Creator } from './screens/Creator';
@@ -38,7 +39,7 @@ export function App() {
   const { g, ui } = useStore();
   const r = ui.route;
   useEffect(() => { document.body.classList.toggle('rm', !!g?.settings.reduceMotion); }, [g?.settings.reduceMotion]);
-  useEffect(() => { if (!g && r.name !== 'menu' && r.name !== 'create' && r.name !== 'admin') nav('menu'); }, [g, r.name]);
+  useEffect(() => { if (!g && r.name !== 'menu' && r.name !== 'create' && r.name !== 'admin' && r.name !== 'sim') nav('menu'); }, [g, r.name]);
   const overlays = (
     <>
       {ui.busy && <div className="busy" role="status"><div>{ui.busy}</div></div>}
@@ -47,6 +48,7 @@ export function App() {
     </>
   );
   if (r.name === 'admin') return <><Admin />{overlays}</>;
+  if (r.name === 'sim') return <><MatchSim />{overlays}</>;
   if (!g || r.name === 'menu' || r.name === 'create') return <>{r.name === 'create' ? <Creator /> : <Menu />}{overlays}</>;
   const w = g.world;
   const me = w.players[g.career.pid];

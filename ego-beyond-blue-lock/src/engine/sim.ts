@@ -15,6 +15,7 @@ import { afterNelRound, concludeNel, canonWinner, NEL_END_DAY, PROLOGUE_END_DAY 
 import { onCompFinished, endSeason, rollover, startPro } from './season';
 import { weeklyAwards, monthlyAwards } from './awards';
 import { weeklyPress } from './press';
+import { afterMatchRivalry } from './rivalry';
 import { aiTransferDay, generateUserOffers, renewalCheck, expireOffers, ensureUserHasOptions, openOffers, acceptOffer, managerChanges, buildOffer } from './transfers';
 import { runTraining, dailyRecovery, worldDevTick, userAgeing, payWages, applyMatchDevelopment } from './development';
 import { applyMatchRelations } from './relationships';
@@ -139,6 +140,8 @@ export function needsClub(g: Game): boolean {
   const me = w.players[g.career.pid];
   if (me.retired) return false;
   if (w.phase === 'nel') return w.day >= PROLOGUE_END_DAY - 1 && w.stage === 2 && (!me.club || !!w.clubs[me.club]?.nel);
+  // a free agent cannot drift through a season: the game stops until he signs somewhere
+  if (!me.club) return true;
   return !!g.career.flags.mustMove && !!me.club && !!w.clubs[me.club]?.dormant;
 }
 /** What the career hub should present as the next meaningful action. */
@@ -148,7 +151,7 @@ export function nextStop(g: Game): Stop {
   if (me.retired) return { kind: 'retired', label: 'Career over', detail: 'You have retired. Your history remains browsable.' };
   if (g.live) return { kind: 'live', label: 'Resume match', detail: 'An interactive match is in progress.' };
   if (w.nel.summary && !g.career.flags.nelSummarySeen) return { kind: 'summary', label: 'View the NEL conclusion', detail: 'Final table, rankings, awards, your evaluation and career routes.' };
-  if (needsClub(g)) return { kind: 'club', label: 'Choose your club', detail: 'You must accept a contract before the season can continue.' };
+  if (needsClub(g)) return { kind: 'club', label: me.club ? 'Choose your club' : 'Sign for a club', detail: me.club ? 'You must accept a contract before the season can continue.' : 'Your contract has ended. Pick one of the offers before the season can continue.' };
   const uf = w.stage <= 1 ? userFixtureToday(g) : null;
   if (uf) { const side = userSide(g, uf)!; const opp = uf.h === side ? uf.a : uf.h; return { kind: 'match', label: `Play: ${teamName(w, side)} v ${teamName(w, opp)}`, detail: `${w.comps[uf.comp]?.name ?? ''}${uf.stg ? ' · ' + uf.stg : ` · Round ${uf.rd}`}` }; }
   const nf = nextUserFixture(g);
@@ -167,7 +170,7 @@ export function step(g: Game): Stop['kind'] | null {
     w.stage = 2;
   }
   if (w.nel.summary && !g.career.flags.nelSummarySeen) return 'summary';
-  if (needsClub(g)) return 'club';
+  if (needsClub(g)) { ensureUserHasOptions(g); return 'club'; }
   // move to the next day
   if (w.phase === 'nel' && w.day >= PROLOGUE_END_DAY) { startPro(g); w.abs++; return null; }
   if (w.phase === 'pro' && w.day >= SEASON_DAYS - 1) { rollover(g); w.abs++; return null; }
@@ -238,6 +241,7 @@ export function finishUserMatch(g: Game, ms: MatchState): string[] {
   if (u && u.asked > 1) c.mgrTrust = clamp(c.mgrTrust - (u.asked - 1) * 1.5, 0, 100);
   if (u && mp) {
     notes.push(...applyMatchRelations(g, fx, ms));
+    notes.push(...afterMatchRivalry(g, ms));
     notes.push(...applyMatchDevelopment(g, ms));
   }
   const line = played ? mp!.s.slice() : null;
@@ -313,9 +317,10 @@ export function autoPilot(g: Game, until: (g: Game) => boolean, maxDays = 5000):
 export function skipNel(g: Game, clubId: string): void {
   const w = g.world;
   const me = w.players[g.career.pid];
-  for (let guard = 0; guard < 400 && w.phase === 'nel'; guard++) {
+  for (let guard = 0; guard < 900 && w.phase === 'nel'; guard++) {
     const r = step(g);
     if (r === 'summary') g.career.flags.nelSummarySeen = 1;
+    else if (r === 'match' || r === 'live') simUserMatch(g); // e.g. a youth international he was still picked for
     else if (r === 'club') {
       const o = ovr(me);
       const pool = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league);

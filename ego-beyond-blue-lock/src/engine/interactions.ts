@@ -322,7 +322,7 @@ export function canAct(g: Game, pid: string, action: string): string | null {
   if (action === 'combo' && r.chem < 40) return 'Needs tactical chemistry of 40+.';
   if (action === 'advice' && !(ovr(p) >= ovr(me) - 2 || w.season - p.born >= w.season - me.born + 4)) return 'He has nothing to teach you yet.';
   if (action === 'apologise' && !r.mem.some((m) => m.t === 'ignored_them' && m.w <= -1)) return 'There is nothing to apologise for.';
-  if (action === 'rival') { if (c.rivals.includes(pid)) return 'Already your rival.'; if (c.rivals.length >= 3) return 'You already have three rivals.'; if (r.vs + r.shared < 1 && r.mem.length === 0) return 'You have no history with him yet.'; }
+  if (action === 'rival') { if (c.rivals.includes(pid)) return 'Already your rival.'; if (c.rivals.length >= 5) return 'You already have five rivals.';  }
   return null;
 }
 /** True if this player is in the same current national squad (senior or youth) as the user. */

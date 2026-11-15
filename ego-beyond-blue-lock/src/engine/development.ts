@@ -49,7 +49,7 @@ export function weeklyGrowth(g: Game): number {
 function gainXp(g: Game, attr: number, amount: number, source: string): void {
   const c = g.career;
   const p = g.world.players[c.pid];
-  if (attr >= N_OUT || p.a[attr] >= 99) return;
+  if ((attr >= N_OUT && p.pos !== 'GK') || p.a[attr] >= 99) return;
   const dim = clamp(1.3 - (p.a[attr] / 100) * 0.95, 0.25, 1);
   const v = amount * dim;
   c.xp[attr] += v;
@@ -102,7 +102,8 @@ export function runTraining(g: Game, isMatchDay: boolean): void {
   p.fit = clamp(p.fit - def.fatigue * it.fat, 5, 100);
   const G = weeklyGrowth(g);
   const per = (G / 4.5) * it.xp * (p.fit < 45 ? 0.6 : 1);
-  const attrs = sessionAttrs(g, s);
+  // goalkeepers train their own craft: most sessions feed the five goalkeeping attributes
+  const attrs = p.pos === 'GK' && (s.type === 'technical' || s.type === 'position' || s.type === 'weapon' || s.type === 'physical') ? [A.GKD, A.GKH, A.GKR, A.GKP, A.GKK, A.REA, A.COM] : sessionAttrs(g, s);
   const ident = club ? (club.nel ? (NEL_TEAMS.find((t) => t.id === club.id)?.train.map((k) => A[k as keyof typeof A]) ?? []) : styleAttrs(club.style)) : [];
   const label = s.type === 'technical' || s.type === 'physical' ? `${def.name}: ${def.focus?.[s.focus ?? '']?.name ?? ''}` : def.name;
   if (attrs.length) {
@@ -121,7 +122,13 @@ export function runTraining(g: Game, isMatchDay: boolean): void {
     if (target && !p.ab.some((r) => r.id === target) && c.learning[target]) {
       const L = c.learning[target];
       const d = abilityDef(target);
-      if (d && d.kind !== 'ultimate' && meetsReq(p.a, d).ok) { L.practice = Math.min(100, L.practice + 9 * it.xp * learnMul * (0.5 + L.exposure / 100)); tryLearn(g, target); }
+      if (d && d.kind !== 'ultimate') {
+        // practice always moves; the attribute requirements only gate the final unlock
+        const before = L.practice;
+        L.practice = Math.min(100, L.practice + 16 * it.xp * learnMul * (0.6 + L.exposure / 100));
+        if (L.practice > before) c.digest.push(`Weapon Practice: ${d.name} ${Math.round(before)}% → ${Math.round(L.practice)}%`);
+        if (L.practice >= 100) { if (!tryLearn(g, target)) { const req = meetsReq(p.a, d); if (!req.ok) c.digest.push(`${d.name} is fully practised but needs ${req.missing.join(', ')} to unlock.`); } }
+      }
     } else if (ref) {
       if (addXp(ref, 11 * it.xp)) abilityLevelUp(g, ref.id, ref.lv);
     }
@@ -231,10 +238,13 @@ export function applyMatchDevelopment(g: Game, ms: MatchState): string[] {
   const share = Math.min(1.2, (ms.rules.kind === 'nel' ? s[S.PLAY] : s[S.SEC]) / total);
   const rat = s[S.RATN] ? s[S.RAT] : 6;
   // performance drives development: a 9.0 is worth roughly three times a 6.5, and decisive contributions add more
-  const perf = clamp(1 + (rat - 6.5) * 0.6, 0.4, 3) + Math.min(0.8, s[S.G] * 0.2 + s[S.A] * 0.12) + (s[S.POTM] ? 0.4 : 0);
+  const duel = Number(g.career.flags.duelBoost ?? 0) > 0 ? 0.6 : 0; // winning the duel with a rival
+  if (duel) delete g.career.flags.duelBoost;
+  const perf = clamp(1 + (rat - 6.5) * 0.6, 0.4, 3) + Math.min(0.8, s[S.G] * 0.2 + s[S.A] * 0.12) + (s[S.POTM] ? 0.4 : 0) + duel;
   const pts = weeklyGrowth(g) * 0.3 * share * perf;
   if (rat >= 8 && share > 0.3) notes.push(`Outstanding display (${rat.toFixed(1)}): development ×${perf.toFixed(1)} from this match.`);
   const used: [number, number][] = [[A.FIN, s[S.SH] * 1.2 + s[S.G] * 3], [A.POS, s[S.SH] + s[S.G] * 2], [A.SPA, s[S.PC] * 0.25], [A.VIS, s[S.KP] * 2 + s[S.A] * 3], [A.DRI, s[S.DC] * 1.6], [A.BCO, s[S.TCH] * 0.1], [A.TAC, s[S.TKW] * 2], [A.INT, s[S.INT] * 2], [A.DAW, s[S.INT] + s[S.BLK] * 2 + s[S.CLR]], [A.HEA, s[S.AW] * 1.5], [A.STA, share * 4], [A.COM, share * 2 + s[S.G] * 2], [A.DEC, share * 3], [A.REA, share * 2]];
+  if (p.pos === 'GK') { used.length = 0; used.push([A.GKR, s[S.SV] * 2 + share * 3], [A.GKD, s[S.SV] * 1.5 + share * 2], [A.GKH, s[S.SV] + share * 3], [A.GKP, share * 3 + s[S.CS] * 4], [A.GKK, s[S.PC] * 0.15 + share], [A.COM, share * 2 + s[S.CS] * 2], [A.REA, s[S.SV] + share]); }
   const tot = used.reduce((x, y) => x + y[1], 0) || 1;
   const label = `Match vs ${ms.teams[1 - mp.t].name}`;
   for (const [a, v] of used) if (v > 0) gainXp(g, a, (pts * v) / tot, label);

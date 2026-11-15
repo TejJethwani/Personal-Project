@@ -56,6 +56,7 @@ export function Menu() {
         <div className="row wrap mb">
           <button className="btn pri big" onClick={() => nav('create')}>New Career</button>
           {g && <button className="btn big" onClick={() => nav('hub')}>Resume current</button>}
+          <button className="btn big" onClick={() => nav('sim')}>Match simulator</button>
           <button className="btn" onClick={() => file.current?.click()}>Import save (.json)</button>
           <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => onImport(e.target.files?.[0])} aria-label="Import save file" />
         </div>

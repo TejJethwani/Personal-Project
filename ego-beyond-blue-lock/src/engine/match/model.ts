@@ -89,6 +89,8 @@ export interface Replay {
   clock?: number;
   fr?: number; // preview only: forces the finish-type roll
   blk?: number; // who blocked the shot
+  skill?: number; // 1 = beat a man just before shooting, 2 = with a skill move / weapon
+  beat?: number; // the defender he beat
 }
 /** An ultimate being unleashed — the match centre plays a custom cut-in animation for each. */
 export interface UltEvent { n: number; key: string; name: string; idx: number; t: number; x: number; y: number; min: number }
@@ -109,7 +111,7 @@ export interface Option {
 }
 
 export interface Decision {
-  kind: 'ball' | 'offball' | 'defend' | 'penalty' | 'flow';
+  kind: 'ball' | 'offball' | 'defend' | 'penalty' | 'flow' | 'keeper';
   title: string;
   ctx: string;
   options: Option[];

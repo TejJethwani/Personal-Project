@@ -137,7 +137,7 @@ export function Creator() {
           </div></section>
           <section className="card"><h3>Position</h3>
             <p className="small muted">Supported: all twelve outfield positions. Goalkeeper careers are not supported (goalkeepers exist in the world with their own attributes).</p>
-            <label className="f">Primary position<select value={cfg.pos} onChange={(e) => setPos(e.target.value as Pos)}>{OUTFIELD.map((p) => <option key={p} value={p}>{p} — {POS_NAME[p]}</option>)}</select></label>
+            <label className="f">Primary position<select value={cfg.pos} onChange={(e) => setPos(e.target.value as Pos)}>{[...OUTFIELD, 'GK' as Pos].map((p) => <option key={p} value={p}>{p} — {POS_NAME[p]}</option>)}</select></label>
             <div className="f mt">Secondary positions<div className="row wrap gap6">{OUTFIELD.filter((p) => p !== cfg.pos).map((p) => <button key={p} className={`btn sm ${cfg.pos2.includes(p) ? 'pri' : 'ghost'}`} onClick={() => up({ pos2: cfg.pos2.includes(p) ? cfg.pos2.filter((x) => x !== p) : [...cfg.pos2, p].slice(-3) })} aria-pressed={cfg.pos2.includes(p)}>{p}</button>)}</div></div>
             <label className="f mt">Playing style (shapes the balanced attribute spread)<select value={style} onChange={(e) => { setStyle(e.target.value); if (balanced) up({ attrs: regen(cfg.pos, target, e.target.value) }); }}>{stylesFor(cfg.pos).map((s) => <option key={s} value={s}>{STYLES[s].name}</option>)}</select></label>
           </section>

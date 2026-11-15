@@ -30,6 +30,7 @@ export function markersFor(ms: MatchState, d: Decision | null): Marker[] {
     if (o.id === 'run:shoot' && ms.car >= 0) { add(goalX, 50, o, 'TELL HIM: SHOOT', 'goal'); continue; }
     const base = seg[0] === 'run' || seg[0] === 'def' ? seg[1] : o.id === 'ult:predator' ? 'behind' : o.id === 'ult:curtain' ? 'tackle' : seg[0];
     if (o.id.startsWith('flow') || o.kind === 'meta') continue;
+    if (d.kind === 'keeper') { const y = o.id === 'gk:left' ? 40 : o.id === 'gk:right' ? 60 : 50, x = o.id === 'gk:rush' ? ownX + dir * 9 : ownX + dir * (o.id === 'gk:big' ? 4 : 1.5); add(x, o.id === 'gk:big' ? 53 : y, o, o.id === 'gk:left' ? 'DIVE LEFT' : o.id === 'gk:right' ? 'DIVE RIGHT' : o.id === 'gk:rush' ? 'RUSH OUT' : o.id === 'gk:big' ? 'STAY BIG' : 'SET', o.id === 'gk:set' ? 'self' : 'move'); continue; }
     if (d.kind === 'penalty') { add(goalX, o.id.includes('chip') ? 50 : o.id.includes('power') ? 44 : 56, o, o.id.includes('chip') ? 'CHIP' : o.id.includes('power') ? 'POWER' : 'PLACE', 'goal'); continue; }
     if (o.tgt >= 0 && ms.pl[o.tgt]?.on && o.tgt !== u) { add(ms.pl[o.tgt].x, ms.pl[o.tgt].y, o, ms.pl[o.tgt].nm, 'mate'); continue; }
     if (o.kind === 'shoot') { add(goalX, 50, o, 'SHOOT', 'goal'); continue; }

@@ -5,6 +5,11 @@ import { advance as advMatch, ratingOf, requestSub, subChance } from '../engine/
 import { Replay3D, ReplayList } from '../ui/Replay3D';
 import { LivePitch } from '../ui/LivePitch';
 import { UltCutIn } from '../ui/UltCutIn';
+import { Cutscene3D } from '../ui/Cutscene3D';
+import { faceoffFor, applyFaceoff, interviewFor, applyInterview } from '../engine/rivalry';
+import { banterLine } from '../engine/data/banter';
+import { wcqTable } from '../engine/international';
+import { PlayerAvatar } from '../ui/kit';
 import { clockLabel } from '../engine/match/rules';
 import { S, type MatchState, type MPlayer, type Option, type Replay, type UltEvent } from '../engine/match/model';
 import { teamName, teamInfo, pickSheet, importance } from '../engine/match/setup';
@@ -25,7 +30,7 @@ export function Scorers({ g, goals, side, align }: { g: Game; goals: [number, nu
   return <div className="small" style={{ textAlign: align, minHeight: 18 }}>{[...by.entries()].map(([pid, mins]) => <div key={pid}>{align === 'right' ? <>{g.world.players[pid]?.sn ?? 'Unknown'} <span className="muted">{mins.join(', ')}</span> ⚽</> : <>⚽ {g.world.players[pid]?.sn ?? 'Unknown'} <span className="muted">{mins.join(', ')}</span></>}</div>)}</div>;
 }
 
-function Scoreboard({ g, ms: ms0, live, hide }: { g: Game; ms: MatchState; live: boolean; hide?: number }) {
+export function Scoreboard({ g, ms: ms0, live, hide }: { g: Game; ms: MatchState; live: boolean; hide?: number }) {
   // goals whose 3D sequence has not been shown yet are kept off the scoreboard so nothing is spoiled
   const cut = hide ? ms0.goals.slice(0, Math.max(0, ms0.goals.length - hide)) : ms0.goals;
   const ms = hide ? { ...ms0, goals: cut, score: [cut.filter((x) => x[1] === 0).length, cut.filter((x) => x[1] === 1).length] as [number, number] } as MatchState : ms0;
@@ -139,7 +144,7 @@ function Decision({ ms, onPick, onHover }: { ms: MatchState; onPick: (id: string
   );
 }
 
-function StatTable({ ms }: { ms: MatchState }) {
+export function StatTable({ ms }: { ms: MatchState }) {
   const sum = (t: number, i: number) => ms.pl.filter((p) => p.t === t && p.used).reduce((s, p) => s + p.s[i], 0);
   const rows: [string, (t: number) => string | number][] = [
     ['Shots (on target)', (t) => `${sum(t, S.SH)} (${sum(t, S.SOT)})`], ['Expected goals', (t) => sum(t, S.XG).toFixed(2)], ['Passes (completed)', (t) => `${sum(t, S.PA)} (${sum(t, S.PC)})`],
@@ -150,7 +155,7 @@ function StatTable({ ms }: { ms: MatchState }) {
   return <table><tbody><tr><td className="n num">{Math.round((poss[0] / tp) * 100)}%</td><td className="center muted">Possession (by passes)</td><td className="num">{Math.round((poss[1] / tp) * 100)}%</td></tr>{rows.map(([n, f]) => <tr key={n}><td className="n num">{f(0)}</td><td className="center muted">{n}</td><td className="num">{f(1)}</td></tr>)}</tbody></table>;
 }
 
-function Ratings({ g, ms }: { g: Game; ms: MatchState }) {
+export function Ratings({ g, ms }: { g: Game; ms: MatchState }) {
   return <div className="grid g2">{[0, 1].map((t) => <div key={t}><h4>{ms.teams[t].name}</h4><table><thead><tr><th>Player</th><th>Pos</th><th className="n">Min</th><th className="n">G</th><th className="n">A</th><th className="n">Rat</th></tr></thead><tbody>
     {ms.pl.filter((p) => p.t === t && p.used).sort((a, b) => (b.s[S.RAT] || 0) - (a.s[S.RAT] || 0)).map((p: MPlayer) => <tr key={p.id} className={p.user ? 'me' : ''}><td><PlayerLink g={g} id={p.id} />{p.s[S.POTM] ? ' ⭐' : ''}{p.star ? ' ★' : ''}{p.yc ? ' 🟨' : ''}{p.rc ? ' 🟥' : ''}</td><td>{p.pos}</td><td className="n">{Math.round((ms.rules.kind === 'nel' ? p.s[S.PLAY] : p.s[S.SEC]) / 60)}</td><td className="n">{p.s[S.G] || ''}</td><td className="n">{p.s[S.A] || ''}</td><td className="n"><Rating v={p.s[S.RATN] ? p.s[S.RAT] : 0} /></td></tr>)}
   </tbody></table></div>)}</div>;
@@ -175,6 +180,8 @@ function PreMatch({ g }: { g: Game }) {
     if (mode === 'sim' || !ms.uc) { if (!ms.uc) toast('You are not in the matchday squad — the match is played without you.'); advMatch(ms); const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; refresh(); }
     else { advMatch(ms, undefined, 1); refresh(); autosave(); }
   };
+  const [faceDone, setFaceDone] = useState(false);
+  const face = !faceDone ? faceoffFor(g, fx, side) : null;
   const known = oppSheet.xi.map((x) => w.players[x.pid]).filter((p) => p && g.career.rel[p.id] && (g.career.rel[p.id].mem.length || g.career.rivals.includes(p.id)));
   return (
     <>
@@ -195,6 +202,13 @@ function PreMatch({ g }: { g: Game }) {
         <Card title={`${teamName(w, opp)} — ${oppSheet.form}`}><div className="small">{oppSheet.xi.map((x) => { const p = w.players[x.pid]; return <div key={x.pid} className="row between" style={{ padding: '1px 0' }}><span><span className="dim">{x.pos}</span> <PlayerLink g={g} id={p.id} />{g.career.rivals.includes(p.id) ? ' ⚔' : ''}</span><span className="num">{ovr(p)}</span></div>; })}</div>
           {known.length > 0 && <p className="small warn mt">You have history with: {known.map((p) => p.sn).join(', ')}.</p>}</Card>
       </div>
+      {face && <Card title={`The tunnel — ${face.rival.name}`} className="hot mb" right={<span className="tiny muted">Head to head: {face.h.w}W {face.h.d}D {face.h.l}L · duels {face.h.dw}–{face.h.dl}</span>}>
+        <Cutscene3D g={g} kind="tunnel" title="BEFORE KICK-OFF" me={me} other={face.rival}
+          beats={[{ who: 'other', name: face.rival.sn, text: face.lines[0] }, { who: 'other', name: face.rival.sn, text: face.lines[1] }]}
+          choices={face.replies.map((r) => ({ id: r.tone, label: r.tone === 'fire' ? 'Trash-talk back' : r.tone === 'cold' ? 'Stay ice cold' : 'Show respect', text: r.text }))}
+          onChoose={(id) => act((x) => applyFaceoff(x, x.world.fixtures[fx.id], face.rival.id, id as 'cold' | 'fire' | 'respect')) ?? []}
+          onClose={() => setFaceDone(true)} />
+      </Card>}
       <Card title="How do you want to play it?">
         <div className="grid g3">
           <button className="opt hot" onClick={() => start('full')}><b>Full interactive</b><span className="small muted">Watch every phase and make every decision your interaction-frequency setting allows — on the ball, off it and in defence.</span></button>
@@ -220,6 +234,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
   const ticks = useRef(0);
   const [queue, setQueue] = useState<({ k: 'rp'; r: Replay } | { k: 'ult'; e: UltEvent })[]>([]);
   const replay = queue[0] ?? null;
+  const [banter, setBanter] = useState<{ pid: string; name: string; text: string } | null>(null);
   const [outcome, setOutcome] = useState<{ ok: boolean | null; title: string; text: string } | null>(null);
   const hold = useRef(0);
   const slow = useRef(0);
@@ -242,6 +257,22 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
       else if (e.k === 'flow' && e.p === u.idx) moment('FLOW', 'You are in the zone', 'flow');
       else if (e.k === 'star_on') moment('STAR CHANGE', ms.pl[e.p]?.nm);
       if (e.x && (e.i >= 1 || e.p === u.idx || e.q === u.idx)) banner.current = { x: e.x, i: e.p === u.idx || e.q === u.idx ? Math.max(2, e.i) : e.i, at: ticks.current };
+    }
+    // banter: opponents (rivals first) have something to say about goals and misses
+    for (let i = seen.current; i < ms.ev.length; i++) {
+      const e = ms.ev[i];
+      const mine = e.p === u.idx;
+      if (!me.used || (e.k !== 'goal' && !(e.k === 'shot' && mine))) continue;
+      const foes = ms.pl.filter((q) => q.t !== me.t && q.on);
+      const rivalOn = foes.find((q) => g.career.rivals.includes(q.id));
+      const sit = e.k === 'goal' ? (mine ? 'youScore' : ms.pl[e.p]?.t !== me.t ? 'theyScore' : null) : 'youMiss';
+      if (!sit) continue;
+      const sp = sit === 'theyScore' ? ms.pl[e.p] : rivalOn ?? (e.q >= 0 && ms.pl[e.q]?.t !== me.t ? ms.pl[e.q] : foes[(ms.steps + i) % Math.max(1, foes.length)]);
+      const wp = sp ? g.world.players[sp.id] : null;
+      if (!sp || !wp) continue;
+      const known = g.career.rivals.includes(sp.id) || !!g.career.rel[sp.id];
+      if (!known && (ms.steps * 31 + i) % 100 >= (sit === 'youScore' ? 70 : 45)) continue;
+      setBanter({ pid: sp.id, name: sp.nm, text: banterLine(wp, sit, me.nm, ms.teams[sp.t].name, g.world.season, ms.steps) });
     }
     seen.current = ms.ev.length;
     // every ultimate gets its cut-in and every shot zooms into the 3D view
@@ -275,6 +306,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
     }), wait);
     return () => clearTimeout(t);
   });
+  useEffect(() => { if (!banter || replay) return; const t = setTimeout(() => setBanter(null), 5200); return () => clearTimeout(t); }, [banter, replay]);
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.code === 'Space' && !ms.pending) { e.preventDefault(); setPaused((p) => !p); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [ms]);
   const pick = (id: string) => {
     setHover(-1);
@@ -290,7 +322,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
     const text = evs.length ? evs[evs.length - 1].x : '';
     const shot = (ms.replays?.length ?? 0) > rp0 || ms.score[0] + ms.score[1] !== sc0;
     let res: { ok: boolean | null; title: string } | null = null;
-    if (shot || o.kind === 'meta' || d.kind === 'flow' || d.kind === 'penalty') res = null;
+    if (shot || o.kind === 'meta' || d.kind === 'flow' || d.kind === 'penalty' || d.kind === 'keeper') res = null;
     else if (d.kind === 'ball') {
       if (o.tgt >= 0 && o.tgt !== u.idx) { const tn = ms.pl[o.tgt]?.nm ?? ''; res = mine ? { ok: true, title: o.kind === 'through' ? `THROUGH BALL FINDS ${tn.toUpperCase()}` : o.kind === 'cross' ? `CROSS MEETS ${tn.toUpperCase()}` : `PASS COMPLETE → ${tn.toUpperCase()}` } : { ok: false, title: o.kind === 'cross' ? 'CROSS CLEARED' : 'PASS CUT OUT' }; }
       else if (o.kind === 'dribble') res = mine ? { ok: true, title: 'BEATEN HIM!' } : { ok: false, title: 'DISPOSSESSED' };
@@ -322,7 +354,8 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
         </div>
       </div>
       <div className="matchgrid">
-        <div className="col" style={{ gap: 10 }}>
+        <div className="col" style={{ gap: 10, position: 'relative' }}>
+          {banter && !replay && g.world.players[banter.pid] && <div className="pbanter" role="status"><PlayerAvatar g={g} p={g.world.players[banter.pid]} size={46} /><div><span className="who">{banter.name}{g.career.rivals.includes(banter.pid) ? ' · rival' : ''}</span><b>“{banter.text}”</b></div></div>}
           {replay?.k === 'ult' ? <UltCutIn ms={ms} ev={replay.e} onDone={() => setQueue((q) => q.slice(1))} /> : replay?.k === 'rp' ? <Replay3D key={replay.r.id} g={g} ms={ms} rp={replay.r} auto quick={replay.r.res !== 'goal' && replay.r.xg < 0.3 && replay.r.sh !== u.idx && !replay.r.ult} onClose={() => setQueue((q) => q.slice(1))} /> : <LivePitch ms={ms} hover={hover} tick={slow.current > 0 ? 520 : delay} banner={b} touch={g.settings.touch !== false} onPick={pick} outcome={outcome} />}
           <Hud ms={ms} live={liveRating} delta={rat.current.delta} hist={rat.current.hist} />
         </div>
@@ -353,9 +386,20 @@ function Post({ g, ms, notes }: { g: Game; ms: MatchState; notes: string[] }) {
   const u = ms.uc;
   const me = u ? ms.pl[u.idx] : null;
   const [tab, setTab] = useState('rat');
+  const [ivDone, setIvDone] = useState(false);
+  const um = g.career.matches.find((m) => m.fid === ms.fid);
+  const iv = !ivDone && um && u ? interviewFor(g, um, ms) : null;
+  const meP = g.world.players[g.career.pid];
   return (
     <>
       <div className="hero mb"><Scoreboard g={g} ms={ms} live={false} /></div>
+      {iv && <Card title="Mixed zone — post-match interview" className="hot mb">
+        <Cutscene3D g={g} kind="press" title="POST-MATCH INTERVIEW" me={meP} other={iv.rival}
+          beats={[{ who: 'reporter', name: 'The Touchline', text: iv.question }]}
+          choices={iv.answers.map((a) => ({ id: a.tone, label: a.tone === 'humble' ? 'Humble' : a.tone === 'confident' ? 'Confident' : 'Pure ego', text: a.text }))}
+          onChoose={(id) => act((x) => applyInterview(x, iv, id as 'humble' | 'confident' | 'ego')) ?? []}
+          onClose={() => setIvDone(true)} />
+      </Card>}
       <div className="grid g3 mb">
         <Card title="Your match" className="hot">{me?.used ? <>
           <div className="row"><span className={`ovr lg ${me.s[S.RAT] >= 8 ? 't1' : me.s[S.RAT] >= 7 ? 't2' : me.s[S.RAT] >= 6 ? 't3' : 't5'}`}>{me.s[S.RATN] ? me.s[S.RAT].toFixed(1) : '—'}</span><div><b>{me.s[S.POTM] ? '⭐ Player of the Match' : me.s[S.RATN] ? 'Match rating' : 'Too brief to rate'}</b><div className="small muted">{Math.round((ms.rules.kind === 'nel' ? me.s[S.PLAY] : me.s[S.SEC]) / 60)} minutes{me.started ? ', started' : ', from the bench'}</div></div></div>
@@ -422,6 +466,12 @@ function Idle({ g }: { g: Game }) {
         </Card>
         <Card title="Upcoming">{upcoming.length ? <div className="small">{upcoming.map((f) => <div key={f.id} className="row between" style={{ padding: '2px 0' }}><span>{f.h === team ? 'v' : '@'} {teamName(w, f.h === team ? f.a : f.h)}</span><span className="muted">{fmtDate(w, f.day)} · {w.comps[f.comp]?.sn}</span></div>)}</div> : <Empty>{view === 'nat' ? 'No international fixtures for your squad right now.' : 'No fixtures scheduled.'}</Empty>}</Card>
       </div>
+      {view === 'nat' && w.wcq && (() => { const gr = w.wcq.groups.find((x) => x.teams.includes(me.nat)); if (!gr) return null; const tab = wcqTable(gr); return <Card title={`World Cup ${w.wcq.year} qualifying — ${gr.name}`} className="mb" right={<span className="tiny muted">{w.wcq.done ? (w.wcq.qualified.includes(me.nat) ? 'Qualified' : 'Did not qualify') : gr.slots === 1 ? 'winners qualify' : `top ${gr.slots} qualify`}</span>}>
+        <div className="tw"><table><thead><tr><th>#</th><th>Nation</th><th className="n">P</th><th className="n">W</th><th className="n">D</th><th className="n">L</th><th className="n">GF</th><th className="n">GA</th><th className="n">Pts</th></tr></thead><tbody>
+          {tab.map((x, i) => <tr key={x.id} className={`${x.id === me.nat ? 'me' : ''} ${i < gr.slots ? 'zone-up' : ''}`}><td className="n dim">{i + 1}</td><td>{NATIONS[x.id]?.name}</td><td className="n">{x.r[0]}</td><td className="n">{x.r[1]}</td><td className="n">{x.r[2]}</td><td className="n">{x.r[3]}</td><td className="n">{x.r[4]}</td><td className="n">{x.r[5]}</td><td className="n"><b>{x.r[6]}</b></td></tr>)}
+        </tbody></table></div>
+        <p className="tiny dim mt">Qualifying is played in the international breaks. Your nation's ties are real matches when you are called up; the rest are simulated from team strength.</p>
+      </Card>; })()}
       <Card title={view === 'nat' ? 'Your international matches' : 'Your recent club matches'}>{recent.length ? <div className="tw"><table><thead><tr><th>Date</th><th>Competition</th><th>Opponent</th><th>Result</th><th className="n">Min</th><th className="n">G</th><th className="n">A</th><th className="n">Rating</th></tr></thead><tbody>
         {recent.map((m) => <tr key={m.fid}><td>{m.date}</td><td>{m.compName}</td><td>{m.home ? 'v' : '@'} {m.oppName}</td><td><b className={m.res === 'W' ? 'good' : m.res === 'L' ? 'bad' : ''}>{m.res} {m.sc[0]}–{m.sc[1]}</b>{m.pens ? ` (${m.pens[0]}–${m.pens[1]}p)` : ''}</td><td className="n">{m.line ? Math.round((m.rules === 'nel' ? m.line[S.PLAY] : m.line[S.SEC]) / 60) : '—'}</td><td className="n">{m.line?.[S.G] ?? ''}</td><td className="n">{m.line?.[S.A] ?? ''}</td><td className="n"><Rating v={m.rat} />{m.potm ? ' ⭐' : ''}</td></tr>)}
       </tbody></table></div> : <Empty>{view === 'nat' ? 'No international matches yet.' : 'No matches played yet.'}</Empty>}</Card>

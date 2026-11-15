@@ -27,9 +27,107 @@ function byNation(g: Game, maxAge: number): Record<string, Player[]> {
   return map;
 }
 
+/** Saves made before a nation was added get an entry for it on demand. */
+export function ensureNations(g: Game): void {
+  const w = g.world;
+  for (const id in NATIONS) if (!w.nations[id]) w.nations[id] = { id, pts: NATIONS[id].str, coach: `${NATIONS[id].adj} FA coach` };
+}
+
+// ───────────────────────────── World Cup qualifying ─────────────────────────────
+const WCQ_FORMAT: Record<string, { groups: number; slots: number; legs: number }> = { UEFA: { groups: 13, slots: 1, legs: 2 }, CONMEBOL: { groups: 1, slots: 5, legs: 1 }, CAF: { groups: 5, slots: 1, legs: 1 }, AFC: { groups: 5, slots: 1, legs: 1 }, CONCACAF: { groups: 3, slots: 1, legs: 1 }, OFC: { groups: 1, slots: 1, legs: 2 } };
+/** True in the season that ends with a World Cup. */
+export const isWcqSeason = (season: number) => (season + 1) % 4 === 2;
+/** Draw the qualifying groups (seeded by ranking points, snake order) and their round-robin schedules. */
+export function initWcq(g: Game): void {
+  const w = g.world;
+  ensureNations(g);
+  const rng = rngOf(w);
+  const groups: import('./types').WcqGroup[] = [];
+  for (const conf in WCQ_FORMAT) {
+    const f = WCQ_FORMAT[conf];
+    const nats = Object.values(NATIONS).filter((n) => n.conf === conf).sort((a, b) => (w.nations[b.id]?.pts ?? b.str) - (w.nations[a.id]?.pts ?? a.str));
+    const gs: string[][] = Array.from({ length: f.groups }, () => []);
+    nats.forEach((n, i) => { const row = Math.floor(i / f.groups), k = i % f.groups; gs[row % 2 ? f.groups - 1 - k : k].push(n.id); });
+    gs.forEach((teams, gi) => {
+      const list = teams.length % 2 ? [...teams, ''] : [...teams];
+      const rounds: [string, string][][] = [];
+      const n = list.length;
+      for (let leg = 0; leg < f.legs; leg++) for (let r = 0; r < n - 1; r++) {
+        const rd: [string, string][] = [];
+        for (let i = 0; i < n / 2; i++) { const a = list[i === 0 ? 0 : ((i - 1 + r) % (n - 1)) + 1], b = list[((n - 1 - i - 1 + r) % (n - 1)) + 1]; if (a && b) rd.push((r + i + leg) % 2 ? [a, b] : [b, a]); }
+        rounds.push(rd);
+      }
+      const tab: Record<string, number[]> = {};
+      for (const t of teams) tab[t] = [0, 0, 0, 0, 0, 0, 0];
+      groups.push({ conf, name: f.groups > 1 ? `${conf} Group ${String.fromCharCode(65 + gi)}` : `${conf} qualifying`, teams, tab, rounds, next: 0, slots: f.slots });
+    });
+  }
+  void rng;
+  w.wcq = { year: w.season + 1, groups, done: false, qualified: [], counted: {}, breaks: 0 };
+  const me = w.players[g.career.pid];
+  const mine = groups.find((x) => x.teams.includes(me.nat));
+  addNews(g, 'intl', `World Cup ${w.season + 1} qualifying draw`, `${groups.length} groups across six confederations; 32 places at the finals. ${mine ? `${NATIONS[me.nat].name} are in ${mine.name} with ${mine.teams.filter((t) => t !== me.nat).map((t) => NATIONS[t].name).join(', ')}. ${mine.slots === 1 ? 'Only the group winners qualify.' : `The top ${mine.slots} qualify.`}` : ''}`, { imp: 2, me: !!mine });
+}
+function wcqApply(gr: import('./types').WcqGroup, h: string, a: string, gh: number, ga: number): void {
+  const H = gr.tab[h], A = gr.tab[a];
+  if (!H || !A) return;
+  H[0]++; A[0]++; H[4] += gh; H[5] += ga; A[4] += ga; A[5] += gh;
+  if (gh > ga) { H[1]++; A[3]++; H[6] += 3; } else if (gh < ga) { A[1]++; H[3]++; A[6] += 3; } else { H[2]++; A[2]++; H[6]++; A[6]++; }
+}
+export function wcqTable(gr: import('./types').WcqGroup): { id: string; r: number[] }[] {
+  return gr.teams.map((id) => ({ id, r: gr.tab[id] })).sort((x, y) => y.r[6] - x.r[6] || (y.r[4] - y.r[5]) - (x.r[4] - x.r[5]) || y.r[4] - x.r[4] || (NATIONS[y.id].str - NATIONS[x.id].str));
+}
+/** Count the user's own qualifiers that were played as real matches. */
+function wcqCountReal(g: Game): void {
+  const w = g.world, q = w.wcq;
+  if (!q) return;
+  for (const fid in w.fixtures) { const f = w.fixtures[fid]; if (f.comp !== 'wcq' || !f.played || !f.sc || q.counted[fid]) continue; q.counted[fid] = 1; const gr = q.groups.find((x) => x.teams.includes(f.h) && x.teams.includes(f.a)); if (gr) wcqApply(gr, f.h, f.a, f.sc[0], f.sc[1]); }
+}
+/** One international window of qualifying: every group plays its next rounds. Returns the user's nation's real fixture pairing, if any. */
+function wcqBreak(g: Game, userPlays: boolean): [string, string] | null {
+  const w = g.world, q = w.wcq!;
+  const rng = rngOf(w);
+  const me = w.players[g.career.pid];
+  wcqCountReal(g);
+  q.breaks++;
+  const nb = BREAK_WEEKS.length;
+  let real: [string, string] | null = null;
+  const pois = (l: number) => { let k = 0, p = Math.exp(-l), s2 = p; const u = rng.next(); while (u > s2 && k < 9) { k++; p *= l / k; s2 += p; } return k; };
+  for (const gr of q.groups) {
+    const upto = q.breaks >= nb ? gr.rounds.length : Math.ceil((gr.rounds.length * q.breaks) / nb);
+    for (; gr.next < upto; gr.next++) for (const [h, a] of gr.rounds[gr.next]) {
+      if (userPlays && !real && (h === me.nat || a === me.nat)) { real = [h, a]; continue; } // played for real by the user
+      const sh = w.nations[h]?.pts ?? NATIONS[h].str, sa = w.nations[a]?.pts ?? NATIONS[a].str;
+      wcqApply(gr, h, a, pois(1.4 * Math.exp((sh - sa) / 13 + 0.12)), pois(1.15 * Math.exp((sa - sh) / 13)));
+    }
+  }
+  const mine = q.groups.find((x) => x.teams.includes(me.nat));
+  if (mine) { const t = wcqTable(mine); const pos = t.findIndex((x) => x.id === me.nat) + 1; addNews(g, 'paper', `World Cup qualifying: ${NATIONS[t[0].id].name} lead ${mine.name}`, `${t.slice(0, 5).map((x, i) => `${i + 1}. ${NATIONS[x.id].name} ${x.r[6]} pts (${x.r[0]} played)`).join(' · ')}. ${NATIONS[me.nat].name} are ${pos}${['st', 'nd', 'rd'][pos - 1] ?? 'th'}; ${mine.slots === 1 ? 'only the winners go to the finals' : `the top ${mine.slots} go to the finals`}.`, { imp: 1, me: true }); }
+  return real;
+}
+/** Decide who goes to the World Cup. */
+export function finalizeWcq(g: Game): string[] {
+  const w = g.world, q = w.wcq;
+  if (!q) return [];
+  if (!q.done) {
+    wcqCountReal(g);
+    // any round that was never reached (e.g. the user's last tie) is settled on strength
+    for (const gr of q.groups) for (; gr.next < gr.rounds.length; gr.next++) for (const [h, a] of gr.rounds[gr.next]) { const d = (w.nations[h]?.pts ?? 60) - (w.nations[a]?.pts ?? 60); wcqApply(gr, h, a, d > -4 ? 1 + (d > 6 ? 1 : 0) : 0, d < -4 ? 1 : 0); }
+    q.qualified = [];
+    for (const gr of q.groups) q.qualified.push(...wcqTable(gr).slice(0, gr.slots).map((x) => x.id));
+    q.done = true;
+    const me = w.players[g.career.pid];
+    const inn = q.qualified.includes(me.nat);
+    addNews(g, 'intl', `The 32 for World Cup ${q.year} are known`, `${q.qualified.map((id) => NATIONS[id].name).join(', ')}. ${inn ? `${NATIONS[me.nat].name} are going to the finals.` : `${NATIONS[me.nat].name} did not qualify.`}`, { imp: 3, me: true });
+    if (inn) milestone(g, 'intl', `${NATIONS[me.nat].name} qualified for World Cup ${q.year}.`);
+  }
+  return q.qualified;
+}
+
 /** Pick a 23-man squad. Thin pools are topped up with home-based players from outside the simulated leagues. */
 export function selectSquad(g: Game, nat: string, u20: boolean, pool?: Player[], force?: string[]): string[] {
   const w = g.world;
+  if (!w.nations[nat]) ensureNations(g);
   const rng = rngOf(w);
   const maxAge = u20 ? 20 : 99;
   const cands = (pool ?? byNation(g, maxAge)[nat] ?? []).filter((p) => w.season - p.born <= maxAge && p.inj < 21);
@@ -43,7 +141,7 @@ export function selectSquad(g: Game, nat: string, u20: boolean, pool?: Player[],
     let have = chosen.filter((p) => poss.includes(p.pos)).length;
     for (const p of sorted) { if (have >= n) break; if (used.has(p.id) || !poss.includes(p.pos)) continue; chosen.push(p); used.add(p.id); have++; }
     while (have < n) {
-      const target = u20 ? clamp(str - 15 + rng.normal() * 2.5, 52, 80) : clamp(str - 6 + rng.normal() * 2.5, 55, 88);
+      const target = u20 ? clamp(str - 9 + rng.normal() * 2.5, 56, 84) : clamp(str - 6 + rng.normal() * 2.5, 55, 88);
       const p = genPlayer(w, rng, { nat, pos: poss[0], ovr: target, age: u20 ? rng.range(17, 20) : undefined, origin: 'pool' });
       chosen.push(p); used.add(p.id); have++;
     }
@@ -142,7 +240,9 @@ export function setupSummerTournament(g: Game): boolean {
   const busy = new Set<string>();
   for (const def of defs.filter((d) => !d.u20).concat(defs.filter((d) => d.u20))) {
     let teams: string[];
-    if (def.id === 'wc') {
+    if (def.id === 'wc' && w.wcq && w.wcq.year === year && finalizeWcq(g).length === 32) {
+      teams = [...w.wcq.qualified];
+    } else if (def.id === 'wc') {
       teams = [];
       for (const [conf, n] of [['UEFA', 13], ['CONMEBOL', 5], ['CAF', 5], ['AFC', 5], ['CONCACAF', 4]] as const) teams.push(...strongest(conf, n, [me.nat], w.seed + year));
       teams = [...new Set(teams)].slice(0, 32);
@@ -187,6 +287,8 @@ export function scheduleBreakFriendlies(g: Game): void {
   c.stages = [];
   void c;
   for (const wk of BREAK_WEEKS) w.events.push({ key: 'intlbreak', day: dayOf(wk, 0) });
+  ensureNations(g);
+  if (isWcqSeason(w.season) && w.wcq?.year !== w.season + 1) { mkComp(w, { id: 'wcq', name: `World Cup ${w.season + 1} Qualifying`, sn: 'WCQ', kind: 'friendly', teams: [], natTeams: true }).stages = []; initWcq(g); }
 }
 export function breakFriendly(g: Game): void {
   const w = g.world;
@@ -196,6 +298,17 @@ export function breakFriendly(g: Game): void {
   const squad = selectSquad(g, me.nat, false, pools[me.nat]);
   const called = squad.includes(me.id);
   if (called) meetSquad(g, squad);
+  const qual = !!w.wcq && !w.wcq.done && w.wcq.year === w.season + 1;
+  const tie = qual ? wcqBreak(g, called) : null;
+  if (tie) {
+    const opp = tie[0] === me.nat ? tie[1] : tie[0];
+    selectSquad(g, opp, false, pools[opp]);
+    addFixture(w, { comp: 'wcq', rd: w.wcq!.breaks, day: w.day + END, h: tie[0], a: tie[1] });
+    if (!g.career.flags.firstCall) { g.career.flags.firstCall = 1; milestone(g, 'intl', `First senior call-up for ${NATIONS[me.nat].name}.`); }
+    addNews(g, 'intl', `World Cup qualifier: ${NATIONS[tie[0]].name} v ${NATIONS[tie[1]].name}`, `${w.nations[me.nat].coach} names you in the squad for the qualifier against ${NATIONS[opp].name}.`, { imp: 2, me: true });
+    g.career.flags.intlCamp = w.abs;
+    return;
+  }
   if (!called) { if (ovr(me) >= (NATIONS[me.nat].str - 8)) addNews(g, 'intl', `${NATIONS[me.nat].name} squad announced — you miss out`, `${w.nations[me.nat].coach} has not picked you for this international window.`, { imp: 1, me: true }); return; }
   const opps = Object.values(NATIONS).filter((n) => n.id !== me.nat && Math.abs(n.str - NATIONS[me.nat].str) <= 10);
   const opp = rng.pick(opps.length ? opps : Object.values(NATIONS)).id;

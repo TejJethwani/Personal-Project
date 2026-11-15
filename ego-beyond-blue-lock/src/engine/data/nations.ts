@@ -19,7 +19,31 @@ ZAM,Zambia,CAF,68,af,Zambian;RSA,South Africa,CAF,72,en,South African;ZIM,Zimbab
 JPN,Japan,AFC,82,jp,Japanese;KOR,South Korea,AFC,79,kr,South Korean;AUS,Australia,AFC,75,en,Australian;IRN,Iran,AFC,76,ar,Iranian;KSA,Saudi Arabia,AFC,72,ar,Saudi;
 UZB,Uzbekistan,AFC,73,sl,Uzbek;JOR,Jordan,AFC,70,ar,Jordanian;IRQ,Iraq,AFC,70,ar,Iraqi;QAT,Qatar,AFC,69,ar,Qatari;IDN,Indonesia,AFC,66,nl,Indonesian;
 USA,United States,CONCACAF,78,en,American;MEX,Mexico,CONCACAF,78,es,Mexican;CAN,Canada,CONCACAF,76,en,Canadian;JAM,Jamaica,CONCACAF,70,en,Jamaican;CRC,Costa Rica,CONCACAF,71,es,Costa Rican;
-PAN,Panama,CONCACAF,71,es,Panamanian;HAI,Haiti,CONCACAF,66,fr,Haitian;CUW,Curaçao,CONCACAF,67,nl,Curaçaoan;SUR,Suriname,CONCACAF,66,nl,Surinamese;NZL,New Zealand,OFC,68,en,New Zealander`;
+PAN,Panama,CONCACAF,71,es,Panamanian;HAI,Haiti,CONCACAF,66,fr,Haitian;CUW,Curaçao,CONCACAF,67,nl,Curaçaoan;SUR,Suriname,CONCACAF,66,nl,Surinamese;NZL,New Zealand,OFC,68,en,New Zealander;
+RUS,Russia,UEFA,74,sl,Russian;BUL,Bulgaria,UEFA,68,sl,Bulgarian;BLR,Belarus,UEFA,66,sl,Belarusian;KAZ,Kazakhstan,UEFA,66,sl,Kazakh;AZE,Azerbaijan,UEFA,64,tr,Azerbaijani;
+CYP,Cyprus,UEFA,63,sl,Cypriot;FRO,Faroe Islands,UEFA,60,sc,Faroese;LVA,Latvia,UEFA,60,sl,Latvian;LTU,Lithuania,UEFA,60,sl,Lithuanian;MDA,Moldova,UEFA,60,sl,Moldovan;
+MLT,Malta,UEFA,58,it,Maltese;AND,Andorra,UEFA,56,es,Andorran;LIE,Liechtenstein,UEFA,52,de,Liechtensteiner;GIB,Gibraltar,UEFA,52,en,Gibraltarian;SMR,San Marino,UEFA,48,it,Sammarinese;
+BOL,Bolivia,CONMEBOL,70,es,Bolivian;
+UGA,Uganda,CAF,67,af,Ugandan;KEN,Kenya,CAF,65,af,Kenyan;TAN,Tanzania,CAF,65,af,Tanzanian;ETH,Ethiopia,CAF,62,af,Ethiopian;SDN,Sudan,CAF,64,ar,Sudanese;
+LBY,Libya,CAF,65,ar,Libyan;MTN,Mauritania,CAF,66,ar,Mauritanian;EQG,Equatorial Guinea,CAF,68,es,Equatoguinean;NAM,Namibia,CAF,65,af,Namibian;MAD,Madagascar,CAF,65,fr,Malagasy;
+MWI,Malawi,CAF,62,af,Malawian;RWA,Rwanda,CAF,62,af,Rwandan;SLE,Sierra Leone,CAF,63,af,Sierra Leonean;NIG,Niger,CAF,62,af,Nigerien;CGO,Congo,CAF,64,af,Congolese (Brazzaville);
+CTA,Central African Republic,CAF,61,af,Central African;LBR,Liberia,CAF,61,af,Liberian;COM,Comoros,CAF,64,fr,Comorian;BDI,Burundi,CAF,60,af,Burundian;BOT,Botswana,CAF,61,af,Motswana;
+LES,Lesotho,CAF,58,af,Basotho;SWZ,Eswatini,CAF,57,af,Swazi;SSD,South Sudan,CAF,56,af,South Sudanese;ERI,Eritrea,CAF,54,af,Eritrean;DJI,Djibouti,CAF,52,ar,Djiboutian;
+SOM,Somalia,CAF,50,ar,Somali;CHA,Chad,CAF,55,af,Chadian;STP,São Tomé and Príncipe,CAF,52,pt,Santomean;SEY,Seychelles,CAF,50,fr,Seychellois;MRI,Mauritius,CAF,56,fr,Mauritian;
+CHN,China,AFC,68,zh,Chinese;UAE,United Arab Emirates,AFC,70,ar,Emirati;OMA,Oman,AFC,68,ar,Omani;BHR,Bahrain,AFC,67,ar,Bahraini;SYR,Syria,AFC,66,ar,Syrian;
+PLE,Palestine,AFC,65,ar,Palestinian;LBN,Lebanon,AFC,64,ar,Lebanese;KUW,Kuwait,AFC,63,ar,Kuwaiti;YEM,Yemen,AFC,56,ar,Yemeni;AFG,Afghanistan,AFC,56,ar,Afghan;
+THA,Thailand,AFC,66,sea,Thai;VIE,Vietnam,AFC,65,sea,Vietnamese;MAS,Malaysia,AFC,63,sea,Malaysian;PHI,Philippines,AFC,60,sea,Filipino;SIN,Singapore,AFC,58,sea,Singaporean;
+MYA,Myanmar,AFC,57,sea,Burmese;CAM,Cambodia,AFC,55,sea,Cambodian;LAO,Laos,AFC,52,sea,Laotian;BRU,Brunei,AFC,48,sea,Bruneian;TLS,Timor-Leste,AFC,48,pt,Timorese;
+IND,India,AFC,62,in,Indian;PAK,Pakistan,AFC,54,in,Pakistani;BAN,Bangladesh,AFC,54,in,Bangladeshi;NEP,Nepal,AFC,54,in,Nepali;SRI,Sri Lanka,AFC,50,in,Sri Lankan;
+MDV,Maldives,AFC,54,in,Maldivian;BHU,Bhutan,AFC,48,in,Bhutanese;TJK,Tajikistan,AFC,63,sl,Tajik;KGZ,Kyrgyzstan,AFC,62,sl,Kyrgyz;TKM,Turkmenistan,AFC,60,tr,Turkmen;
+PRK,North Korea,AFC,65,kr,North Korean;HKG,Hong Kong,AFC,59,zh,Hong Konger;TPE,Chinese Taipei,AFC,56,zh,Taiwanese;MAC,Macau,AFC,50,zh,Macanese;MNG,Mongolia,AFC,50,kr,Mongolian;GUM,Guam,AFC,48,en,Guamanian;
+HON,Honduras,CONCACAF,68,es,Honduran;SLV,El Salvador,CONCACAF,66,es,Salvadoran;GUA,Guatemala,CONCACAF,66,es,Guatemalan;TRI,Trinidad and Tobago,CONCACAF,65,en,Trinidadian;NCA,Nicaragua,CONCACAF,60,es,Nicaraguan;
+CUB,Cuba,CONCACAF,60,es,Cuban;DOM,Dominican Republic,CONCACAF,62,es,Dominican;PUR,Puerto Rico,CONCACAF,57,es,Puerto Rican;BER,Bermuda,CONCACAF,56,en,Bermudian;GUY,Guyana,CONCACAF,58,en,Guyanese;
+SKN,Saint Kitts and Nevis,CONCACAF,55,en,Kittitian;LCA,Saint Lucia,CONCACAF,54,en,Saint Lucian;ATG,Antigua and Barbuda,CONCACAF,54,en,Antiguan;GRN,Grenada,CONCACAF,54,en,Grenadian;BRB,Barbados,CONCACAF,52,en,Barbadian;
+BLZ,Belize,CONCACAF,52,en,Belizean;VIN,Saint Vincent and the Grenadines,CONCACAF,52,en,Vincentian;DMA,Dominica,CONCACAF,50,en,Dominican (Dominica);ARU,Aruba,CONCACAF,50,nl,Aruban;CAY,Cayman Islands,CONCACAF,48,en,Caymanian;
+BAH,Bahamas,CONCACAF,48,en,Bahamian;MSR,Montserrat,CONCACAF,50,en,Montserratian;TCA,Turks and Caicos Islands,CONCACAF,46,en,Turks and Caicos Islander;VGB,British Virgin Islands,CONCACAF,44,en,British Virgin Islander;VIR,US Virgin Islands,CONCACAF,44,en,US Virgin Islander;AIA,Anguilla,CONCACAF,42,en,Anguillan;
+FIJ,Fiji,OFC,55,en,Fijian;PNG,Papua New Guinea,OFC,54,en,Papua New Guinean;SOL,Solomon Islands,OFC,55,en,Solomon Islander;NCL,New Caledonia,OFC,56,fr,New Caledonian;TAH,Tahiti,OFC,55,fr,Tahitian;
+VAN,Vanuatu,OFC,53,en,Ni-Vanuatu;SAM,Samoa,OFC,48,en,Samoan;TGA,Tonga,OFC,46,en,Tongan;COK,Cook Islands,OFC,46,en,Cook Islander;ASA,American Samoa,OFC,44,en,American Samoan`;
 
 export const NATIONS: Record<string, Nation> = {};
 for (const row of RAW.replace(/\n/g, '').split(';')) {
@@ -78,6 +102,18 @@ export const NAME_POOLS: Record<string, { first: string[]; last: string[] }> = {
   ar: {
     first: P('Mohamed Ahmed Omar Youssef Achraf Hakim Sofyan Noussair Yassine Brahim Nayef Azzedine Bilal Amine Riyad Ismaël Islam Rayan Saïd Houssem Mahmoud Mostafa Hamza Zakaria Anis Ilias Ayoub Karim Sami Mehdi Ali Hussein Salem Firas Saleh Yazan Amir Sardar Alireza Mehdi'),
     last: P('Salah Marmoush Elneny Trezeguet Hakimi Ziyech Amrabat Mazraoui Bounou En-Nesyri Díaz Aguerd Ounahi El Khannouss Mahrez Bennacer Slimani Aït-Nouri Bensebaini Gouiri Atal Benrahma Msakni Skhiri Khazri Laïdouni Al-Dawsari Al-Faraj Al-Shehri Kanno Taremi Azmoun Jahanbakhsh Ghoddos Al-Tamari Olwan Hussein Ali Afif Hassan Mansour El Idrissi Benali Chaouch Haddad Darwish Najjar Saadi'),
+  },
+  in: {
+    first: P('Arjun Rohan Aarav Vihaan Aditya Karan Rahul Sahil Ishaan Kabir Dev Nikhil Varun Sunil Sandesh Gurpreet Anirudh Lallianzuala Manvir Liston Ali Hamza Bilal Usman Hassan Imran Faisal Zain Saad Danish Tariq Asif Jamal Rakib Tapu Topu Anjan Kiran Bimal Suman Dinesh Waseem Ahmed Naveen Pradeep Ashique Brandon Mahesh Rafiq Shakib Mehedi Sohel Nabib'),
+    last: P('Sharma Singh Kumar Patel Chhetri Thapa Gurung Rai Fernandes Colaco Sandhu Jhingan Bheke Bose Das Ghosh Mondal Khan Ahmed Hussain Malik Butt Qureshi Sheikh Chaudhry Raza Iqbal Aslam Rahman Islam Hossain Barman Biswas Shrestha Magar Tamang Lama Perera Silva Fernando Jayasuriya Naik Nair Menon Reddy Rao Verma Yadav Mishra Thakur Poojary Ralte'),
+  },
+  zh: {
+    first: P('Wei Lei Jun Hao Yu Chen Jie Peng Tao Bin Long Feng Xin Kai Ming Yang Zhen Bo Liang Qiang Shuai Chao Lin Dong Han Rui Ze Yi Xiang Hang Wing Ka Chun Tsz Ho'),
+    last: P('Wang Li Zhang Liu Chen Yang Huang Zhao Wu Zhou Xu Sun Ma Zhu Hu Guo He Gao Lin Luo Zheng Liang Xie Tang Han Cao Deng Feng Wei Jiang Yan Yu Dong Xiao Cheng Yuan Lam Chan Wong Leung Tse'),
+  },
+  sea: {
+    first: P('Chanathip Teerasil Supachok Theerathon Suphanat Sarach Kritsada Quang Van Cong Tien Duc Hoang Minh Tuan Thanh Faisal Safawi Arif Syahmi Akhyar Neil Stephan Patrick Jefferson Manny Aung Maung Htet Kyaw Chan Keo Sieng Bounphachan Soukaphone Ikhsan Hariss Irfan Shawal Adam'),
+    last: P('Songkrasin Dangda Sarachat Bunmathan Mueanta Yooyen Kaman Nguyen Tran Le Pham Hoang Phan Vu Dang Bui Do Halim Rasid Aiman Rashid Zakuan Etheridge Schrock Reichelt Ott Lin Thu Aung Tun Oo Vathanaka Polroth Chanthea Vongchiengkham Fandi Anuar Suzliman Baharudin'),
   },
   jp: {
     first: P('Haruto Ren Sota Yuto Kaito Riku Hinata Daiki Shun Takumi Kenta Ryo Yuki Kota Sho Tatsuya Hayato Naoki Itsuki Asahi Keita Tsubasa Masato Akira Jun Shinji Kazuki Taiga Rui Minato Koki Wataru Takehiro Kaoru Daichi Ritsu Ao Reo Hidemasa Junya Keito Yuito Zion Shuto Koji'),

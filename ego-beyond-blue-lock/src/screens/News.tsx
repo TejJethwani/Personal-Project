@@ -11,14 +11,29 @@ import { OvrChart } from './Player';
 /** Weekly / monthly recognitions written to the timeline by older saves: kept out of the career story. */
 export const ROUTINE = /^(Team of the (Week|Round|Month)|Player of the (Week|Round)|Goal of the Month)\b/;
 const CATS: [string, string][] = [['all', 'All'], ['me', 'About you'], ['match', 'Matches'], ['transfer', 'Transfers'], ['paper', 'Newspaper'], ['award', 'Awards'], ['club', 'Clubs'], ['world', 'World'], ['intl', 'International']];
+const KICK: Record<string, string> = { match: 'Match report', transfer: 'Transfers', award: 'Awards', nel: 'Neo Egoist League', bid: 'The market', world: 'World football', club: 'Club news', intl: 'International', rivalry: 'Rivalry', career: 'Profile', injury: 'Fitness', manager: 'Dugout', record: 'Records', youth: 'Academy', paper: 'Analysis' };
+/** The news as a newspaper: one edition per week, a lead story and columns. Old editions keep only the stories about you. */
 export function NewsScreen({ g }: { g: Game }) {
+  const w = g.world;
   const [cat, setCat] = useState('all');
-  const list = [...g.world.news].reverse().filter((n) => (cat === 'all' ? true : cat === 'me' ? n.me : cat === 'club' ? n.cat === 'club' || n.cat === 'manager' : cat === 'world' ? ['world', 'record', 'youth', 'rivalry', 'bid', 'nel'].includes(n.cat) : n.cat === cat)).slice(0, 150);
+  const weekOf = (n: { s: number; day: number }) => n.s * 100 + Math.floor(n.day / 7);
+  const weeks = [...new Set(w.news.map(weekOf))].sort((a, b) => b - a);
+  const [wk, setWk] = useState<number | null>(null);
+  const cur = wk != null && weeks.includes(wk) ? wk : weeks[0];
+  const inCat = (n: (typeof w.news)[number]) => (cat === 'all' ? true : cat === 'me' ? n.me : cat === 'club' ? n.cat === 'club' || n.cat === 'manager' : cat === 'world' ? ['world', 'record', 'youth'].includes(n.cat) : n.cat === cat);
+  const list = w.news.filter((n) => weekOf(n) === cur && inCat(n)).sort((a, b) => b.imp - a.imp || Number(b.me) - Number(a.me) || b.id - a.id);
+  const lead = list[0];
+  const idx = weeks.indexOf(cur);
   return (
     <>
-      <div className="pagehead"><div><h1>News</h1><div className="sub">Every story is generated from something that actually happened in the simulation.</div></div></div>
-      <Tabs tabs={CATS} value={cat} onChange={setCat} />
-      <Card>{list.length ? <div className="feed">{list.map((n) => <article key={n.id} className={`it i${n.imp}`}><div><div className="tiny dim">{n.date}</div><div className="tiny dim">{seasonLabel(n.s)}</div></div><div><b>{n.title}</b>{n.me && <Chip k="b">You</Chip>} <span className="chip">{n.cat}</span><div className="small muted">{n.body}</div>{n.pids?.length ? <div className="small">{n.pids.filter((id) => g.world.players[id]).slice(0, 4).map((id) => <span key={id} style={{ marginRight: 10 }}><PlayerLink g={g} id={id} full /></span>)}</div> : null}</div></article>)}</div> : <Empty>No stories in this category.</Empty>}</Card>
+      <div className="pagehead"><div><h1>The Touchline</h1><div className="sub">One edition a week. When a season ends, only the stories about you are kept in the archive.</div></div>
+        <span className="row wrap gap6"><button className="btn sm" disabled={idx >= weeks.length - 1} onClick={() => setWk(weeks[idx + 1])}>◀ Older</button><select value={cur ?? ''} onChange={(e) => setWk(+e.target.value)} aria-label="Edition">{weeks.map((x) => { const first = w.news.find((n) => weekOf(n) === x); return <option key={x} value={x}>{first?.date ?? x} · {seasonLabel(Math.floor(x / 100))}</option>; })}</select><button className="btn sm" disabled={idx <= 0} onClick={() => setWk(weeks[idx - 1])}>Newer ▶</button></span></div>
+      <div className="row wrap mb">{CATS.map(([k, l]) => <button key={k} className={`btn sm ${cat === k ? 'pri' : ''}`} onClick={() => setCat(k)}>{l}</button>)}</div>
+      {lead ? <div className="npaper">
+        <div className="mast"><h1>The Touchline</h1><div className="sub"><span>{lead.date}</span><span>{seasonLabel(lead.s)} · Edition {weeks.length - idx}</span><span>{list.length} stories</span></div></div>
+        <div className="lead"><div className="kick">{KICK[lead.cat] ?? lead.cat}{lead.me ? ' · about you' : ''}</div><h2>{lead.title}</h2><p>{lead.body}</p></div>
+        <div className="cols">{list.slice(1, 40).map((n) => <article key={n.id} className={n.me ? 'me' : ''}><div className="kick">{KICK[n.cat] ?? n.cat} · {n.date}</div><h5>{n.title}</h5><p>{n.body}</p>{n.pids && n.pids.length > 0 && <p style={{ marginTop: 4 }}>{n.pids.slice(0, 3).map((id) => g.world.players[id] ? <span key={id} style={{ marginRight: 8 }}><PlayerLink g={g} id={id} /></span> : null)}</p>}</article>)}</div>
+      </div> : <Empty>No stories in this edition for that section.</Empty>}
     </>
   );
 }

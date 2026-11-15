@@ -508,6 +508,9 @@ export interface NelSummary {
   awards: string[];
 }
 
+/** World Cup qualifying: one or more groups per confederation, played in the international breaks of the season before a World Cup. */
+export interface WcqGroup { conf: string; name: string; teams: string[]; tab: Record<string, number[]>; rounds: [string, string][][]; next: number; slots: number }
+export interface WcqState { year: number; groups: WcqGroup[]; done: boolean; qualified: string[]; counted: Record<string, number>; breaks: number }
 export interface NationState {
   id: string;
   pts: number; // ranking points (rolling strength)
@@ -526,6 +529,7 @@ export interface SeasonArchive {
 }
 
 export interface World {
+  wcq?: WcqState;
   seed: number;
   rng: RngState;
   nextId: number; newsId: number; trId: number;

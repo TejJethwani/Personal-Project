@@ -41,7 +41,14 @@ export function selScore(g: Game | null, p: Player, pos: Pos, rotate: number): n
   return s;
 }
 
+/** Hand-made team sheets (match simulator): team id → formation, eleven player ids in slot order, bench ids. */
+export const SHEETS = new Map<string, { form: string; xi: string[]; bench: string[] }>();
 export function pickSheet(g: Game | null, w: World, info: TeamInfo, rotate = 0, benchSize = 9): Sheet {
+  const ov = SHEETS.get(info.id);
+  if (ov && FORMATIONS[ov.form] && ov.xi.length === 11 && ov.xi.every((id) => w.players[id])) {
+    const sl = FORMATIONS[ov.form];
+    return { form: ov.form, xi: ov.xi.map((pid, k) => ({ pid, pos: sl[k][0] as Pos, x: sl[k][1], y: sl[k][2] })), bench: ov.bench.filter((id) => w.players[id] && !ov.xi.includes(id)).slice(0, benchSize) };
+  }
   const form = FORMATIONS[info.tac.form] ? info.tac.form : '4-3-3';
   const slots = FORMATIONS[form];
   const pool = info.squad.map((id) => w.players[id]).filter(available);
@@ -198,6 +205,7 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
     if (idx >= 0) {
       const mp = pl[idx];
       mp.user = true; mp.canFlow = true;
+      { const f = g.career.flags; if (f.hypeFid === fx.id) mp.fl = Math.min(95, mp.fl + (f.hype === 'fire' ? 34 : f.hype === 'cold' ? 20 : 8)); } // the tunnel exchange with a rival
       const et = egoType(g.career.egoType);
       mp.boost = et.boost;
       const diff = DIFFICULTY[g.settings.difficulty] ?? DIFFICULTY[1];

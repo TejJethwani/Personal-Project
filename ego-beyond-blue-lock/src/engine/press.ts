@@ -8,6 +8,8 @@ import { tableOf, compFixtures } from './competitions';
 import { teamName } from './match/setup';
 import { addNews } from './util';
 import { worldCands, seasonLines } from './awards';
+import { banterLine } from './data/banter';
+import { h2h } from './rivalry';
 
 const pick = <T,>(a: T[], n: number): T => a[((n % a.length) + a.length) % a.length];
 
@@ -43,6 +45,12 @@ export function weeklyPress(g: Game, week: number): void {
   if (week % 3 === 0) {
     const sc = seasonLines(g, lg).filter((x) => x.line[S.G] > 0).sort((x, y) => y.line[S.G] - x.line[S.G]).slice(0, 4);
     if (sc.length >= 3) addNews(g, 'paper', `Golden Boot watch: ${sc[0].p.sn} leads on ${sc[0].line[S.G]}`, `${sc.map((x, i) => `${i + 1}. ${x.p.name} (${teamName(w, x.club)}) ${x.line[S.G]}`).join(' · ')}. ${sc[0].line[S.G] - sc[1].line[S.G] >= 4 ? `It is ${sc[0].p.sn}'s to lose.` : 'Still anybody\'s race.'}`, { imp: 1, pids: sc.map((x) => x.p.id) });
+  }
+  // rivals talk about you in the papers
+  if (week % 3 === 1 && g.career.rivals.length) {
+    const rid = g.career.rivals[(seed >>> 1) % g.career.rivals.length];
+    const rp = w.players[rid];
+    if (rp && !rp.retired) addNews(g, 'paper', `${rp.sn} on ${me.sn}: "${banterLine(rp, 'press', me.sn, rp.club ? teamName(w, rp.club) : '', w.season, seed)}"`, `${rp.name} was asked about his rivalry with ${me.name} this week. Head to head so far: ${h2h(g, rid).w} wins for ${me.sn}, ${h2h(g, rid).l} for ${rp.sn}, ${h2h(g, rid).d} drawn.`, { imp: 2, me: true, pids: [rid] });
   }
   // 4. Ballon d'Or power ranking
   if (week % 4 === 0 && week >= 8) {

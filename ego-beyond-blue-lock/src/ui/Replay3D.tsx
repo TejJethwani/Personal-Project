@@ -13,7 +13,7 @@ import { lookFor } from '../engine/career';
 import { lookColours, type FaceSpec } from './kit';
 import { ULT_STYLE, ULT_NAME } from './UltCutIn';
 
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const mul = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
@@ -25,8 +25,8 @@ const lerp3 = (a: V3, b: V3, t: number): V3 => [lerp(a[0], b[0], t), lerp(a[1], 
 const c01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const ease = (t: number) => t * t * (3 - 2 * t);
 
-interface Cam { p: V3; r: V3; u: V3; f: V3; fl: number; cx: number; cy: number }
-function mkCam(pos: V3, tgt: V3, fl: number, w: number, h: number): Cam {
+export interface Cam { p: V3; r: V3; u: V3; f: V3; fl: number; cx: number; cy: number }
+export function mkCam(pos: V3, tgt: V3, fl: number, w: number, h: number): Cam {
   const f = norm(sub(tgt, pos));
   const r = norm(cross(f, [0, 1, 0]));
   const u = cross(r, f);
@@ -34,12 +34,12 @@ function mkCam(pos: V3, tgt: V3, fl: number, w: number, h: number): Cam {
 }
 const toCam = (c: Cam, P: V3): V3 => { const d = sub(P, c.p); return [dot(d, c.r), dot(d, c.u), dot(d, c.f)]; };
 const NEAR = 0.4;
-function proj(c: Cam, P: V3): { x: number; y: number; z: number } {
+export function proj(c: Cam, P: V3): { x: number; y: number; z: number } {
   const q = toCam(c, P);
   const z = Math.max(q[2], 0.01);
   return { x: c.cx + (q[0] / z) * c.fl, y: c.cy - (q[1] / z) * c.fl, z: q[2] };
 }
-function poly(ctx: CanvasRenderingContext2D, c: Cam, pts: V3[], fill: string | CanvasGradient, stroke?: string): void {
+export function poly(ctx: CanvasRenderingContext2D, c: Cam, pts: V3[], fill: string | CanvasGradient, stroke?: string): void {
   // clip against the near plane in camera space (Sutherland–Hodgman)
   const cs = pts.map((p) => toCam(c, p));
   const out: V3[] = [];
@@ -56,7 +56,7 @@ function poly(ctx: CanvasRenderingContext2D, c: Cam, pts: V3[], fill: string | C
   ctx.fillStyle = fill; ctx.fill();
   if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
 }
-function line(ctx: CanvasRenderingContext2D, c: Cam, a: V3, b: V3): void {
+export function line(ctx: CanvasRenderingContext2D, c: Cam, a: V3, b: V3): void {
   let A = toCam(c, a), B = toCam(c, b);
   if (A[2] < NEAR && B[2] < NEAR) return;
   if (A[2] < NEAR) { const t = (NEAR - A[2]) / (B[2] - A[2]); A = [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, NEAR]; }
@@ -68,8 +68,8 @@ function line(ctx: CanvasRenderingContext2D, c: Cam, a: V3, b: V3): void {
 }
 
 
-interface Face extends FaceSpec { capP?: Path2D; topP?: Path2D }
-interface Pose { rot?: number; lift?: number; kick?: number; arms?: number; crouch?: number; front?: boolean; happy?: boolean; ring?: string; num?: number; alpha?: number;
+export interface Face extends FaceSpec { capP?: Path2D; topP?: Path2D }
+export interface Pose { rot?: number; lift?: number; kick?: number; arms?: number; crouch?: number; front?: boolean; happy?: boolean; ring?: string; num?: number; alpha?: number;
   /** lean in world space: unit direction on the ground and angle from vertical (drawn correctly from any camera) */
   lean?: { dx: number; dz: number; a: number };
   /** facing direction on the ground: decides which way legs and arms swing on screen */
@@ -81,7 +81,7 @@ interface Pose { rot?: number; lift?: number; kick?: number; arms?: number; crou
 }
 const ARM: [number, number, number][] = [[0.14, 0.14, 0.25], [2.85, 2.85, 0.2], [1.7, 1.7, 0.1], [0.35, 2.95, 0.2], [2.2, 2.2, 0.9]]; // down, up, wide, point, half-up (left, right, elbow)
 
-function drawPlayer(ctx: CanvasRenderingContext2D, c: Cam, X: number, Z: number, col: string, col2: string, f: Face, o: Pose): void {
+export function drawPlayer(ctx: CanvasRenderingContext2D, c: Cam, X: number, Z: number, col: string, col2: string, f: Face, o: Pose): void {
   const foot = proj(c, [X, o.lift ?? 0, Z]);
   const g = proj(c, [X, 0, Z]);
   if (g.z < 0.8) return;
@@ -253,7 +253,7 @@ const ULT_LINES: Record<string, [string, string, string]> = {
   sky: ['The sky is mine.', 'He hung in the air for an eternity!', 'Come up here and stop me.'],
   chain: ['One touch. Keep up.', 'One touch, one touch, one touch — GOAL! Unplayable football!', 'That is what happens when we think at the same speed.'],
   sprint: ['Catch me.', 'Blink and he is gone! Nobody on this pitch can live with that pace!', 'You were chasing my shadow.'],
-  curtain: ['Nothing gets past me.', 'From a last-ditch tackle to the other net in seconds!', 'My goal stays shut. Yours does not.'],
+  curtain: ['Nothing gets past me.', 'The door is shut — nobody is getting through that!', 'My goal stays shut.'],
   dominion: ['I can see all of it.', 'He knew where everyone would be before they did!', 'The whole pitch moves the way I read it.'],
   predator: ['Found it. The kill spot.', 'He smelled that chance before anyone else in the stadium!', 'I only need one opening.'],
 };
@@ -304,6 +304,7 @@ function buildScene(rp: Replay, quick = false, ms?: MatchState): Scene {
 }
 /** Dribbling ultimates open with the run itself: who gets beaten, how far the run is, how wide the weave. */
 function dribSetup(rp: Replay, quick: boolean, sx: number, sz: number, foe: (i: number) => boolean): { tDrib: number; drib: number[]; dribL: number; dribA: number } {
+  if (rp.skill && !rp.ult && rp.beat != null && rp.beat >= 0 && rp.pl.some((x) => x[0] === rp.beat)) return { tDrib: quick ? 1.0 : 1.5, drib: [rp.beat], dribL: 8, dribA: rp.skill === 2 ? 1.3 : 0.9 };
   if (quick || (rp.ult !== 'trance' && rp.ult !== 'sprint' && rp.ult !== 'chain')) return { tDrib: 0, drib: [], dribL: 0, dribA: 0 };
   const opp = rp.pl.filter((x) => x[0] !== rp.gk && x[0] !== rp.sh && foe(x[0])).map((x) => ({ i: x[0], d: Math.hypot(x[1] * 1.05 - sx, x[2] * 0.68 - sz) })).sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.i);
   return rp.ult === 'sprint' ? { tDrib: 2.0, drib: opp, dribL: 30, dribA: 0.7 } : rp.ult === 'chain' ? { tDrib: 2.2, drib: opp, dribL: 20, dribA: 1.6 } : { tDrib: 3.0, drib: opp, dribL: 21, dribA: 2.3 };
@@ -424,8 +425,9 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
   const perpD: V3 = [-sdir[2], 0, sdir[0]];
   const start0: V3 = [sc.shot[0] - sdir[0] * (rp.v === 'pen' ? 0.5 : 3.65), 0, sc.shot[2] - sdir[2] * (rp.v === 'pen' ? 0 : 3.65)];
   /** where the dribbler is at progress u of the run, and where each beaten defender waits */
-  const dribAt = (u: number): V3 => add(add(start0, mul(sdir, -sc.dribL * (1 - u))), mul(perpD, sc.dribA * Math.sin(u * 3 * Math.PI) * (1 - u * 0.25)));
-  const dribDef = (k: number): { u: number; p: V3 } => { const u = (k * 2 + 1) / 6; return { u, p: add(add(start0, mul(sdir, -sc.dribL * (1 - u))), mul(perpD, rp.ult === 'sprint' ? (k % 2 ? 1.6 : -1.6) : 0)) }; };
+  const waves = Math.max(1, sc.drib.length);
+  const dribAt = (u: number): V3 => add(add(start0, mul(sdir, -sc.dribL * (1 - u))), mul(perpD, sc.dribA * Math.sin(u * waves * Math.PI) * (1 - u * 0.25)));
+  const dribDef = (k: number): { u: number; p: V3 } => { const u = (k * 2 + 1) / (2 * Math.max(1, sc.drib.length)); return { u, p: add(add(start0, mul(sdir, -sc.dribL * (1 - u))), mul(perpD, rp.ult === 'sprint' ? (k % 2 ? 1.6 : -1.6) : 0)) }; };
   const pre = sc.tDrib > 0 && (intro >= 0 || dribU >= 0);
   const dPos = pre ? dribAt(Math.max(0, dribU)) : start0;
   if (pre) { b.p = [dPos[0] + sdir[0] * 0.65 + perpD[0] * Math.sin(tRaw * 11) * 0.12, 0.11, dPos[2] + sdir[2] * 0.65 + perpD[2] * Math.sin(tRaw * 11) * 0.12]; b.phase = 0; }
@@ -549,7 +551,8 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
       else if (pre) {
         X = dPos[0]; Z = dPos[2]; fdx = sdir[0]; fdz = sdir[2];
         if (usC) pose.glow = usC.col;
-        if (dribU >= 0) { pose.runPh = tRaw * 17; const lean = Math.cos(dribU * 3 * Math.PI); pose.lean = { dx: perpD[0] * Math.sign(lean || 1), dz: perpD[2] * Math.sign(lean || 1), a: Math.abs(lean) * (rp.ult === 'sprint' ? 0.12 : 0.34) + (rp.ult === 'sprint' ? 0 : 0) }; if (rp.ult === 'sprint') pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; }
+        if (dribU >= 0 && rp.skill === 2 && Math.abs(dribU - 0.42) < 0.12) { pose.strike = 0.25 + Math.sin(tRaw * 24) * 0.2; pose.lean = { dx: perpD[0], dz: perpD[2], a: Math.sin(tRaw * 12) * 0.3 }; pose.arms = 2; } // step-over
+        else if (dribU >= 0) { pose.runPh = tRaw * 17; const lean = Math.cos(dribU * waves * Math.PI); pose.lean = { dx: perpD[0] * Math.sign(lean || 1), dz: perpD[2] * Math.sign(lean || 1), a: Math.abs(lean) * (rp.ult === 'sprint' ? 0.12 : 0.34) + (rp.ult === 'sprint' ? 0 : 0) }; if (rp.ult === 'sprint') pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; }
       }
       else {
         if (rp.v === 'pen') { X = sc.shot[0] - dir * 0.5; Z = 34; } else { X = sc.shot[0] - sdir[0] * 0.45; Z = sc.shot[2] - sdir[2] * 0.45; }
@@ -609,7 +612,7 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
       // a defender in the path of the dribbling ultimate: set, lunge, beaten
       const k = sc.drib.indexOf(idx), dd = dribDef(k), u = pre ? Math.max(0, dribU) : 1;
       X = dd.p[0]; Z = dd.p[2];
-      const side = Math.sign(Math.sin(dd.u * 3 * Math.PI)) || 1; // the side the dribbler goes past on
+      const side = Math.sign(Math.sin(dd.u * waves * Math.PI)) || 1; // the side the dribbler goes past on
       fdx = -sdir[0]; fdz = -sdir[2];
       const rel = u - dd.u;
       if (rp.ult === 'sprint') { if (rel > -0.06) { fdx = sdir[0]; fdz = sdir[2]; pose.runPh = tRaw * 12 + k; pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; const ch = Math.min(1, Math.max(0, rel) * 1.2); X += sdir[0] * ch * 4; Z += sdir[2] * ch * 4; pose.arms = 4; } else { pose.crouch = 0.3; pose.arms = 2; } }
@@ -765,7 +768,7 @@ export function Replay3D({ ms, rp, onClose, auto, quick, g }: { ms: MatchState; 
   return (
     <div className={`replay3d ${sc.long || us ? 'long' : ''}`}>
       <canvas ref={ref} aria-label={`3D view: ${sh?.nm} ${RES_LABEL[rp.res].toLowerCase()} in minute ${rp.min}`} />
-      <div className="rp-top"><span className="rp-live"><i />{auto ? 'LIVE · 3D' : 'REPLAY'}</span><span className="rp-min">{rp.min}'</span><span className="rp-tag" style={us ? { background: us.col } : undefined}>{sc.fl.name.toUpperCase()}{sc.long ? ` · ${Math.round(rp.d)} M` : ''}</span>{us && <span className="rp-tag ult" style={{ background: us.col2 }}>{(ULT_NAME[rp.ult!] ?? 'ULTIMATE').toUpperCase()}</span>}{rp.ab && !us && <span className="rp-min">{rp.ab}</span>}</div>
+      <div className="rp-top"><span className="rp-live"><i />{auto ? 'LIVE · 3D' : 'REPLAY'}</span><span className="rp-min">{rp.min}'</span><span className="rp-tag" style={us ? { background: us.col } : undefined}>{sc.fl.name.toUpperCase()}{sc.long ? ` · ${Math.round(rp.d)} M` : ''}</span>{us && <span className="rp-tag ult" style={{ background: us.col2 }}>{(ULT_NAME[rp.ult!] ?? 'ULTIMATE').toUpperCase()}</span>}{rp.ab && !us && <span className="rp-min">{rp.ab}</span>}{rp.skill && !us ? <span className="rp-min">{rp.skill === 2 ? 'SKILL MOVE' : 'TAKE-ON'}</span> : null}</div>
       <div className="rp-info">
         <div><b>{sh?.nm}</b>{as ? <span className="muted"> · assist {as.nm}</span> : null}</div>
         <div className="small">{stage >= 2 && stage < 3 ? `Celebration — ${CELE[sc.cele]}` : `${sc.fl.name} · ${Math.round(rp.d)} m · xG ${rp.xg.toFixed(2)} · chance ${Math.round(rp.p * 100)}%`}</div>

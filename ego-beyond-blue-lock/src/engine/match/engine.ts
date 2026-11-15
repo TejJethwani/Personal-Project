@@ -261,8 +261,9 @@ function ultOf(p: MPlayer, key: string): { id: string; lv: number } | null {
   return null;
 }
 function canUlt(ms: MatchState, p: MPlayer, key: string): { id: string; lv: number } | null {
-  // ultimates need Flow — except that the user may unleash theirs once per match without it
-  if (p.flEnd <= ms.play && !(p.user && p.ultN === 0)) return null;
+  // ultimates need Flow — except that the user may unleash theirs once per match without it, once the match has settled
+  const settled = ms.rules.kind === 'nel' ? ms.play >= 900 : ms.clock >= 1500;
+  if (p.flEnd <= ms.play && !(p.user && p.ultN === 0 && settled)) return null;
   const u = ultOf(p, key);
   if (!u || p.ultN >= usesPerMatch(u.lv)) return null;
   return u;
@@ -576,7 +577,9 @@ function riskLabel(p: number): string { return p >= 0.8 ? 'Safe' : p >= 0.58 ? '
 /** Global finishing offset applied to the xG logit (calibrated so league-wide goals ≈ xG). */
 const SHOT_OFFSET = 0;
 /** Utility cost of shooting: higher values make players wait for better chances (fewer, better shots). */
-const SHOT_COST = 0.27;
+const SHOT_COST = 0.2;
+/** First-to-three matches are about patience: chances are rarer so a match lasts about an hour of playing time. */
+const NEL_EXTRA = -0.02;
 function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number; v: number }[] } | null, ult: string): { xg: number; p: number; d: number; theta: number } {
   const t = c.t;
   const cax = ax(t, ms.bx);
@@ -614,6 +617,8 @@ function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number;
   if (c.foot !== 2 && !header) l -= 0.3 * (1 - c.a[A.WFT] / 100) * 1.1 * (1 - Math.min(0.9, c.m[M.SH_WEAK] + actBonus(act, M.SH_WEAK)));
   if (c.user && ms.uc) l += ms.uc.forgive;
   let p = logistic(l);
+  // skill and weapons move the chance around its xG, but never far: the number on screen stays honest
+  p = clamp(p, xg * 0.3, xg * 1.25 + 0.04);
   if (ult === 'zero') p = logistic(l + 0.25 + 0.5 * press * 0.5);
   return { xg, p: clamp(p, 0.004, 0.93), d: g.d, theta: g.theta };
 }
@@ -655,7 +660,7 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   const disg = Math.min(0.8, c.m[M.PA_DISG] + actBonus(act, M.PA_DISG));
   const pres = ms.press * (1 - Math.min(0.85, c.m[M.PRESS_RES] + c.m[M.COMPOSURE]));
   let l: number;
-  if (kind === 'through') l = 0.4 + c.m[M.PA_THROUGH] + actBonus(act, M.PA_THROUGH) + c.m[M.VISION] + actBonus(act, M.VISION) + (at(ms, c, A.VIS) - 65) / 30;
+  if (kind === 'through') l = 0.05 + c.m[M.PA_THROUGH] + actBonus(act, M.PA_THROUGH) + c.m[M.VISION] + actBonus(act, M.VISION) + (at(ms, c, A.VIS) - 65) / 30;
   else if (kind === 'cross') {
     const def = no.i >= 0 ? ms.pl[no.i] : null;
     l = -0.7 + c.m[M.PA_CROSS] + actBonus(act, M.PA_CROSS) + (at(ms, c, A.CRO) - 65) / 22 + (def ? (airSk(ms, mate) - airSk(ms, def)) / 18 + mate.m[M.AERIAL] - def.m[M.AERIAL] : 0.5);
@@ -672,7 +677,7 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   if (tax > 66 && !mate.open && kind !== 'cutback') l -= ((tax - 66) / 34) * 1.5; // congestion around the box
   const free = mate.open && lr.r < 0.35;
   if (tax > 74) l -= Math.min(2, mate.mk * 1.2 + mate.s[S.SH] * 0.12 + mate.s[S.G] * 0.7) * (free ? 0.45 : 1); // a man who keeps scoring is marked tighter
-  if (free) l += 0.7; // a free man with a clear lane is a simple ball
+  if (free) l += kind === 'through' ? 0.35 : 0.7; // a free man with a clear lane is a simple ball
   if (c.user && ms.uc) { l += ms.uc.forgive + (mate.chem - 50) / 100 * 0.6 + (ms.uc.dominion > ms.play ? 0.5 : 0); }
   else if (mate.user) l += (mate.chem - 50) / 100 * 0.4;
   return { p: clamp(sig(l), 0.03, 0.985), lane: lr.i };
@@ -711,7 +716,7 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       const add = (v: string, id: string, label: string, detail: string, ab = '') => {
         const act = ab ? actFor(ms, c, ab as ActCtx) : null;
         const s = shotCalc(ms, c, v, act, '');
-        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 16.5 ? 0.75 : 1) - SHOT_COST - c.s[S.SH] * 0.04 - c.s[S.XG] * 0.06 - c.s[S.G] * 0.1 - c.mk * 0.12, -1, v);
+        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 16.5 ? 0.75 : 1) - SHOT_COST - (ms.rules.kind === 'nel' ? NEL_EXTRA : 0) - c.s[S.SH] * 0.04 - c.s[S.XG] * 0.06 - c.s[S.G] * 0.1 - c.mk * 0.12, -1, v);
         if (act) { o.ab = act.id; o.sta = act.sta; o.hot = true; }
         if (full) { o.label = label; o.detail = detail + ` (${Math.round(g.d)} m, xG ${s.xg.toFixed(2)})`; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, s.p * 2.4)); }
         return o;
@@ -743,7 +748,7 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       // ultimates
       if (full || c.canFlow) {
         const dag = canUlt(ms, c, 'dag');
-        if (dag && g.d <= 20 && (g.theta < 0.5 || ms.bh >= 1 || ms.press > 0.5)) {
+        if (dag && (g.theta < 0.55 || (g.d <= 20 && (ms.bh >= 1 || ms.press > 0.5)))) {
           const vars: [string, string, string][] = ms.bh === 2 ? [['scissor', 'Scissor kick', 'Launch yourself at the high ball.'], ['volley', 'Improvised volley', 'Adjust mid-air and strike across it.']]
             : ms.bh === 1 ? [['volley', 'Improvised volley', 'Meet it at an impossible body angle.'], ['reverse', 'Reverse finish', 'Flick it behind your standing leg.']]
               : [['outside', 'Outside-foot shot', 'Bend it away from the keeper with the outside of the boot.'], ['reverse', 'Reverse finish', 'Back-heel or flick it from a closed body shape.']];
@@ -1079,8 +1084,11 @@ function goal(ms: MatchState, rng: Rng, c: MPlayer, v: string, xg: number, d: nu
   setRestart(ms, RST.KICKOFF, (1 - t) as 0 | 1, 50, 50);
 }
 
+/** Matches whose shots are recorded for the 3D view even though nobody is playing them (match simulator). */
+const REC = new WeakSet<MatchState>();
+export function recordReplays(ms: MatchState): void { REC.add(ms); }
 function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id: string; sta: number; fx: { k: number; v: number }[] } | null, ult: string, pForce = -1): void {
-  if (!ms.uc || ms.uc.mode === 'sim') return resolveShot0(ms, rng, c, v, act, ult, pForce);
+  if ((!ms.uc || ms.uc.mode === 'sim') && !REC.has(ms)) return resolveShot0(ms, rng, c, v, act, ult, pForce);
   // capture the moment for the 3D replay (no RNG is consumed here, so the simulation is unchanged)
   const ci = ms.pl.indexOf(c);
   const gk = gkOf(ms, 1 - c.t);
@@ -1109,7 +1117,9 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
   }
   rp.sc = [ms.score[0], ms.score[1]];
   const lu = LAST_ULT.get(ms);
-  if (!rp.ult && lu && lu.key && ms.steps - lu.step <= 6 && ms.pl[lu.idx]?.t === c.t) rp.ult = lu.key;
+  if (!rp.ult && lu && lu.key && ms.steps - lu.step <= 6 && lu.idx === ci && !['curtain', 'dominion'].includes(lu.key) && (from < 0 || !['trance', 'sprint'].includes(lu.key))) rp.ult = lu.key;
+  const dr = DRIB.get(ms);
+  if (dr && dr.idx === ci && ms.steps - dr.step <= 2 && !rp.ult) { rp.skill = dr.skill; rp.beat = dr.def; rp.as = -1; rp.fx = -1; rp.fy = -1; }
   (ms.replays ??= []).push(rp); if (ms.replays.length > 60) ms.replays.shift();
 }
 function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id: string; sta: number; fx: { k: number; v: number }[] } | null, ult: string, pForce = -1): void {
@@ -1117,7 +1127,9 @@ function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id
   const ci = ms.pl.indexOf(c);
   const isPen = v === 'pen';
   const s = shotCalc(ms, c, v.startsWith('dag') ? 'placed' : v, act, ult);
-  const p = pForce >= 0 ? pForce : s.p;
+  const cur = CURTAIN.get(ms);
+  const shut = !!cur && cur.t !== t && ms.steps <= cur.until && v !== 'pen'; // Iron Curtain: nothing gets through for a spell
+  const p = shut ? 0 : Math.min(0.98, (pForce >= 0 ? pForce : s.p) * KMUL);
   const xg = v.startsWith('dag') ? Math.min(s.xg, 0.12) : s.xg;
   c.s[S.SH]++; c.s[S.XG] += xg; touch(c);
   if (DBG.on) { const k = v + '/' + ms.arr + (s.d > 18 ? '/far' : '/box'); DBG[k + ' n'] = (DBG[k + ' n'] ?? 0) + 1; DBG[k + ' xg'] = (DBG[k + ' xg'] ?? 0) + xg; DBG[k + ' pr'] = (DBG[k + ' pr'] ?? 0) + ms.press; }
@@ -1352,6 +1364,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       M2.time(ms, 3.8 * tempo + rng.next() * 1.5, 0, 0);
       if (rng.next() < p) {
         c.s[S.DC]++;
+        DRIB.set(ms, { idx: ci, step: ms.steps, def: ms.nd, skill: skill ? (act ? 2 : 1) : 0 });
         nd.beat = skill ? 3 : 2;
         const adv = (skill ? 13 : 10) + paceSk(ms, c) / 30;
         ms.bx = clamp(ms.bx + (t === 0 ? adv : -adv), 2, 98);
@@ -1490,7 +1503,7 @@ function defPhase(ms: MatchState, rng: Rng): number {
       if (ch.startsWith('def:tackle') || ch === 'ult:curtain') {
         let p = tackleP();
         let noFoul = false;
-        if (ch === 'ult:curtain') { const ic = ultOf(nd, 'curtain')!; spendUlt(ms, nd, ic.id, 8); p = clamp(0.8 + ic.lv * 0.02, 0, 0.92); noFoul = true; }
+        if (ch === 'ult:curtain') { const ic = ultOf(nd, 'curtain')!; spendUlt(ms, nd, ic.id, 8); p = nd.user ? 1 : clamp(0.8 + ic.lv * 0.02, 0, 0.92); noFoul = true; if (nd.user) CURTAIN.set(ms, { t: nd.t, until: ms.steps + 40 }); }
         else if (ch.endsWith(':ab')) { const act = actFor(ms, nd, 'tackle'); if (act) { p = clamp(sig(logit(p) + actBonus(act, M.TACKLE)), 0, 0.95); useAbility(ms, nd, act.id, act.sta, true); } }
         return doTackle(ms, rng, nd, c, p, noFoul);
       }
@@ -1530,6 +1543,9 @@ function doTackle(ms: MatchState, rng: Rng, nd: MPlayer, c: MPlayer, p: number, 
   return 0;
 }
 
+/** The last successful take-on (shown before the shot in the 3D view when he shoots straight after it). */
+const DRIB = new WeakMap<MatchState, { idx: number; step: number; def: number; skill: number }>();
+const CURTAIN = new WeakMap<MatchState, { t: number; until: number }>();
 const URGE = new WeakMap<MatchState, { idx: number; step: number }>();
 const PRED = new WeakMap<MatchState, number>();
 /** Chance that a user's ultimate ends in a goal. */
@@ -1537,13 +1553,16 @@ const ULT_GOAL = 0.9;
 /** The user's ultimate finishes the move itself: the ball is put on a plate and struck. */
 /** The user's ultimate if it can be used now (any kind). */
 function anyUlt(ms: MatchState, p: MPlayer): { id: string; lv: number } | null {
-  for (let i = 0; i < p.ab.length; i++) { const d = abilityDef(p.ab[i].id); if (d?.kind === 'ultimate' && d.ult) return canUlt(ms, p, d.ult); }
+  for (let i = 0; i < p.ab.length; i++) { const d = abilityDef(p.ab[i].id); if (d?.kind === 'ultimate' && d.ult && d.ult !== 'curtain' && d.ult !== 'dominion') return canUlt(ms, p, d.ult); }
   return null;
 }
-function ultStrike(ms: MatchState, rng: Rng, sh: MPlayer, key: string, from: number, v = 'placed'): void {
+function ultStrike(ms: MatchState, rng: Rng, sh: MPlayer, key: string, from: number, v0 = 'placed'): void {
+  let v = v0;
   const t = sh.t;
   ms.car = ms.pl.indexOf(sh); ms.poss = t as 0 | 1; ms.from = from;
-  ms.bx = t === 0 ? 88.5 : 11.5; ms.by = 43 + rng.next() * 14; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
+  const tight = key === 'dag';
+  ms.bx = t === 0 ? (tight ? 96 : 88.5) : (tight ? 4 : 11.5); ms.by = tight ? (rng.chance(0.5) ? 9 + rng.next() * 7 : 84 + rng.next() * 7) : 43 + rng.next() * 14; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
+  if (tight) v = 'dag:outside';
   sh.x = ms.bx; sh.y = ms.by;
   resolveShot(ms, rng, sh, v, null, key, ULT_GOAL);
 }
@@ -1653,6 +1672,9 @@ function offPhase(ms: MatchState, rng: Rng): number {
   return 0;
 }
 
+/** The shot a user-goalkeeper has been asked about, and the multiplier his answer puts on the chance of a goal. */
+const KEEP = new WeakMap<MatchState, string>();
+let KMUL = 1;
 function actPhase(ms: MatchState, rng: Rng): number {
   if (ms.car < 0) { resolveLoose(ms, rng); return 0; }
   const c = ms.pl[ms.car];
@@ -1662,6 +1684,16 @@ function actPhase(ms: MatchState, rng: Rng): number {
   const opts = buildOptions(ms, c, isUser);
   if (!opts.length) { ms.bx = clamp(ms.bx + (c.t === 0 ? 4 : -4), 2, 98); machineOf(ms).time(ms, 3, 0, 0); return 0; }
   let chosen: Option | null = null;
+  // resuming after the user-goalkeeper's decision: the shot that was coming is taken, altered by his choice
+  let kpDone = false, kmul = 1;
+  const kp = KEEP.get(ms);
+  if (kp != null && ms.choice != null && u && !isUser) {
+    const ch = ms.choice; ms.choice = null; KEEP.delete(ms); kpDone = true;
+    chosen = opts.find((o) => o.id === kp) ?? null;
+    const left = ((ms.steps * 2654435761) >>> 0) % 1000 < 500; // the side the shot is going (the same number places it in the 3D view)
+    const geo = shotGeo(cax, ms.by);
+    kmul = ch === 'gk:set' ? (ms.note === 'pen' ? 1.05 : 0.9) : ch === 'gk:left' ? (left ? 0.5 : 1.45) : ch === 'gk:right' ? (left ? 1.45 : 0.5) : ch === 'gk:rush' ? (geo.d < 10 ? 0.62 : 1.18) : ch === 'gk:big' ? 0.76 : 1;
+  } else if (kp != null) KEEP.delete(ms);
   const urge = URGE.get(ms);
   if (urge && urge.idx === ms.car && ms.steps - urge.step <= 1 && !isUser) { URGE.delete(ms); const sh = opts.filter((o) => o.kind === 'shoot').sort((a, b) => b.p - a.p)[0]; if (sh) chosen = sh; }
   if (isUser && u) {
@@ -1693,7 +1725,27 @@ function actPhase(ms: MatchState, rng: Rng): number {
       me.req = 0;
     }
   }
+  // the user in goal: every shot at his goal is his decision (set, guess a side, come out, stay big)
+  if (u && u.mode !== 'sim' && !isUser && chosen.kind === 'shoot' && !kpDone) {
+    const me = ms.pl[u.idx];
+    if (me.on && me.line === 0 && me.t !== c.t) {
+      const geo = shotGeo(cax, ms.by);
+      const gp = clamp(chosen.p, 0.02, 0.97);
+      const mkO = (id: string, label: string, detail: string, mult: number, risk: string): Option => ({ id, kind: 'keep', label, detail, intent: 'Keep it out', risk, p: clamp(1 - gp * mult, 0.02, 0.98), u: 0, tgt: -1, v: '', ab: '', sta: 0 });
+      const pen = ms.note === 'pen';
+      const opts2: Option[] = [mkO('gk:set', pen ? 'Stay in the middle' : 'Set yourself and react', pen ? 'Wait for him to commit.' : 'Hold your ground and trust your reflexes. Reliable.', pen ? 1.05 : 0.9, 'Safe')];
+      opts2.push(mkO('gk:left', 'Commit early: dive left', 'Left is the top of the pitch view. Right guess and you are there before the ball; wrong and the net is empty.', 0.975, 'Guess'));
+      opts2.push(mkO('gk:right', 'Commit early: dive right', 'Right is the bottom of the pitch view. Right guess and you are there before the ball; wrong and the net is empty.', 0.975, 'Guess'));
+      if (!pen && geo.d < 17) opts2.push(mkO('gk:rush', 'Rush out and smother', geo.d < 10 ? 'He is close: closing the angle fast is your best chance.' : 'He still has time to lift it over you.', geo.d < 10 ? 0.62 : 1.18, geo.d < 10 ? 'Moderate' : 'Risky'));
+      if (!pen && geo.d < 9) opts2.push(mkO('gk:big', 'Stay big', 'Spread yourself and make him beat you.', 0.76, 'Moderate'));
+      KEEP.set(ms, chosen.id);
+      if (ask(ms, { kind: 'keeper', title: pen ? `Penalty — ${c.nm} steps up` : `${c.nm} shoots!`, ctx: `${Math.round(geo.d)} m out · he scores ${Math.round(gp * 100)}% of the time from here`, options: opts2, imp: 100 })) return 1;
+      KEEP.delete(ms);
+    }
+  }
+  KMUL = kmul;
   resolve(ms, rng, c, chosen);
+  KMUL = 1;
   return 0;
 }
 

@@ -126,26 +126,34 @@ export function buildOffer(g: Game, c: Club, kind: Offer['kind'], interest: numb
 
 // ───────────────────────────── NEL → professional football ─────────────────────────────
 
+/** Players rated 85+ at a club: used to stop one club collecting every star. */
+export function strongCount(w: World, c: Club): number { let n = 0; for (const id of c.squad) { const q = w.players[id]; if (q && !q.retired && ovr(q) >= 85) n++; } return n; }
 /** Every NEL youngster (except the user) signs a first professional contract, following the bids. */
 export function signNelPlayers(g: Game): void {
   const w = g.world;
   const rng = rngOf(w);
-  for (const tid of w.nel.teams) {
-    const team = w.clubs[tid];
-    for (const id of [...team.squad]) {
+  // the most valued players choose first; no club may hoard the class (at most two Blue Lock players and four NEL signings each)
+  const taken: Record<string, { bl: number; all: number }> = {};
+  const room = (c: Club | undefined, p: Player) => !!c && (taken[c.id]?.all ?? 0) < 4 && (p.origin !== 'bluelock' || (taken[c.id]?.bl ?? 0) < 2) && strongCount(w, c) < 6;
+  const order: { id: string; team: Club }[] = [];
+  for (const tid of w.nel.teams) for (const id of w.clubs[tid].squad) order.push({ id, team: w.clubs[tid] });
+  order.sort((a, b) => (w.nel.bids[b.id]?.top ?? 0) - (w.nel.bids[a.id]?.top ?? 0));
+  for (const { id, team } of order) {
+    {
       if (id === g.career.pid) continue;
       const p = w.players[id];
       if (!p) continue;
       const b = w.nel.bids[id];
-      let dest: Club | undefined = b?.topClub ? w.clubs[b.topClub] : undefined;
+      let dest: Club | undefined = b?.bids?.map((x) => w.clubs[x.club]).find((c) => room(c, p)) ?? undefined;
       // foreign youth are attached to their parent club and usually stay
-      if (p.origin === 'nelyouth' && team.parent && (!dest || rng.chance(0.7))) dest = w.clubs[team.parent];
+      if (p.origin === 'nelyouth' && team.parent && (!dest || rng.chance(0.7)) && room(w.clubs[team.parent], p)) dest = w.clubs[team.parent];
       if (!dest) {
         const o = ovr(p);
-        const list = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && Math.abs(levelOf(c) - o) <= 4);
+        const list = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league && Math.abs(levelOf(c) - o) <= 6 && room(c, p));
         dest = list.length ? rng.pick(list) : w.clubs[team.parent!];
       }
       const wage = b?.top ? Math.round(b.top / YEN_PER_EUR / 52 / 100) * 100 : undefined;
+      const t2 = (taken[dest.id] ??= { bl: 0, all: 0 }); t2.all++; if (p.origin === 'bluelock') t2.bl++;
       const tr = doTransfer(g, p, dest, 0, 'nel', { wage, years: 3 + rng.int(3), role: undefined, quiet: true });
       p.con!.role = w.season - p.born <= 20 && ovr(p) < levelOf(dest) - 6 ? 'prospect' : ovr(p) >= levelOf(dest) + 3 ? 'key' : 'rotation';
       tr.fromName = team.name + ' (NEL)';
@@ -412,6 +420,7 @@ export function aiTransferDay(g: Game, intensity = 1): number {
       if (sc.rep > c.rep + 4 && (q.con?.role === 'star' || q.con?.role === 'key')) continue;
       if (sc.squad.length <= 19) continue;
       if (q.pos === 'GK' && sc.squad.filter((x) => w.players[x]?.pos === 'GK').length <= 2) continue;
+      if (qo >= 85 && strongCount(w, c) >= 6) continue; // competitive balance: no super-team hoarding
       const s = qo + Math.max(0, q.pot - qo) * (w.season - q.born <= 23 ? 0.5 : 0) - (w.season - q.born > 30 ? 3 : 0) + rng.normal() * 2;
       if (s > bs) { bs = s; best = q; }
     }

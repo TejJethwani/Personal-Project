@@ -171,7 +171,9 @@ describe('full career simulation', () => {
     expect(w.transfers.filter((t) => t.type === 'transfer' && t.pid !== id).length).toBeGreaterThan(30);
     expect(w.transfers.some((t) => t.type === 'retire')).toBe(true);
     expect(Object.values(w.players).some((p) => p.origin === 'regen' && p.club)).toBe(true);
-    expect(w.news.some((n) => n.cat === 'manager')).toBe(true);
+    // managers change (old news about other people is cleared at the season rollover, so check the clubs)
+    expect(Object.values(w.clubs).some((c) => c.mgr.since > 2025)).toBe(true);
+    expect(w.news.filter((n) => n.s < w.season).every((n) => n.me)).toBe(true);
     // Blue Lock players are still in the game, at professional clubs, and have developed
     const isagi = Object.values(w.players).find((p) => p.name === 'Yoichi Isagi')!;
     expect(isagi.club).toBeTruthy(); expect(ovr(isagi)).toBeGreaterThanOrEqual(82); expect(isagi.hist.length).toBeGreaterThan(1);

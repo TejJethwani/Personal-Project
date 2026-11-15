@@ -57,11 +57,11 @@ describe('ratings', () => {
 describe('xG model', () => {
   it('matches its documented calibration and behaves monotonically', () => {
     const at = (m: number) => logistic(xgLogit(shotGeo(100 - m / 1.05, 50), { pressure: 0 }));
-    // inside the box chances sit between roughly 0.2 and 0.65; outside it they start near 0.2 and fade slowly
+    // inside the box chances sit between roughly 0.15 and 0.6; outside it they start near 0.2 at the edge and fade with distance
     expect(at(6)).toBeGreaterThan(0.4); expect(at(6)).toBeLessThan(0.66);
-    expect(at(11)).toBeGreaterThan(0.24); expect(at(11)).toBeLessThan(0.4);
-    expect(at(20)).toBeGreaterThan(0.17); expect(at(20)).toBeLessThan(0.21);
-    expect(at(30)).toBeGreaterThan(0.1); expect(at(30)).toBeLessThan(0.16);
+    expect(at(11)).toBeGreaterThan(0.2); expect(at(11)).toBeLessThan(0.4);
+    expect(at(17.5)).toBeGreaterThan(0.17); expect(at(17.5)).toBeLessThan(0.21);
+    expect(at(22)).toBeGreaterThan(0.09); expect(at(22)).toBeLessThan(0.14); expect(at(30)).toBeLessThan(0.07);
     expect(at(8)).toBeGreaterThan(at(14)); expect(at(14)).toBeGreaterThan(at(22)); expect(at(22)).toBeGreaterThan(at(32));
     const g = shotGeo(90, 50);
     expect(logistic(xgLogit(g, { pressure: 0.8 }))).toBeLessThan(logistic(xgLogit(g, { pressure: 0 })));
@@ -336,11 +336,11 @@ describe('later additions', () => {
   });
   it('xG is realistic for clear chances', () => {
     const x = (ax: number, y: number, o: object = {}) => lg2(xgL2(geo2(ax, y), { pressure: 0, ...o }));
-    expect(x(96.5, 50)).toBeGreaterThan(0.55); // tap-in from four metres
+    expect(x(96.5, 50)).toBeGreaterThan(0.5); // tap-in from four metres
     expect(x(89.5, 50, { oneOnOne: true })).toBeGreaterThan(x(89.5, 50)); // clean through from the penalty spot
-    expect(x(89.5, 50)).toBeGreaterThan(0.25); expect(x(89.5, 50)).toBeLessThan(0.4);
-    expect(x(89.5, 50, { pressure: 1 })).toBeGreaterThan(0.2); // even fully pressured, a shot from the spot is a real chance
-    expect(x(76, 50)).toBeGreaterThan(0.14); // twenty-five metres: a real shot, as requested
+    expect(x(89.5, 50)).toBeGreaterThan(0.2); expect(x(89.5, 50)).toBeLessThan(0.4);
+    expect(x(89.5, 50, { pressure: 1 })).toBeGreaterThan(0.15); // even fully pressured, a shot from the spot is a real chance
+    expect(x(83.5, 50)).toBeGreaterThan(0.17); // edge of the box: about 0.2, as requested
     expect(x(89.5, 50, { pressure: 1 })).toBeLessThan(x(89.5, 50));
   });
   it('a benched player can ask to come on, and replays are captured for interactive matches', () => {
@@ -421,4 +421,97 @@ describe('later additions', () => {
     expect((await idb.listSaves()).some((s) => s.careerId === g.id)).toBe(true);
     acc.signOut();
   });
+  it('a goalkeeper career: the user decides how to face every shot', () => {
+    const cfg = dc2(881); cfg.name = 'Keeper'; cfg.pos = 'GK'; cfg.pos2 = []; cfg.attrs = balancedAttrs('GK', 86, 'balanced', 3); cfg.skipNel = true;
+    const g = ng2(cfg); skipNel(g, '');
+    const me = g.world.players[g.career.pid];
+    expect(me.pos).toBe('GK'); expect(ovr(me)).toBeGreaterThan(80);
+    let keeper = 0, saves = 0, played = 0;
+    for (let m = 0; m < 6 && keeper < 6; m++) {
+      ap2(g, (x) => !!uft2(x) && x.world.stage === 1, 60);
+      const ms = sum2(g, 'full'); if (!ms) break;
+      if (!ms.uc) { adv2(ms); finishUserMatch(g, ms); continue; }
+      const mp = ms.pl[ms.uc.idx];
+      let n = 0;
+      while (!ms.done && n++ < 4000) {
+        const d = ms.pending;
+        if (d) { if (d.kind === 'keeper') { keeper++; expect(d.options.length).toBeGreaterThanOrEqual(3); for (const o of d.options) expect(o.p).toBeGreaterThan(0); expect(mp.line).toBe(0); } adv2(ms, d.options[n % d.options.length].id, 1); }
+        else adv2(ms, undefined, 1);
+      }
+      if (mp.used) { played++; saves += mp.s[S.SV]; expect(d2k(ms)).toBe(true); }
+      finishUserMatch(g, ms);
+    }
+    if (played) { expect(keeper).toBeGreaterThan(0); expect(saves).toBeGreaterThan(0); }
+  });
+  it('match simulator: custom team sheets are used and many-sim shares add up', async () => {
+    const q = await import('../src/engine/quickmatch');
+    const g = q.simWorld(77);
+    const a = q.autoSheet(g, 'eng1_ars'), b = q.autoSheet(g, 'IND');
+    expect(a.xi.length).toBe(11); expect(b.xi.length).toBe(11);
+    const swapped = { ...a, xi: [a.xi[0], ...a.xi.slice(1).reverse()] };
+    const ms = q.playSim(g, 'eng1_ars', 'IND', [swapped, b], { record: true });
+    expect(ms.done).toBe(true);
+    const started = ms.pl.filter((p) => p.t === 0 && p.started).map((p) => p.id).sort();
+    expect(started).toEqual([...swapped.xi].sort());
+    expect((ms.replays ?? []).length).toBeGreaterThan(0);
+    const many = q.playMany(g, 'eng1_ars', 'IND', [a, b], 12);
+    expect(many.h + many.d + many.a).toBe(12); expect(many.h).toBeGreaterThan(many.a);
+    const nel = q.playSim(g, 'nel_bastard', 'nel_pxg', [q.autoSheet(g, 'nel_bastard'), q.autoSheet(g, 'nel_pxg')], { nel: true });
+    expect(Math.max(nel.score[0], nel.score[1])).toBe(3);
+  });
+  it('every FIFA nation exists and World Cup qualifying produces 32 finalists', async () => {
+    const { NATIONS } = await import('../src/engine/data/nations');
+    expect(Object.keys(NATIONS).length).toBeGreaterThan(205);
+    for (const id of ['IND', 'PAK', 'CHN', 'BAN', 'THA', 'FIJ', 'BOL']) expect(NATIONS[id], id).toBeTruthy();
+    const intl = await import('../src/engine/international');
+    const cfg = dc2(883); cfg.name = 'Qualifier'; cfg.nat = 'IND'; cfg.skipNel = true;
+    const g = ng2(cfg); skipNel(g, '');
+    expect(g.world.wcq?.year).toBe(2026);
+    const mine = g.world.wcq!.groups.find((x) => x.teams.includes('IND'))!;
+    expect(mine.conf).toBe('AFC');
+    expect(g.world.wcq!.groups.reduce((n, x) => n + x.slots, 0)).toBe(32);
+    ap2(g, (x) => x.world.day >= 250);
+    expect(mine.next).toBeGreaterThan(0);
+    const q = intl.finalizeWcq(g);
+    expect(new Set(q).size).toBe(32);
+    for (const gr of g.world.wcq!.groups) { const played = Object.values(gr.tab).reduce((n, r) => n + r[0], 0); expect(played % 2).toBe(0); expect(played).toBeGreaterThan(0); }
+  });
 });
+describe('banter and rivalries', () => {
+  it('ships more than 500 lines of banter and resolves a line for any player', async () => {
+    const b = await import('../src/engine/data/banter');
+    expect(b.countBanterLines()).toBeGreaterThan(500);
+    const g = ng2(dc2(551));
+    const ps = Object.values(g.world.players).slice(0, 300);
+    for (const p of ps) for (const sit of ['pre', 'theyScore', 'youScore', 'youMiss', 'theyWon', 'press'] as const) { const l = b.banterLine(p, sit, 'Tej', 'Club', 2025, 3); expect(l.length).toBeGreaterThan(2); expect(l).not.toMatch(/\{(me|r|club)\}/); }
+    const kaiser = Object.values(g.world.players).find((p) => p.name === 'Michael Kaiser')!;
+    expect(new Set([1, 2, 4, 5, 7, 8].map((n) => b.banterLine(kaiser, 'pre', 'Tej', 'BM', 2025, n))).size).toBeGreaterThan(1);
+  });
+  it('rivalries form from matches, keep a head-to-head and feed the tunnel scene and interviews', async () => {
+    const rv = await import('../src/engine/rivalry');
+    const cfg = dc2(552); cfg.name = 'Rival Test'; cfg.attrs = balancedAttrs('ST', 90, 'poacher', 3);
+    const g = ng2(cfg);
+    let formed = false, faced = false, asked = false;
+    for (let m = 0; m < 10; m++) {
+      ap2(g, (x) => !!uft2(x) && x.world.stage === 1, 80);
+      const fx = uft2(g); if (!fx) break;
+      const side = fx.h === g.world.players[g.career.pid].club ? fx.h : fx.a;
+      const f = rv.faceoffFor(g, fx, side);
+      if (f) { faced = true; expect(f.lines[0].length).toBeGreaterThan(2); expect(f.replies.length).toBe(3); const fxs = rv.applyFaceoff(g, fx, f.rival.id, 'fire'); expect(fxs.length).toBeGreaterThan(0); expect(rv.hypeFlow(g, fx.id)).toBe(34); }
+      const ms = sum2(g, 'full'); if (!ms) break;
+      if (f && ms.uc) expect(ms.pl[ms.uc.idx].fl).toBeGreaterThanOrEqual(34);
+      let n = 0;
+      while (!ms.done && n++ < 4000) { const d = ms.pending; if (d) { const sh = d.options.filter((o) => o.kind === 'shoot').sort((a, b) => b.p - a.p)[0]; adv2(ms, (sh ?? d.options[0]).id, 1); } else adv2(ms, undefined, 1); }
+      finishUserMatch(g, ms);
+      const um = g.career.matches[g.career.matches.length - 1];
+      const iv = rv.interviewFor(g, um, ms);
+      if (iv) { asked = true; const out = rv.applyInterview(g, iv, 'ego'); expect(out.length).toBeGreaterThan(0); }
+      if (g.career.rivals.length) formed = true;
+    }
+    expect(formed).toBe(true); expect(asked).toBe(true);
+    const rid = g.career.rivals[0];
+    expect(g.career.rel[rid].rival).toBeGreaterThanOrEqual(14);
+    void faced;
+  });
+});
+const d2k = (ms: MatchState) => ms.pl.every((p) => p.s.every((v) => Number.isFinite(v) && v >= 0));

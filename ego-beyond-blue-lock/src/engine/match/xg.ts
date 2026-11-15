@@ -5,7 +5,7 @@
  * shot context. It is a logistic function of shot geometry and situation:
  *
  *   logit(xG) = -0.55 + 1.60·θ − 0.10·d + Σ modifiers        (inside the penalty area)
- *   xG = 0.20·e^(−(d−18)/30)·(1 − 0.3·p)                   (outside the area: ≈0.20 at 18 m, 0.16 at 25 m, 0.13 at 30 m)
+ *   xG = 0.20·e^(−(d−18)/30)·(1 − 0.3·p)                   (outside the area: ≈0.20 at the edge, 0.12 at 22 m, 0.06 at 28 m, 0.03 at 34 m)
  *
  *   θ  = angle (radians) subtended by the goal mouth (7.32 m) from the shot location
  *   d  = distance (metres) from the shot location to the centre of the goal
@@ -50,7 +50,7 @@ export function xgLogit(g: ShotGeo, o: { header?: boolean; volley?: boolean; pre
   // Outside the penalty area the model is deliberately generous (game feel): about 0.20 from the
   // edge of the box, fading slowly with distance, and only mildly reduced by pressure.
   if (g.d > 16.5) {
-    let x = 0.2 * Math.exp(-(g.d - 18) / 30) * (1 - 0.3 * o.pressure);
+    let x = 0.2 * Math.exp(-(Math.max(17, g.d) - 17) / 9) * (1 - 0.45 * o.pressure);
     if (o.volley) x *= 0.8;
     if (o.header) x *= 0.3;
     if (o.oneOnOne) x *= 1.3;
@@ -60,14 +60,14 @@ export function xgLogit(g: ShotGeo, o: { header?: boolean; volley?: boolean; pre
   if (o.header) l -= 1.0;
   if (o.volley) l -= 0.35;
   l -= 0.5 * o.pressure;
-  if (o.oneOnOne) l += 0.7;
+  if (o.oneOnOne) l += 0.55;
   if (o.rebound) l += 0.45;
   if (o.cutback) l += 0.35;
   if (g.d < 5.5 && !o.header) l += 0.35;
   // inside the box a shot on a sensible angle is never worth less than a long shot
   // open-play chances inside the box are compressed into roughly 0.2–0.65: nothing in the box is hopeless, nothing is automatic
   const x = 1 / (1 + Math.exp(-l));
-  return logit(o.header ? 0.08 + 0.5 * x : 0.16 + 0.5 * x);
+  return logit(o.header ? 0.07 + 0.48 * x : 0.13 + 0.5 * x);
 }
 export const PENALTY_XG = 0.76;
 export const logistic = (l: number) => 1 / (1 + Math.exp(-l));
