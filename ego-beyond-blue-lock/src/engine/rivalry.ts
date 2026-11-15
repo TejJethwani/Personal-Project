@@ -9,7 +9,7 @@ import { clamp, hashStr } from './rng';
 import { adjust, relOf, remember } from './relationships';
 import { addNews, milestone } from './util';
 import { teamInfo, pickSheet } from './match/setup';
-import { banterLine, REPLIES, QUESTIONS, ANSWERS } from './data/banter';
+import { banterLine, REPLIES, QUESTIONS, ANSWERS, type IvKind, type Tone } from './data/banter';
 import { POS_LINE } from './attributes';
 
 export const MAX_RIVALS = 5;
@@ -106,8 +106,8 @@ export function hypeFlow(g: Game, fid: string): number {
   return c.flags.hype === 'fire' ? 34 : c.flags.hype === 'cold' ? 20 : 8;
 }
 
-export interface Interview { kind: keyof typeof QUESTIONS; question: string; rival: Player | null; answers: { tone: 'humble' | 'confident' | 'ego'; text: string }[] }
-/** A post-match interview is offered after rival matches and after very good or very bad nights. */
+export interface Interview { kind: IvKind; question: string; rival: Player | null; result: 'W' | 'D' | 'L'; answers: { tone: Tone; text: string }[] }
+/** A post-match interview is offered after rival matches, after results that matter and after very good or very bad nights. */
 export function interviewFor(g: Game, um: UserMatch, ms: MatchState): Interview | null {
   const w = g.world, c = g.career;
   if (!um.line) return null;
@@ -115,21 +115,31 @@ export function interviewFor(g: Game, um: UserMatch, ms: MatchState): Interview 
   if (!me) return null;
   const rv = ms.pl.find((q) => q.t !== me.t && q.used && c.rivals.includes(q.id));
   const rival = rv ? w.players[rv.id] : null;
-  const star = um.rat >= 8 || um.line[S.G] >= 2 || um.potm, poor = um.rat > 0 && um.rat < 6;
-  const kind: Interview['kind'] = rival ? (um.res === 'W' ? 'rivalWin' : um.res === 'L' ? 'rivalLoss' : 'rivalDraw') : star ? 'star' : poor ? 'poor' : 'normal';
-  if (kind === 'normal' && hashStr(um.fid) % 4 !== 0) return null;
+  const res = um.res, gd = um.sc[0] - um.sc[1];
+  const star = um.rat >= 8 || um.line[S.G] >= 2 || um.potm, poor = um.rat > 0 && um.rat < 6.2;
+  const kind: IvKind = rival ? (res === 'W' ? 'rivalWin' : res === 'L' ? 'rivalLoss' : 'rivalDraw')
+    : star ? (res === 'W' ? 'starWin' : res === 'D' ? 'starDraw' : 'starLoss')
+      : poor ? (res === 'W' ? 'poorWin' : 'poorLoss')
+        : res === 'W' ? (gd >= 3 ? 'bigWin' : 'win') : res === 'D' ? 'draw' : gd <= -3 ? 'heavyLoss' : 'loss';
+  const routine = kind === 'win' || kind === 'draw' || kind === 'loss';
+  if (routine && hashStr(um.fid) % 4 !== 0) return null;
   const salt = hashStr(um.fid);
+  const sc = `${um.sc[0]}–${um.sc[1]}`;
+  const goals = um.line[S.G] === 1 ? 'One goal' : `${um.line[S.G]} goals`;
+  const fill = (t: string) => t.replace(/\{r\}/g, rival?.sn ?? '').replace(/\{opp\}/g, um.oppName).replace(/\{sc\}/g, sc).replace(/\{g\}/g, goals);
   const q = QUESTIONS[kind];
+  const set = ANSWERS[kind];
   return {
-    kind, rival, question: q[salt % q.length].replace(/\{r\}/g, rival?.sn ?? '').replace(/\{opp\}/g, um.oppName),
-    answers: (['humble', 'confident', 'ego'] as const).map((tone, i) => ({ tone, text: ANSWERS[tone][(salt + i * 3) % ANSWERS[tone].length] })),
+    kind, rival, result: res, question: fill(q[salt % q.length]),
+    answers: (['humble', 'confident', 'ego'] as const).map((tone, i) => ({ tone, text: fill(set[tone][(salt + i * 3) % set[tone].length]) })),
   };
 }
 export function applyInterview(g: Game, iv: Interview, tone: 'humble' | 'confident' | 'ego'): string[] {
   const c = g.career, me = g.world.players[c.pid];
   const out: string[] = [];
-  if (tone === 'humble') { c.image = clamp(c.image - 5, -100, 100); c.mgrTrust = clamp(c.mgrTrust + 1.5, 0, 100); out.push('Coach trust +1.5', 'Public image: more humble'); if (iv.rival) out.push(...adjust(g, iv.rival.id, { resp: 3, rival: -1 })); }
-  else if (tone === 'confident') { me.rep = clamp(me.rep + 0.4, 0, 99); c.image = clamp(c.image + 1, -100, 100); out.push('Reputation +0.4'); if (iv.rival) out.push(...adjust(g, iv.rival.id, { rival: 3, resp: 1 })); }
+  if (tone === 'humble') { const t = iv.result === 'L' ? 2.5 : 1.5; c.image = clamp(c.image - 5, -100, 100); c.mgrTrust = clamp(c.mgrTrust + t, 0, 100); out.push(`Coach trust +${t}`, 'Public image: more humble'); if (iv.rival) out.push(...adjust(g, iv.rival.id, { resp: 3, rival: -1 })); }
+  else if (tone === 'confident') { const r = iv.result === 'W' ? 0.4 : 0.15; me.rep = clamp(me.rep + r, 0, 99); c.image = clamp(c.image + 1, -100, 100); out.push(`Reputation +${r}`); if (iv.result === 'L') { c.mgrTrust = clamp(c.mgrTrust + 0.5, 0, 100); out.push('Coach trust +0.5 (backing the team)'); } if (iv.rival) out.push(...adjust(g, iv.rival.id, { rival: 3, resp: 1 })); }
+  else if (iv.result === 'L') { c.image = clamp(c.image + 6, -100, 100); c.mgrTrust = clamp(c.mgrTrust - 2.5, 0, 100); out.push('Public image: more arrogant', 'Coach trust −2.5 (blaming others after a defeat)'); if (iv.kind === 'starLoss') { me.rep = clamp(me.rep + 0.3, 0, 99); out.push('Reputation +0.3'); } if (iv.rival) out.push(...adjust(g, iv.rival.id, { rival: 7, resp: -2 })); }
   else { me.rep = clamp(me.rep + 0.7, 0, 99); c.image = clamp(c.image + 7, -100, 100); c.mgrTrust = clamp(c.mgrTrust - 1, 0, 100); out.push('Reputation +0.7', 'Public image: more arrogant', 'Coach trust −1'); if (iv.rival) out.push(...adjust(g, iv.rival.id, { rival: 7, resp: -2 })); }
   const said = iv.answers.find((a) => a.tone === tone)!.text;
   addNews(g, iv.rival ? 'rivalry' : 'career', `${me.sn}: "${said}"`, `${iv.question} — ${me.name}'s answer after the match${iv.rival ? ` against ${iv.rival.name}'s side` : ''}.`, { imp: tone === 'ego' ? 2 : 1, me: true, pids: iv.rival ? [iv.rival.id] : undefined });

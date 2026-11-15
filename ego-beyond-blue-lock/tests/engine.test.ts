@@ -487,6 +487,29 @@ describe('banter and rivalries', () => {
     const kaiser = Object.values(g.world.players).find((p) => p.name === 'Michael Kaiser')!;
     expect(new Set([1, 2, 4, 5, 7, 8].map((n) => b.banterLine(kaiser, 'pre', 'Tej', 'BM', 2025, n))).size).toBeGreaterThan(1);
   });
+  it('post-match interviews fit the result: no bragging after a defeat', async () => {
+    const rv = await import('../src/engine/rivalry');
+    const b = await import('../src/engine/data/banter');
+    const g = ng2(dc2(553));
+    const line = (gl: number) => { const l = new Array(40).fill(0); l[S.APP] = 1; l[S.G] = gl; l[S.RATN] = 1; return l; };
+    const ms = { uc: { idx: 0 }, pl: [{ t: 0, id: g.career.pid, used: true }] } as unknown as MatchState;
+    const brag = /best player on that pitch|Tonight proved it|Nobody stops me|team did the work|collective win/i;
+    const cases: [string, [number, number], number, number, boolean, string[]][] = [
+      ['L', [0, 3], 6.4, 0, false, ['heavyLoss']], ['L', [1, 2], 6.6, 0, false, ['loss']], ['L', [2, 3], 8.6, 2, true, ['starLoss']], ['L', [0, 1], 5.6, 0, false, ['poorLoss']],
+      ['W', [4, 0], 7.0, 0, false, ['bigWin']], ['W', [3, 1], 8.8, 2, true, ['starWin']], ['D', [1, 1], 6.8, 0, false, ['draw']], ['D', [2, 2], 8.4, 2, true, ['starDraw']],
+    ];
+    for (const [res, sc, rat, gl, potm, kinds] of cases) {
+      let iv = null;
+      for (let k = 0; k < 40 && !iv; k++) iv = rv.interviewFor(g, { fid: `f${k}${res}${sc}`, line: line(gl), res, sc, rat, potm, oppName: 'Rivals FC' } as never, ms);
+      expect(iv, `${res} ${sc}`).toBeTruthy();
+      expect(kinds).toContain(iv!.kind);
+      expect(iv!.result).toBe(res);
+      expect(iv!.question).not.toMatch(/\{/);
+      if (res === 'L') for (const a of iv!.answers) expect(a.text, a.text).not.toMatch(brag);
+      if (sc[0] - sc[1] <= -2) expect(iv!.question).toMatch(/defeat|painful|worst|left early|explain/i);
+    }
+    for (const k in b.ANSWERS) for (const t of ['humble', 'confident', 'ego'] as const) expect(b.ANSWERS[k as never][t].length, k + t).toBeGreaterThan(2);
+  });
   it('rivalries form from matches, keep a head-to-head and feed the tunnel scene and interviews', async () => {
     const rv = await import('../src/engine/rivalry');
     const cfg = dc2(552); cfg.name = 'Rival Test'; cfg.attrs = balancedAttrs('ST', 90, 'poacher', 3);

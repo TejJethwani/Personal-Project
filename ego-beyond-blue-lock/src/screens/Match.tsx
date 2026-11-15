@@ -396,7 +396,7 @@ function Post({ g, ms, notes }: { g: Game; ms: MatchState; notes: string[] }) {
       {iv && <Card title="Mixed zone — post-match interview" className="hot mb">
         <Cutscene3D g={g} kind="press" title="POST-MATCH INTERVIEW" me={meP} other={iv.rival}
           beats={[{ who: 'reporter', name: 'The Touchline', text: iv.question }]}
-          choices={iv.answers.map((a) => ({ id: a.tone, label: a.tone === 'humble' ? 'Humble' : a.tone === 'confident' ? 'Confident' : 'Pure ego', text: a.text }))}
+          choices={iv.answers.map((a) => ({ id: a.tone, label: iv.result === 'L' ? (a.tone === 'humble' ? 'Own it' : a.tone === 'confident' ? 'Back the team' : 'Defiant ego') : iv.result === 'D' ? (a.tone === 'humble' ? 'Fair result' : a.tone === 'confident' ? 'We were better' : 'Not enough for me') : (a.tone === 'humble' ? 'Humble' : a.tone === 'confident' ? 'Confident' : 'Pure ego'), text: a.text }))}
           onChoose={(id) => act((x) => applyInterview(x, iv, id as 'humble' | 'confident' | 'ego')) ?? []}
           onClose={() => setIvDone(true)} />
       </Card>}
