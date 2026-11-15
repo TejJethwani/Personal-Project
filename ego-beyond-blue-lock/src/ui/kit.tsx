@@ -1,9 +1,11 @@
 /** Shared UI primitives: icons, avatar, badges, tables, tabs, modal. All artwork is original SVG/CSS. */
-import { useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import type { Appearance, Game, Player } from '../engine/types';
 import { ovr } from '../engine/attributes';
 import { lookFor } from '../engine/career';
 import { NATIONS } from '../engine/data/nations';
+import { lookOf, hasLook } from '../engine/data/looks';
+import { crestOf, nationKit, clubKit, type Kit as KitT, type Crest as CrestT, type CrestShape, type CrestIcon } from '../engine/data/kits';
 import { nav } from '../store/game';
 import { hashStr } from '../engine/rng';
 
@@ -44,12 +46,60 @@ export function Modal({ children, onClose, wide }: { children: ReactNode; onClos
 }
 export function Empty({ children }: { children: ReactNode }) { return <p className="muted" style={{ padding: '18px 0' }}>{children}</p>; }
 
+const CREST_SHAPE: Record<CrestShape, string> = {
+  shield: 'M10 7H90V48C90 74 71 90 50 98C29 90 10 74 10 48Z', pointed: 'M13 6H87V55L50 98L13 55Z', round: 'M50 4A46 46 0 1 1 49.9 4Z',
+  hex: 'M50 3L93 27V73L50 97L7 73V27Z', diamond: 'M50 3L97 50L50 97L3 50Z', banner: 'M12 6H88V93L50 77L12 93Z',
+};
+const CREST_ICON: Record<CrestIcon, string> = {
+  star: 'M50 25L56 41H73L59 51L64 68L50 58L36 68L41 51L27 41H44Z',
+  ball: 'M50 26A20 20 0 1 1 49.9 26ZM50 36L58 42L55 52H45L42 42Z',
+  crown: 'M30 60L27 34L39 45L50 28L61 45L73 34L70 60Z',
+  wings: 'M50 56C42 40 30 34 22 36C28 42 30 48 36 52C30 52 26 54 24 58C36 60 44 58 50 56ZM50 56C58 40 70 34 78 36C72 42 70 48 64 52C70 52 74 54 76 58C64 60 56 58 50 56Z',
+  tower: 'M36 64V40H40V34H45V40H48V34H52V40H55V34H60V40H64V64ZM46 64V54A4 4 0 0 1 54 54V64Z',
+  flame: 'M50 24C54 34 64 38 64 50C64 60 57 66 50 66C43 66 36 60 36 50C36 44 40 40 42 36C43 42 46 44 48 44C46 36 47 30 50 24Z',
+  wave: 'M24 48C30 40 36 40 42 48C48 56 54 56 60 48C66 40 72 40 78 48V58C72 50 66 50 60 58C54 66 48 66 42 58C36 50 30 50 24 58Z',
+  bolt: 'M54 24L36 52H48L44 72L64 42H52Z',
+  anchor: 'M48 26H52V32H58V36H52V60C58 59 63 55 64 50L68 52C66 60 59 66 50 66C41 66 34 60 32 52L36 50C37 55 42 59 48 60V36H42V32H48Z',
+  leaf: 'M50 68C36 58 32 42 50 24C68 42 64 58 50 68ZM50 66V34',
+  sun: 'M50 36A10 10 0 1 1 49.9 36ZM48 22H52V30H48ZM48 62H52V70H48ZM28 44H36V48H28ZM64 44H72V48H64ZM33 29L36 26L42 32L39 35ZM58 32L64 26L67 29L61 35ZM33 63L39 57L42 60L36 66ZM58 60L61 57L67 63L64 66Z',
+  eye: 'M24 46C34 32 66 32 76 46C66 60 34 60 24 46ZM50 38A8 8 0 1 0 50.1 38Z',
+};
+function lumOf(hex: string): number { const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return 0.4; const v = parseInt(m[1], 16); return (0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255; }
+/** An original crest drawn from a club's (or nation's) colours and identity. */
+export function Crest({ c, size }: { c: CrestT; size: number }) {
+  const uid = useId().replace(/:/g, '');
+  const big = size >= 40;
+  const ink = lumOf(c.c1) > 0.62 ? '#111827' : '#ffffff';
+  const iconCol = c.field === 'plain' || c.field === 'ring' ? (lumOf(c.c1) > 0.62 ? c.c2 : '#ffd166') : '#ffd166';
+  const field = (() => {
+    switch (c.field) {
+      case 'stripes': return <>{[0, 1, 2, 3, 4].map((k) => <rect key={k} x={k * 20} y="0" width="20" height="100" fill={k % 2 ? c.c2 : c.c1} />)}</>;
+      case 'halves': return <><rect width="50" height="100" fill={c.c1} /><rect x="50" width="50" height="100" fill={c.c2} /></>;
+      case 'quarters': return <><rect width="100" height="100" fill={c.c1} /><rect x="50" width="50" height="50" fill={c.c2} /><rect y="50" width="50" height="50" fill={c.c2} /></>;
+      case 'chevron': return <><rect width="100" height="100" fill={c.c1} /><path d="M0 62L50 30L100 62V80L50 48L0 80Z" fill={c.c2} /></>;
+      case 'sash': return <><rect width="100" height="100" fill={c.c1} /><path d="M-10 20L20 -10L110 80L80 110Z" fill={c.c2} /></>;
+      case 'cross': return <><rect width="100" height="100" fill={c.c1} /><rect x="42" width="16" height="100" fill={c.c2} /><rect y="38" width="100" height="16" fill={c.c2} /></>;
+      case 'ring': return <><rect width="100" height="100" fill={c.c2} /><circle cx="50" cy="50" r="33" fill={c.c1} /></>;
+      default: return <rect width="100" height="100" fill={c.c1} />;
+    }
+  })();
+  return (
+    <svg className="crest" width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
+      <defs><clipPath id={`cr${uid}`}><path d={CREST_SHAPE[c.shape]} /></clipPath><linearGradient id={`gl${uid}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".28" /><stop offset=".55" stopColor="#fff" stopOpacity="0" /></linearGradient></defs>
+      <g clipPath={`url(#cr${uid})`}>{field}{big && <path d={CREST_ICON[c.icon]} fill={iconCol} stroke="rgba(0,0,0,.35)" strokeWidth="1.5" />}<rect width="100" height="100" fill={`url(#gl${uid})`} /></g>
+      {big && c.stars > 0 && <g fill="#ffd166">{Array.from({ length: c.stars }, (_, k) => <path key={k} transform={`translate(${50 + (k - (c.stars - 1) / 2) * 12 - 15} ${(c.shape === 'round' ? 16 : 18) - 13.8}) scale(.3)`} d={CREST_ICON.star} />)}</g>}
+      <path d={CREST_SHAPE[c.shape]} fill="none" stroke="rgba(0,0,0,.55)" strokeWidth={big ? 4 : 7} />
+      <path d={CREST_SHAPE[c.shape]} fill="none" stroke="#ffd166" strokeOpacity=".75" strokeWidth={big ? 1.6 : 0} transform="translate(50 50) scale(.9) translate(-50 -50)" />
+      {big ? <g><rect x="18" y={c.shape === 'round' ? 62 : 66} width="64" height="17" rx="3" fill="rgba(5,8,16,.78)" /><text x="50" y={c.shape === 'round' ? 75 : 79} textAnchor="middle" fontSize="14" fontWeight="800" fontFamily="'Barlow Condensed', sans-serif" fill="#fff" letterSpacing="1">{c.text.slice(0, 4)}</text></g>
+        : <text x="50" y="62" textAnchor="middle" fontSize="34" fontWeight="800" fontFamily="'Barlow Condensed', sans-serif" fill={ink} stroke={ink === '#ffffff' ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.4)'} strokeWidth="3" paintOrder="stroke">{c.text.slice(0, 3)}</text>}
+    </svg>
+  );
+}
 export function ClubBadge({ g, id, lg }: { g: Game; id: string; lg?: boolean }) {
   const c = g.world.clubs[id];
   const n = NATIONS[id];
-  const col = c ? c.col : n ? ['#1e3a6e', '#e8eefc'] : ['#222', '#888'];
-  const dark = (hex: string) => { const v = parseInt(hex.slice(1), 16); return ((v >> 16) & 255) * 0.3 + ((v >> 8) & 255) * 0.59 + (v & 255) * 0.11 < 140; };
-  return <span className={`badge ${lg ? 'lg' : ''}`} style={{ background: `linear-gradient(135deg, ${col[0]} 0 58%, ${col[1]} 58%)`, color: dark(col[0]) ? '#fff' : '#111' }} aria-hidden="true">{(c?.abbr ?? id).slice(0, 3)}</span>;
+  const cr = c ? crestOf(c.id, c.col, c.abbr) : n ? (() => { const k = nationKit(id); return crestOf(id, [k.c1, k.c2], id, true); })() : crestOf(id, ['#222222', '#888888'], id.slice(0, 3));
+  return <span className={`badge crestwrap ${lg ? 'lg' : ''}`} aria-hidden="true"><Crest c={cr} size={lg ? 52 : 26} /></span>;
 }
 export function ClubLink({ g, id, badge = true }: { g: Game; id: string; badge?: boolean }) {
   const c = g.world.clubs[id];
@@ -165,7 +215,8 @@ export function lookColours(look: Appearance, hair?: string): FaceSpec {
   };
 }
 /** Original layered-SVG avatar. NPC looks are generated deterministically from the player's id. */
-export function Avatar({ look, size = 64, kit = '#1ea7ff', hair }: { look: Appearance; size?: number; kit?: string; hair?: string }) {
+export function Avatar({ look, size = 64, kit = '#1ea7ff', hair, kitObj }: { look: Appearance; size?: number; kit?: string; hair?: string; kitObj?: KitT }) {
+  const shirtId = useId().replace(/:/g, '');
   const skin = SKIN[look.skin % SKIN.length];
   const hc = hair ?? look.hairHex ?? HAIR_COLS[look.hairCol % HAIR_COLS.length];
   const ec = EYE_COLS[look.eyeCol % EYE_COLS.length];
@@ -186,7 +237,20 @@ export function Avatar({ look, size = 64, kit = '#1ea7ff', hair }: { look: Appea
     <svg className="avatar" width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Player portrait">
       <rect width="100" height="100" fill={BGS[(look.bg ?? 0) % BGS.length]} />
       {H?.back && <g fill={hs}>{H.back}</g>}
-      <path d="M0 100 30 82h40l30 18z" fill={kit} />
+      <path d="M0 100 30 82h40l30 18z" fill={kitObj?.c1 ?? kit} />
+      {kitObj && kitObj.pat !== 'plain' && <g clipPath={`url(#sh${shirtId})`} fill={kitObj.c2}>
+        <defs><clipPath id={`sh${shirtId}`}><path d="M0 100 30 82h40l30 18z" /></clipPath></defs>
+        {kitObj.pat === 'stripes' && [12, 30, 48, 66, 84].map((x) => <rect key={x} x={x} y="80" width="9" height="20" />)}
+        {kitObj.pat === 'pinstripes' && [10, 20, 30, 40, 50, 60, 70, 80, 90].map((x) => <rect key={x} x={x} y="80" width="1.6" height="20" />)}
+        {kitObj.pat === 'hoops' && [86, 94].map((y) => <rect key={y} x="0" y={y} width="100" height="4" />)}
+        {kitObj.pat === 'halves' && <rect x="50" y="80" width="50" height="20" />}
+        {kitObj.pat === 'thirds' && <rect x="36" y="80" width="28" height="20" />}
+        {kitObj.pat === 'band' && <rect x="42" y="80" width="16" height="20" />}
+        {kitObj.pat === 'chestband' && <rect x="0" y="89" width="100" height="5" />}
+        {kitObj.pat === 'sash' && <path d="M14 82h12l40 18H52z" />}
+        {kitObj.pat === 'sleeves' && <><path d="M0 100 18 89l6 11z" /><path d="M100 100 82 89l-6 11z" /></>}
+        {kitObj.pat === 'checks' && [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap((i) => [0, 1, 2].map((j) => (i + j) % 2 ? <rect key={`${i}_${j}`} x={i * 10} y={80 + j * 7} width="10" height="7" /> : null))}
+      </g>}
       {collar === 3 && <path d="M14 100l8-13h6l-7 13zM32 100l4-18h5l-2 18zM61 100l-2-18h5l4 18zM79 100l-7-13h6l8 13z" fill="#fff" opacity=".8" />}
       {collar === 4 && <path d="M26 84l8-2 40 18H56z" fill="#fff" opacity=".85" />}
       {collar === 5 && <path d="M16 91l7-4h54l7 4zM5 97l6-3h78l6 3z" fill="#fff" opacity=".75" />}
@@ -253,9 +317,10 @@ function lumHex(hex: string): number {
   return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
 }
 export function PlayerAvatar({ g, p, size = 48 }: { g: Game; p: Player; size?: number }) {
-  const look = p.id === g.career.pid ? g.career.look : lookFor(p.id);
+  const mine = p.id === g.career.pid && !g.career.flags.playAs;
+  const look = mine ? g.career.look : lookOf(p);
   const club = p.club ? g.world.clubs[p.club] : null;
-  return <Avatar look={look} size={size} kit={club?.col[0] ?? '#31405f'} hair={p.id === g.career.pid && !g.career.flags.playAs ? undefined : p.hair} />;
+  return <Avatar look={look} size={size} kitObj={club ? clubKit(club.id, club.col) : NATIONS[p.nat] && !club ? nationKit(p.nat) : undefined} kit={club ? clubKit(club.id, club.col).c1 : '#31405f'} hair={mine || hasLook(p.name) ? undefined : p.hair} />;
 }
 
 export interface Col<T> { h: string; get: (r: T) => ReactNode; sort?: (r: T) => number | string; n?: boolean; title?: string; cls?: string }

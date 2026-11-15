@@ -5,12 +5,13 @@ import { buildMods, M, N_MODS, abilityDef, egoType, reactionName, weaponTags } f
 import { mixSeed, seedState, clamp, hashStr } from '../rng';
 import { FORMATIONS } from '../data/clubs';
 import { NATIONS } from '../data/nations';
+import { nationKit } from '../data/kits';
 import { S, NSTAT, newLine, addLine, REG_RULES, type MatchState, type MPlayer, type MTeam, type Rules, type UserCtl } from './model';
 import { advance, setInjuryRate } from './engine';
 
 export interface TeamInfo { id: string; name: string; abbr: string; col: string; col2: string; tac: Tactics; squad: string[]; master?: string; nat: boolean; rep: number }
 
-const NAT_COLS = ['#1e6bd6', '#d62828', '#f4f4f4', '#2a9d8f', '#f4a261', '#6a4c93', '#111111', '#ffd60a'];
+
 export function teamInfo(w: World, id: string, u20 = false): TeamInfo {
   const c = w.clubs[id];
   if (c) return { id, name: c.name, abbr: c.abbr, col: c.col[0], col2: c.col[1], tac: c.tac, squad: c.squad, master: c.master, nat: false, rep: c.rep };
@@ -18,7 +19,7 @@ export function teamInfo(w: World, id: string, u20 = false): TeamInfo {
   const ns = w.nations[id];
   const h = hashStr(id);
   return {
-    id, name: (n?.name ?? id) + (u20 ? ' U-20' : ''), abbr: id, col: NAT_COLS[h % NAT_COLS.length], col2: NAT_COLS[(h >> 3) % NAT_COLS.length],
+    id, name: (n?.name ?? id) + (u20 ? ' U-20' : ''), abbr: id, col: nationKit(id).c1, col2: nationKit(id).c2,
     tac: { form: ['4-3-3', '4-2-3-1', '4-4-2'][h % 3], press: 0.55, line: 0.5, tempo: 0.55, width: 0.55, direct: 0.5 },
     squad: (u20 ? ns?.u20squad : ns?.squad) ?? [], nat: true, rep: n?.str ?? 70,
   };

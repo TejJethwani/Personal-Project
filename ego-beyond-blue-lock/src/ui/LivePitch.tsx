@@ -8,6 +8,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Decision, MatchState, Option } from '../engine/match/model';
+import { paintKit } from '../engine/data/kits';
+import { msKits } from './Replay3D';
 
 export interface Marker { x: number; y: number; opts: Option[]; label: string; kind: 'mate' | 'goal' | 'move' | 'self'; idx: number }
 const SHORT: Record<string, string> = { behind: 'IN BEHIND', blind: 'BLINDSIDE', near: 'NEAR POST', far: 'FAR POST', short: 'COME SHORT', overlap: 'OVERLAP', hold: 'HOLD', cut: 'CUT LANE', tackle: 'TACKLE', press: 'PRESS', contain: 'CONTAIN', carry: 'CARRY', dribble: 'TAKE ON', shoot: 'SHOOT' };
@@ -189,6 +191,7 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
       const R = Math.max(7, Math.min(13, W * 0.0135));
       const u = m.uc?.idx ?? -1;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const KITS = msKits(m);
       const order: number[] = [];
       for (let i = 0; i < n; i++) if (S.to.on[i]) order.push(i);
       order.sort((a, b) => py[a] - py[b]);
@@ -202,12 +205,15 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
         if (i === u) { const pulse = 1 + Math.sin(now / 260) * 0.12; ctx.strokeStyle = '#3df2ff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy, (R + 4.5) * pulse, 0, 6.3); ctx.stroke(); }
         const fill = gk ? (lum(T.col) > 0.55 ? '#14833b' : '#f5d90a') : T.col;
         const g = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.15, cx, cy, R);
-        g.addColorStop(0, '#ffffff55'); g.addColorStop(0.25, fill); g.addColorStop(1, fill);
-        ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.3); ctx.fill();
+        g.addColorStop(0, 'rgba(255,255,255,.4)'); g.addColorStop(0.35, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.18)');
+        const kt = gk ? null : KITS[p.t];
+        ctx.fillStyle = gk ? fill : kt!.c1; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.3); ctx.fill();
+        if (kt && kt.pat !== 'plain') { ctx.save(); ctx.clip(); if (kt.pat === 'sleeves') { ctx.fillStyle = kt.c2; ctx.fillRect(cx - R, cy - R * 0.2, R * 0.45, R * 1.2); ctx.fillRect(cx + R * 0.55, cy - R * 0.2, R * 0.45, R * 1.2); } else paintKit(ctx, kt, cx - R, cy - R, R * 2, R * 2); ctx.restore(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.3); }
         ctx.fillStyle = g; ctx.fill();
         ctx.lineWidth = i === car ? 2.6 : 1.6; ctx.strokeStyle = p.star ? '#ffd166' : i === car ? '#ffffff' : gk ? '#111' : T.col2 || '#0b1020'; ctx.stroke();
-        ctx.fillStyle = lum(fill) > 0.6 ? '#0a0f18' : '#fff'; ctx.font = `700 ${Math.round(R * 1.05)}px 'Barlow Condensed', sans-serif`;
-        if (p.num) ctx.fillText(String(p.num), cx, cy + 0.5);
+        const numBg = gk ? fill : kt!.pat === 'plain' || kt!.pat === 'sleeves' ? kt!.c1 : kt!.c1;
+        ctx.fillStyle = lum(numBg) > 0.6 ? '#0a0f18' : '#fff'; ctx.strokeStyle = lum(numBg) > 0.6 ? 'rgba(255,255,255,.7)' : 'rgba(0,0,0,.7)'; ctx.lineWidth = 2.4; ctx.font = `700 ${Math.round(R * 1.05)}px 'Barlow Condensed', sans-serif`;
+        if (p.num) { ctx.strokeText(String(p.num), cx, cy + 0.5); ctx.fillText(String(p.num), cx, cy + 0.5); }
         if (i === u || i === car || i === hv) {
           ctx.font = `600 ${Math.max(11, Math.round(R * 1.05))}px 'Barlow Condensed', sans-serif`;
           const w = ctx.measureText(p.nm).width + 10;

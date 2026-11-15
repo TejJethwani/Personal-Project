@@ -1,6 +1,7 @@
 /** Career creation: turns a creator configuration into a new Game. */
 import type { AbilityRef, Appearance, Career, CustomAbility, Foot, Game, Pos, Settings, World, Player } from './types';
 import { SCHEMA_VERSION } from './types';
+import { LOOKS } from './data/looks';
 import { createWorld, rngOf, newPlayer, addToClub, assignNumbers } from './worldgen';
 import { calcOvr, makeAttrs, solveToTarget, N_ATTR } from './attributes';
 import { PERSONALITIES, registerCustom, abilityDef } from './abilities';
@@ -107,7 +108,7 @@ function takeOver(cfg: CareerConfig, w: World, p: Player): Game {
   p.notable = true;
   const o = calcOvr(p.a, p.pos);
   const career = baseCareer(cfg, w, p, o);
-  career.look = lookFor(p.id);
+  career.look = { ...lookFor(p.id), ...(LOOKS[p.name] ?? {}) };
   career.flags.playAs = 1;
   // weapons beyond the four-slot limit are not removed; an ultimate he already owns stays usable
   const g: Game = { schema: SCHEMA_VERSION, id: 'c' + Date.now().toString(36) + (cfg.seed % 1000), created: new Date().toISOString(), name: p.name, edited: false, settings: { ...cfg.settings, nel: { ...cfg.settings.nel } }, world: w, career, live: null };

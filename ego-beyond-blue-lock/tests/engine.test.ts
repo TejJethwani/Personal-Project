@@ -508,7 +508,7 @@ describe('banter and rivalries', () => {
       if (res === 'L') for (const a of iv!.answers) expect(a.text, a.text).not.toMatch(brag);
       if (sc[0] - sc[1] <= -2) expect(iv!.question).toMatch(/defeat|painful|worst|left early|explain/i);
     }
-    for (const k in b.ANSWERS) for (const t of ['humble', 'confident', 'ego'] as const) expect(b.ANSWERS[k as never][t].length, k + t).toBeGreaterThan(2);
+    for (const k in b.ANSWERS) for (const t of ['humble', 'confident', 'ego'] as const) expect((b.ANSWERS as Record<string, Record<string, string[]>>)[k][t].length, k + t).toBeGreaterThan(2);
   });
   it('rivalries form from matches, keep a head-to-head and feed the tunnel scene and interviews', async () => {
     const rv = await import('../src/engine/rivalry');

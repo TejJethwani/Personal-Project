@@ -5,20 +5,21 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Game, Player } from '../engine/types';
-import { lookFor } from '../engine/career';
+import { lookOf, hasLook } from '../engine/data/looks';
 import { teamInfo } from '../engine/match/setup';
 import { lookColours } from './kit';
-import { drawPlayer, mkCam, proj, poly, line, type Face, type Pose, type V3, type Cam } from './Replay3D';
+import { drawPlayer, mkCam, proj, poly, line, teamKit, type Face, type Pose, type V3, type Cam } from './Replay3D';
 
 export interface Beat { who: 'me' | 'other' | 'reporter'; name: string; text: string }
 export interface Choice { id: string; label: string; text: string }
 function faceFor(g: Game, p: Player): Face {
   const mine = p.id === g.career.pid;
-  const f: Face = lookColours(mine ? g.career.look : lookFor(p.id), mine && !g.career.flags.playAs ? undefined : p.hair);
+  const own = mine && !g.career.flags.playAs;
+  const f: Face = lookColours(own ? g.career.look : lookOf(p), own || hasLook(p.name) ? undefined : p.hair);
   try { if (f.cap) f.capP = new Path2D(f.cap); if (f.top) f.topP = new Path2D(f.top); } catch { /* hair cap only */ }
   return f;
 }
-const kitOf = (g: Game, p: Player): [string, string] => { const id = p.club ?? p.nat; const t = teamInfo(g.world, id); return [t.col, t.col2 || '#111827']; };
+const kitOf = (g: Game, p: Player): [string, string] => { const id = p.club ?? p.nat; const t = teamInfo(g.world, id); const k = teamKit(id, t.col, t.col2 || '#111827'); return [k.c1, k.c2]; };
 
 export function Cutscene3D({ g, kind, me, other, beats, choices, onChoose, onClose, title }: { g: Game; kind: 'tunnel' | 'press'; me: Player; other?: Player | null; beats: Beat[]; choices?: Choice[]; onChoose?: (id: string) => string[]; onClose: () => void; title: string }) {
   const ref = useRef<HTMLCanvasElement>(null);

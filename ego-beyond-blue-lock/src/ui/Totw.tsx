@@ -1,6 +1,7 @@
 /** Team of the Week / Round / Month / Season drawn as a line-up on a pitch, and the newspaper card. */
 import type { Award, Game, News } from '../engine/types';
 import { nav } from '../store/game';
+import { PlayerAvatar } from './kit';
 
 const LINE: Record<string, number> = { GK: 0, CB: 1, LB: 1, RB: 1, DM: 2, CM: 2, LM: 2, RM: 2, AM: 3, LW: 3, RW: 3, SS: 3, ST: 4 };
 const SIDE: Record<string, number> = { LB: 0, LM: 0, LW: 0, CB: 1, DM: 1, CM: 1, AM: 1, ST: 1, SS: 1, GK: 1, RB: 2, RM: 2, RW: 2 };
@@ -15,6 +16,7 @@ export function TotwPitch({ g, a }: { g: Game; a: Award }) {
     <div className="totw" role="img" aria-label={`${a.title}: ${xi.map((x) => x.name).join(', ')}`}>
       {rows.filter((r) => r.length).map((r, i) => <div key={i} className="ln">{[...r].sort((p, q) => (SIDE[p.pos] ?? 1) - (SIDE[q.pos] ?? 1)).map((x) => (
         <button key={x.pid} className={`pl link ${x.pid === g.career.pid ? 'me' : ''}`} onClick={() => nav('player', x.pid)} title={`${x.name} · ${x.clubName}`}>
+          {g.world.players[x.pid] && <PlayerAvatar g={g} p={g.world.players[x.pid]} size={40} />}
           <span className="rt">{x.rat.toFixed(1)}</span>
           <span className="nm">{g.world.players[x.pid]?.sn ?? x.name}</span>
           <span className="cb">{x.pos} · {x.clubName}</span>

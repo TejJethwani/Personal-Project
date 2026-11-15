@@ -9,14 +9,14 @@ import { positionOf, seasonLabel } from '../engine/competitions';
 import { S } from '../engine/match/model';
 import { mainWeapon } from '../engine/abilities';
 import { act, nav } from '../store/game';
-import { Card, Chip, ClubBadge, DataTable, Empty, Kpi, Ovr, PlayerLink, Pos, Rating, natName, type Col } from '../ui/kit';
+import { Card, Chip, ClubBadge, DataTable, Empty, Kpi, Ovr, PlayerLink, PlayerAvatar, Pos, Rating, natName, type Col } from '../ui/kit';
 
 function squadCols(g: Game, league: string): Col<Player>[] {
   const w = g.world;
   const L = (p: Player) => p.ss[league];
   return [
     { h: '#', get: (p) => <span className="dim">{p.num || ''}</span>, sort: (p) => p.num },
-    { h: 'Player', get: (p) => <span className="row gap6"><PlayerLink g={g} id={p.id} full />{p.inj > 0 && <Chip k="r">inj {p.inj}d</Chip>}{p.susp > 0 && <Chip k="r">susp</Chip>}{p.con?.loanFrom && <Chip k="w">loan</Chip>}{g.career.rivals.includes(p.id) && <Chip k="e">rival</Chip>}</span>, sort: (p) => p.sn },
+    { h: 'Player', get: (p) => <span className="row gap6"><PlayerAvatar g={g} p={p} size={30} /><PlayerLink g={g} id={p.id} full />{p.inj > 0 && <Chip k="r">inj {p.inj}d</Chip>}{p.susp > 0 && <Chip k="r">susp</Chip>}{p.con?.loanFrom && <Chip k="w">loan</Chip>}{g.career.rivals.includes(p.id) && <Chip k="e">rival</Chip>}</span>, sort: (p) => p.sn },
     { h: 'Pos', get: (p) => <Pos p={p.pos} />, sort: (p) => p.pos },
     { h: 'Age', n: true, get: (p) => w.season - p.born, sort: (p) => w.season - p.born },
     { h: 'Nat', get: (p) => <span className="small muted">{p.nat}</span>, sort: (p) => p.nat, title: 'Nationality' },

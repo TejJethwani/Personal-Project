@@ -395,3 +395,9 @@ body.rm .cer-lights i, body.rm .cer-win .burst, body.rm .cer-nom.roll { animatio
 @media (max-width: 560px) { .npaper .cols { columns: 1; } .npaper { padding: 14px; } }
 
 .npaper .link { color: #1a1712; text-decoration: underline; font-size: 12px; }
+
+.badge.crestwrap { background: none; clip-path: none; width: auto; height: auto; display: inline-flex; flex: none; }
+.crest { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+
+.totw .pl .avatar { border-radius: 50%; border: 2px solid rgba(255,255,255,.7); margin-bottom: 2px; }
+.totw .pl.me .avatar { border-color: var(--cyan); }

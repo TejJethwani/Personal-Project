@@ -9,9 +9,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchState, Replay } from '../engine/match/model';
 import type { Game } from '../engine/types';
-import { lookFor } from '../engine/career';
+import { lookOf, hasLook } from '../engine/data/looks';
 import { lookColours, type FaceSpec } from './kit';
 import { ULT_STYLE, ULT_NAME } from './UltCutIn';
+import { clubKit, nationKit, paintKit, matchKits, type Kit } from '../engine/data/kits';
+import { NATIONS } from '../engine/data/nations';
+/** The kit a team wears (patterns for clubs, traditional colours for nations). */
+export function teamKit(id: string, col: string, col2: string): Kit { return NATIONS[id] ? nationKit(id) : clubKit(id, [col, col2]); }
+/** Both teams' kits for a match, with an away kit when they clash. */
+export function msKits(ms: { teams: { id: string; col: string; col2: string }[] }): [Kit, Kit] { return matchKits(teamKit(ms.teams[0].id, ms.teams[0].col, ms.teams[0].col2), teamKit(ms.teams[1].id, ms.teams[1].col, ms.teams[1].col2)); }
 
 export type V3 = [number, number, number];
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -78,6 +84,7 @@ export interface Pose { rot?: number; lift?: number; kick?: number; arms?: numbe
   strike?: number; // 0..1 through a kicking motion (back-swing → contact at 0.45 → follow-through)
   heel?: boolean; // the kick is a back-heel
   glow?: string; // eye glow colour (ultimates)
+  kit?: Kit; // shirt pattern
 }
 const ARM: [number, number, number][] = [[0.14, 0.14, 0.25], [2.85, 2.85, 0.2], [1.7, 1.7, 0.1], [0.35, 2.95, 0.2], [2.2, 2.2, 0.9]]; // down, up, wide, point, half-up (left, right, elbow)
 
@@ -130,14 +137,16 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, c: Cam, X: number, Z: 
   const armW = Math.max(1.3, 0.09 * s);
   const [aL, aR, el] = ARM[o.arms ?? 0];
   for (const sd of [-1, 1]) {
-    if (o.runPh != null && !o.arms) { const th = (sd < 0 ? -1 : 1) * Math.sin(o.runPh) * 0.8; limb(sd * 0.27 * s, sh, fw * th, 0.27 * s, fw * (th + 1.25), 0.24 * s, armW, shade(col, -0.14), f.skin); }
-    else { const A = sd < 0 ? aL : aR; limb(sd * 0.27 * s, sh, sd * A, 0.27 * s, sd * (A + (A > 1.5 ? -el : el)), 0.25 * s, armW, shade(col, -0.14), f.skin); }
+    const sleeve = o.kit?.pat === 'sleeves' ? o.kit.c2 : shade(col, -0.14);
+    if (o.runPh != null && !o.arms) { const th = (sd < 0 ? -1 : 1) * Math.sin(o.runPh) * 0.8; limb(sd * 0.27 * s, sh, fw * th, 0.27 * s, fw * (th + 1.25), 0.24 * s, armW, sleeve, f.skin); }
+    else { const A = sd < 0 ? aL : aR; limb(sd * 0.27 * s, sh, sd * A, 0.27 * s, sd * (A + (A > 1.5 ? -el : el)), 0.25 * s, armW, sleeve, f.skin); }
   }
   ctx.lineCap = 'butt';
   const gr = ctx.createLinearGradient(-0.24 * s, 0, 0.24 * s, 0);
   gr.addColorStop(0, col); gr.addColorStop(1, shade(col, -0.28));
   ctx.fillStyle = gr;
   ctx.beginPath(); ctx.roundRect(-0.24 * s, hip - 0.72 * s, 0.48 * s, 0.58 * s, 0.08 * s); ctx.fill();
+  if (o.kit && o.kit.pat !== 'plain' && o.kit.pat !== 'sleeves' && s > 6) { ctx.save(); ctx.clip(); paintKit(ctx, o.kit, -0.24 * s, hip - 0.72 * s, 0.48 * s, 0.58 * s); const sg = ctx.createLinearGradient(-0.24 * s, 0, 0.24 * s, 0); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = sg; ctx.fillRect(-0.24 * s, hip - 0.72 * s, 0.48 * s, 0.58 * s); ctx.restore(); }
   if (o.num && s > 15) { ctx.fillStyle = lum(col) > 0.6 ? '#111' : '#fff'; ctx.font = `700 ${Math.round(0.3 * s)}px 'Barlow Condensed', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(String(o.num), 0, hip - 0.32 * s); }
   // ── head: the same face as the player's portrait (portrait geometry scaled onto the head)
   const hy = hip - 0.9 * s, r = 0.17 * s;
@@ -654,8 +663,10 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
     pose.num = p.num;
     pose.ring = p.user ? '#3df2ff' : isSh && !cele ? 'rgba(255,255,255,.75)' : pose.ring;
     const q = proj(cam, [X, 0, Z]);
-    const col = isGk ? (lum(ms.teams[p.t].col) > 0.5 ? '#16a34a' : '#f5d90a') : ms.teams[p.t].col;
-    const col2 = isGk ? '#1b1b1b' : ms.teams[p.t].col2 || '#111827';
+    const kit = isGk ? undefined : msKits(ms)[p.t];
+    if (kit) pose.kit = kit;
+    const col = isGk ? (lum(ms.teams[p.t].col) > 0.5 ? '#16a34a' : '#f5d90a') : kit!.c1;
+    const col2 = isGk ? '#1b1b1b' : (kit!.pat === 'plain' || kit!.pat === 'sleeves' ? kit!.c2 : ms.teams[p.t].col2) || '#111827';
     const face = faces[idx] ?? FALLBACK_FACE;
     // afterimages for the dribbling ultimates
     if (isSh && !cele && (rp.ult === 'trance' || rp.ult === 'sprint') && dribU >= 0) for (let gi = 1; gi <= 4; gi++) { const gp = dribAt(Math.max(0, dribU - gi * 0.035)); items.push({ z: proj(cam, gp).z, draw: () => drawPlayer(ctx, cam, gp[0], gp[2], ULT_STYLE[rp.ult!]?.col ?? col, col2, face, { ...pose, ring: undefined, glow: undefined, alpha: 0.4 - gi * 0.08 }) }); }
@@ -736,7 +747,7 @@ export function Replay3D({ ms, rp, onClose, auto, quick, g }: { ms: MatchState; 
   const [run, setRun] = useState(0);
   const [stage, setStage] = useState(0); // 0 playing, 1 result shown, 2 celebration, 3 finished
   const sc = buildScene(rp, quick, ms);
-  const faces = useMemo<Face[]>(() => ms.pl.map((p) => { const wp = g?.world.players[p.id]; const mine = !!g && p.id === g.career.pid; const f: Face = lookColours(mine ? g!.career.look : lookFor(p.id), mine && !g!.career.flags.playAs ? undefined : wp?.hair); try { if (f.cap) f.capP = new Path2D(f.cap); if (f.top) f.topP = new Path2D(f.top); } catch { /* no Path2D: hair is drawn as a cap only */ } return f; }), [ms, g]);
+  const faces = useMemo<Face[]>(() => ms.pl.map((p) => { const wp = g?.world.players[p.id]; const mine = !!g && p.id === g.career.pid && !g.career.flags.playAs; const named = hasLook(wp?.name ?? p.nm); const f: Face = lookColours(mine ? g!.career.look : lookOf({ id: p.id, name: wp?.name ?? p.nm }), mine || named ? undefined : wp?.hair); try { if (f.cap) f.capP = new Path2D(f.cap); if (f.top) f.topP = new Path2D(f.top); } catch { /* no Path2D: hair is drawn as a cap only */ } return f; }), [ms, g]);
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
