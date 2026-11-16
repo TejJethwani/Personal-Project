@@ -50,6 +50,7 @@ export interface MPlayer {
   focus: number; // user defensive stance for the current possession
   mk: number; // marked man: extra attention earned by this season's scoring rate
   mka: number; // the same for a creator: extra attention earned by this season's assist rate
+  age?: number; role?: string; // for set-piece duties: seniority and squad status
 }
 
 export interface MTeam {

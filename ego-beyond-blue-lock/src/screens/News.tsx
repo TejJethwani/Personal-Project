@@ -34,10 +34,21 @@ export function thirdPerson(t: string, name: string): string {
     .replace(/\b[Yy]ou\b/g, name);
 }
 const shout = (t: string) => t.toUpperCase().replace(/!*$/, '!');
-function headline(p: Paper, n: News, name: string): string {
+/** Every paper tells the same story its own way. */
+function headline(p: Paper, n: News, name: string, g?: Game): string {
   const t = thirdPerson(n.title, name);
-  if (p.cls === 'tabloid') return shout(t);
+  const k = n.id % 4;
+  if (p.cls === 'tabloid') return shout(n.cat === 'match' && k === 0 ? `What a night! ${t}` : n.cat === 'transfer' && !n.paper ? `${['Done deal', 'Bombshell', 'Exclusive', 'Shock move'][k]}: ${t}` : n.cat === 'award' ? `Crowned! ${t}` : t);
+  if (p.cls === 'jp') { const bl = !!g && !!n.pids?.some((id) => g.world.players[id]?.origin === 'bluelock'); return bl && !/Egoists abroad/.test(t) ? `Egoist watch: ${t}` : t; }
+  if (p.cls === 'euro') return n.cat === 'match' ? `Le match — ${t}` : n.cat === 'transfer' && !n.paper ? `Mercato — ${t}` : n.cat === 'award' ? `Les trophées — ${t}` : t;
   return t;
+}
+function bodyOf(p: Paper, n: News, sn: string): string {
+  const b = thirdPerson(n.body, sn), k = n.id % 3;
+  if (p.cls === 'tabloid') return (n.cat === 'match' ? ['Unbelievable scenes. ', 'Get in! ', 'You could not script it. '][k] : n.cat === 'transfer' ? ['Hold the back page. ', 'The rumour mill is spinning. ', ''][k] : '') + b;
+  if (p.cls === 'euro') return b + (n.cat === 'match' ? [' A result that says as much about the system as the scoreline.', ' The details decided it.', ''][k] : n.cat === 'club' ? ' A season told in one table.' : '');
+  if (p.cls === 'jp') return b + (n.cat === 'match' && n.me ? [' Ego was on display.', ' The egoist never rests.', ''][k] : '');
+  return b;
 }
 /** An illustrated "photo" for a story: the player, the club's colours, or the trophy. */
 function Photo({ g, n, big }: { g: Game; n: News; big?: boolean }) {
@@ -58,6 +69,22 @@ function Photo({ g, n, big }: { g: Game; n: News; big?: boolean }) {
     </figure>
   );
 }
+/** Blue Lock Sports' standing feature: how every Blue Lock graduate is doing this season. */
+function BlueLockTable({ g }: { g: Game }) {
+  const w = g.world;
+  const rows = Object.values(w.players).filter((p) => p.origin === 'bluelock' && !p.retired).map((p) => {
+    let ap = 0, gl = 0, as = 0, rt = 0, rn = 0;
+    for (const cid in p.ss) { const c = w.comps[cid]; if (c?.kind === 'friendly') continue; const l = p.ss[cid]; ap += l[S.APP]; gl += l[S.G]; as += l[S.A]; rt += l[S.RAT]; rn += l[S.RATN]; }
+    return { p, ap, gl, as, rat: rn ? rt / rn : 0 };
+  }).filter((r) => r.ap > 0).sort((a, b) => b.gl + b.as * 0.7 - (a.gl + a.as * 0.7) || b.rat - a.rat).slice(0, 14);
+  if (!rows.length) return null;
+  return (
+    <div className="bl-table"><div className="kick">ブルーロック · The Blue Lock table — this season</div>
+      <table><thead><tr><th>Egoist</th><th>Club</th><th className="n">Apps</th><th className="n">G</th><th className="n">A</th><th className="n">Avg</th></tr></thead><tbody>
+        {rows.map((r) => <tr key={r.p.id} className={r.p.id === g.career.pid ? 'me' : ''}><td><PlayerLink g={g} id={r.p.id} /></td><td className="small">{r.p.club ? w.clubs[r.p.club]?.name ?? '' : '—'}</td><td className="n">{r.ap}</td><td className="n"><b>{r.gl}</b></td><td className="n">{r.as}</td><td className="n">{r.rat ? r.rat.toFixed(2) : '—'}</td></tr>)}
+      </tbody></table></div>
+  );
+}
 /** The news as newspapers: one edition a week per paper, a lead story with a photo and columns. Old editions keep only the stories about you. */
 export function NewsScreen({ g }: { g: Game }) {
   const w = g.world;
@@ -72,7 +99,10 @@ export function NewsScreen({ g }: { g: Game }) {
   const inCat = (n: News) => (cat === 'all' ? true : cat === 'me' ? n.me : cat === 'club' ? n.cat === 'club' || n.cat === 'manager' : cat === 'world' ? ['world', 'record', 'youth'].includes(n.cat) : n.cat === cat);
   // the press follows fame: an unknown youngster is a footnote, a star is the front page (Blue Lock Sports always follows its egoists)
   const fame = paper.id === 'bls' ? 1 : Math.max(0.3, Math.min(1.15, (me.rep - 25) / 50));
-  const score = (n: News) => (n.me ? n.imp * fame : n.imp) + (paper.boost[n.cat] ?? 0) + (n.me ? 0.6 * fame - 0.3 : 0.15) + (paper.cls === 'tabloid' && /€\d{3}|\d{3}m|record|sacked|row|fires back/i.test(n.title + n.body) ? 1 : 0);
+  // editors' judgement: silverware and the big awards lead; a routine league report about one player does not
+  const big = (n: News) => (/champions\b|win the|lift the|Ballon d'Or|promoted|relegated|sacked|World Cup|Champions League final/i.test(n.title) ? 1.8 : 0);
+  const routine = (n: News) => (n.me && n.cat === 'match' && !/final|derby|hat-trick/i.test(n.title + n.body) ? Math.min(n.imp, 1.4) : n.imp);
+  const score = (n: News) => (n.me ? routine(n) * fame : n.imp) + big(n) + (paper.boost[n.cat] ?? 0) + (n.me ? 0.6 * fame - 0.3 : 0.15) + (paper.cls === 'tabloid' && /€\d{3}|\d{3}m|record|sacked|row|fires back/i.test(n.title + n.body) ? 1 : 0);
   const list = w.news.filter((n) => weekOf(n) === cur && inCat(n) && (n.paper ? n.paper === paper.id : !paper.only || paper.only(g, n))).sort((a, b) => score(b) - score(a) || b.id - a.id);
   const lead = list[0];
   const idx = weeks.indexOf(cur);
@@ -86,8 +116,9 @@ export function NewsScreen({ g }: { g: Game }) {
       <div className="row wrap mb">{CATS.map(([k, l]) => <button key={k} className={`btn sm ${cat === k ? 'pri' : ''}`} onClick={() => setCat(k)}>{l}</button>)}</div>
       {lead ? <div className={`npaper ${paper.cls}`}>
         <div className="mast"><h1>{paper.name}</h1><div className="tagl">{paper.tag}</div><div className="sub"><span>{lead.date}</span><span>{seasonLabel(lead.s)} · Edition {weeks.length - idx}</span><span>{list.length} stories</span></div></div>
-        <div className="lead"><Photo g={g} n={lead} big /><div><div className="kick">{kick(lead)}</div><h2>{headline(paper, lead, name)}</h2><p>{thirdPerson(lead.body, sn)}</p></div></div>
-        <div className="cols">{list.slice(1, 40).map((n, i) => <article key={n.id} className={n.me ? 'me' : ''}>{(i < 3 || i % 4 === 0) && (n.pids?.length || n.clubs?.length || n.me) ? <Photo g={g} n={n} /> : null}<div className="kick">{kick(n)} · {n.date}</div><h5>{headline(paper, n, name)}</h5><p>{thirdPerson(n.body, sn)}</p>{n.pids && n.pids.length > 0 && <p style={{ marginTop: 4 }}>{n.pids.slice(0, 3).map((id) => g.world.players[id] ? <span key={id} style={{ marginRight: 8 }}><PlayerLink g={g} id={id} /></span> : null)}</p>}</article>)}</div>
+        <div className="lead"><Photo g={g} n={lead} big /><div><div className="kick">{kick(lead)}</div><h2>{headline(paper, lead, name, g)}</h2><p>{bodyOf(paper, lead, sn)}</p></div></div>
+        {paper.cls === 'jp' && <BlueLockTable g={g} />}
+        <div className="cols">{list.slice(1, 40).map((n, i) => <article key={n.id} className={n.me ? 'me' : ''}>{(i < 3 || i % 4 === 0) && (n.pids?.length || n.clubs?.length || n.me) ? <Photo g={g} n={n} /> : null}<div className="kick">{kick(n)} · {n.date}</div><h5>{headline(paper, n, name, g)}</h5><p>{bodyOf(paper, n, sn)}</p>{n.pids && n.pids.length > 0 && <p style={{ marginTop: 4 }}>{n.pids.slice(0, 3).map((id) => g.world.players[id] ? <span key={id} style={{ marginRight: 8 }}><PlayerLink g={g} id={id} /></span> : null)}</p>}</article>)}</div>
       </div> : <Empty>{paper.only ? `${paper.name} has nothing about you, Blue Lock or Japan this week.` : 'No stories in this edition for that section.'}</Empty>}
     </>
   );

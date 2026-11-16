@@ -275,6 +275,7 @@ function canUlt(ms: MatchState, p: MPlayer, key: string): { id: string; lv: numb
 /** The most recent ultimate of a match (not saved): a goal that follows it is replayed with that ultimate's effects. */
 const LAST_ULT = new WeakMap<MatchState, { key: string; idx: number; step: number }>();
 function spendUlt(ms: MatchState, p: MPlayer, id: string, sta: number): void {
+  LAST_FREE.set(ms, p.flEnd <= ms.play);
   p.ultN++;
   LAST_ULT.set(ms, { key: abilityDef(id)?.ult ?? '', idx: ms.pl.indexOf(p), step: ms.steps });
   if (ms.uc && ms.uc.mode !== 'sim') { const d = abilityDef(id); (ms.ults ??= []).push({ n: (ms.ults.length ? ms.ults[ms.ults.length - 1].n : 0) + 1, key: d?.ult ?? '', name: d?.name ?? 'Ultimate', idx: ms.pl.indexOf(p), t: p.t, x: p.x, y: p.y, min: goalMinute(ms) }); if (ms.ults.length > 12) ms.ults.shift(); }
@@ -342,7 +343,7 @@ function doRestart(ms: MatchState, rng: Rng): void {
       const bA = ax(t, ms.bx);
       M2.time(ms, 0, 22, 0);
       if (bA >= 70 && bA <= 86 && Math.abs(ms.by - 50) <= 24) {
-        const i = pickTaker(ms, t, (p) => p.a[A.LSH] * 0.45 + p.a[A.CRO] * 0.3 + p.a[A.SHP] * 0.25 + (p.user ? 2 : 0));
+        const i = pickTaker(ms, t, (p) => p.a[A.LSH] * 0.45 + p.a[A.CRO] * 0.3 + p.a[A.SHP] * 0.25 + (p.user ? 2 : 0) + (ultOf(p, 'fk') ? 15 : 0) + Math.min(0, ((p.age ?? 24) - 19) * 3));
         give(ms, i, ms.bx, ms.by, ARR.SET); ms.note = 'fk';
       } else if (bA > 66) {
         const i = pickTaker(ms, t, (p) => p.a[A.CRO]);
@@ -354,7 +355,16 @@ function doRestart(ms: MatchState, rng: Rng): void {
       break;
     }
     case RST.PENALTY: {
-      const i = pickTaker(ms, t, (p) => p.a[A.PEN] * 0.7 + p.a[A.COM] * 0.3 + (p.user ? 6 : 0) + p.ego * 0.03);
+      // the designated taker: a senior forward or the team's star with good technique from the spot. Kids and holding
+      // midfielders only get the ball if they really are the best option, and the user earns the job like anyone else.
+      const i = pickTaker(ms, t, (p) => {
+        const age = p.age ?? 24, pos = p.pos;
+        const posB = p.line === 3 ? 7 : pos === 'AM' || pos === 'SS' || pos === 'LW' || pos === 'RW' ? 4 : p.line === 2 ? -1 : -5;
+        const roleB = p.role === 'star' ? 7 : p.role === 'key' ? 3 : p.role === 'prospect' || p.role === 'development' ? -6 : 0;
+        const ageB = age < 19 ? -(19 - age) * 4 : Math.min(4, (age - 19) * 0.6);
+        const meB = p.user && ms.uc ? (ms.uc.trust - 50) / 12 : 0;
+        return p.a[A.PEN] * 0.6 + p.a[A.COM] * 0.2 + p.ovr * 0.25 + posB + roleB + ageB + meB + p.ego * 0.02;
+      });
       ms.bx = t === 0 ? 89.5 : 10.5; ms.by = 50; shape(ms); give(ms, i, ms.bx, 50, ARR.SET); ms.note = 'pen';
       M2.time(ms, 0, 70, 30);
       break;
@@ -782,6 +792,14 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
           o.ab = comet.id; o.sta = 8; o.hot = true;
           if (full) { o.label = 'Comet Drive'; o.detail = `Set it on fire from ${Math.round(g.d)} metres. Rises, then dips under the bar.`; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, p * 2)); }
         }
+        const cres = ms.note !== 'fk' ? canUlt(ms, c, 'crescent') : null;
+        if (cres && g.d > 13 && g.d <= 30 && ms.bh === 0) {
+          const s = shotCalc(ms, c, 'placed', null, 'crescent');
+          const p = clamp(s.xg * 2 + 0.1 + c.m[M.SH_ANGLE] * 0.1, 0.08, 0.5);
+          const o = opt('shoot', 'ult:crescent', p, p * 0.95 * bias, -1, 'placed');
+          o.ab = cres.id; o.sta = 7; o.hot = true;
+          if (full) { o.label = 'Crescent Strike'; o.detail = 'Start it metres wide of the post and hook it back in.'; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, p * 2)); }
+        }
         const fkU = ms.note === 'fk' ? canUlt(ms, c, 'fk') : null;
         if (fkU && g.d <= 32) {
           const s = shotCalc(ms, c, 'fk', null, 'fk');
@@ -1017,9 +1035,9 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
   }
   if (full && c.user && ms.note !== 'pen' && ax(c.t, ms.bx) > 52 && !OPTS.some((o) => o.id.startsWith('ult:') && o.id !== 'ult:dominion')) {
     const ur = anyUlt(ms, c);
-    if (ur) { const d = abilityDef(ur.id)!; const o = opt('shoot', 'ult:go', ULT_GOAL, 0, -1, ''); o.ab = ur.id; o.sta = 7; o.hot = true; o.label = d.name; o.detail = d.desc.split('. ')[0] + '.'; o.intent = 'Score'; o.risk = 'Ultimate'; }
+    if (ur) { const d = abilityDef(ur.id)!; const o = opt('shoot', 'ult:go', c.flEnd > ms.play ? ULT_GOAL : ULT_FREE, 0, -1, ''); o.ab = ur.id; o.sta = 7; o.hot = true; o.label = d.name; o.detail = d.desc.split('. ')[0] + '.'; o.intent = 'Score'; o.risk = 'Ultimate'; }
   }
-  if (full && c.user) for (let k = 0; k < OPTS.length; k++) { const o = OPTS[k]; if (o.id.startsWith('ult:') && o.id !== 'ult:dominion') { o.p = Math.max(o.p, ULT_GOAL); if (!o.detail.includes('ULTIMATE')) o.detail += ' ULTIMATE — finishes the move itself and almost always scores.'; o.intent = 'Score'; o.risk = 'Ultimate'; } }
+  if (full && c.user) for (let k = 0; k < OPTS.length; k++) { const o = OPTS[k]; if (o.id.startsWith('ult:') && o.id !== 'ult:dominion') { o.p = Math.max(o.p, c.flEnd > ms.play ? ULT_GOAL : ULT_FREE); if (!o.detail.includes('ULTIMATE')) o.detail += ' ULTIMATE — finishes the move itself and almost always scores.'; o.intent = 'Score'; o.risk = 'Ultimate'; } }
   return OPTS;
 }
 
@@ -1127,7 +1145,7 @@ function goal(ms: MatchState, rng: Rng, c: MPlayer, v: string, xg: number, d: nu
 /** Matches whose shots are recorded for the 3D view even though nobody is playing them (match simulator). */
 const REC = new WeakSet<MatchState>();
 /** Ultimates that are one man's work: the replay never shows a pass leading into them. */
-const SOLO_ULT = new Set(['zero', 'dag', 'trance', 'sprint', 'charge', 'comet', 'fk']);
+const SOLO_ULT = new Set(['zero', 'dag', 'trance', 'sprint', 'charge', 'comet', 'fk', 'crescent']);
 export function recordReplays(ms: MatchState): void { REC.add(ms); }
 function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id: string; sta: number; fx: { k: number; v: number }[] } | null, ult: string, pForce = -1): void {
   if ((!ms.uc || ms.uc.mode === 'sim') && !REC.has(ms)) return resolveShot0(ms, rng, c, v, act, ult, pForce);
@@ -1285,16 +1303,17 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       }
       const v = o.v;
       if (act) useAbility(ms, c, act.id, act.sta, true);
-      if (ult === 'dag') { const u = ultOf(c, 'dag')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, v, null, 'dag', user ? Math.max(o.p, ULT_GOAL) : o.p); break; }
-      if (ult === 'sky') { const u = ultOf(c, 'sky')!; spendUlt(ms, c, u.id, 6); ms.note = ''; resolveShot(ms, rng, c, 'header', null, 'sky', user ? ULT_GOAL : Math.max(o.p, 0.5)); break; }
+      if (ult === 'dag') { const u = ultOf(c, 'dag')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, v, null, 'dag', user ? Math.max(o.p, ug(ms)) : o.p); break; }
+      if (ult === 'sky') { const u = ultOf(c, 'sky')!; spendUlt(ms, c, u.id, 6); ms.note = ''; resolveShot(ms, rng, c, 'header', null, 'sky', user ? ug(ms) : Math.max(o.p, 0.5)); break; }
       if (ult === 'zero') { const u = ultOf(c, 'zero')!; spendUlt(ms, c, u.id, 7); }
-      if (ult === 'comet') { const u = ultOf(c, 'comet')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, 'long', null, 'comet', user ? Math.max(o.p, ULT_GOAL * 0.85) : o.p); break; }
-      if (ult === 'fk') { const u = ultOf(c, 'fk')!; spendUlt(ms, c, u.id, 5); ms.note = ''; resolveShot(ms, rng, c, 'fk', null, 'fk', user ? Math.max(o.p, ULT_GOAL * 0.85) : o.p); break; }
+      if (ult === 'comet') { const u = ultOf(c, 'comet')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, 'long', null, 'comet', user ? Math.max(o.p, ug(ms) * 0.85) : o.p); break; }
+      if (ult === 'crescent') { const u = ultOf(c, 'crescent')!; spendUlt(ms, c, u.id, 7); ms.note = ''; resolveShot(ms, rng, c, 'placed', null, 'crescent', user ? Math.max(o.p, ug(ms) * 0.85) : o.p); break; }
+      if (ult === 'fk') { const u = ultOf(c, 'fk')!; spendUlt(ms, c, u.id, 5); ms.note = ''; resolveShot(ms, rng, c, 'fk', null, 'fk', user ? Math.max(o.p, ug(ms) * 0.85) : o.p); break; }
       const wasPen = ms.note === 'pen';
       ms.note = '';
       const dom = !!user && !!ms.uc && ms.uc.dominion > ms.play && !wasPen && !ult;
       if (dom) ms.uc!.dominion = 0;
-      resolveShot(ms, rng, c, wasPen ? 'pen' : v, act, dom ? 'dominion' : ult, ult === 'zero' ? (user ? Math.max(o.p, ULT_GOAL) : o.p) : dom ? Math.max(o.p, 0.82) : wasPen ? o.p : -1);
+      resolveShot(ms, rng, c, wasPen ? 'pen' : v, act, dom ? 'dominion' : ult, ult === 'zero' ? (user ? Math.max(o.p, ug(ms)) : o.p) : dom ? Math.max(o.p, 0.82) : wasPen ? o.p : -1);
       break;
     }
     case 'pass': case 'through': case 'cross': case 'cutback': {
@@ -1610,6 +1629,10 @@ const URGE = new WeakMap<MatchState, { idx: number; step: number }>();
 const PRED = new WeakMap<MatchState, number>();
 /** Chance that a user's ultimate ends in a goal. */
 const ULT_GOAL = 0.9;
+/** An ultimate unleashed without Flow (the once-a-match free use) is a big moment, not a guaranteed goal. */
+const ULT_FREE = 0.6;
+const LAST_FREE = new WeakMap<MatchState, boolean>();
+const ug = (ms: MatchState) => (LAST_FREE.get(ms) ? ULT_FREE : ULT_GOAL);
 /** The user's ultimate finishes the move itself: the ball is put on a plate and struck. */
 /** The user's ultimate if it can be used now (any kind). */
 function anyUlt(ms: MatchState, p: MPlayer): { id: string; lv: number } | null {
@@ -1621,16 +1644,16 @@ function ultStrike(ms: MatchState, rng: Rng, sh: MPlayer, key: string, from: num
   const t = sh.t;
   ms.car = ms.pl.indexOf(sh); ms.poss = t as 0 | 1; ms.from = from; ms.fromT = ms.play;
   // the strike happens where the move actually is: a shooter wide on the left stays on the left
-  const tight = key === 'dag', far = key === 'comet', run = key === 'trance' || key === 'sprint' || key === 'charge';
+  const tight = key === 'dag', far = key === 'comet' || key === 'crescent', run = key === 'trance' || key === 'sprint' || key === 'charge';
   const carrier = ms.car >= 0 && ms.pl[ms.car] === sh;
   const cx = ax(t, carrier ? ms.bx : sh.x), cy = carrier ? ms.by : sh.y;
   const j1 = rng.next(), j2 = rng.next();
-  const nax = tight ? 94 + j1 * 3 : far ? clamp(cx, 70, 81) : run ? clamp(Math.max(cx + 10, 84), 84, 90) : clamp(cx, 80, 92);
+  const nax = tight ? 94 + j1 * 3 : key === 'crescent' ? clamp(cx, 76, 86) : far ? clamp(cx, 70, 81) : run ? clamp(Math.max(cx + 10, 84), 84, 90) : clamp(cx, 80, 92);
   const ny = tight ? (cy < 50 ? 9 + j2 * 7 : 84 + j2 * 7) : run ? clamp(cy + (50 - cy) * 0.3 + (j2 - 0.5) * 6, 28, 72) : clamp(cy + (j2 - 0.5) * 4, 22, 78);
   ms.bx = t === 0 ? nax : 100 - nax; ms.by = ny; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
   if (tight) v = 'dag:outside';
   sh.x = ms.bx; sh.y = ms.by;
-  resolveShot(ms, rng, sh, v, null, key, ULT_GOAL);
+  resolveShot(ms, rng, sh, v, null, key, ug(ms));
 }
 function startRun(ms: MatchState, p: MPlayer, type: number, bonus: number, rng: Rng | null, pFixed = -1): number {
   const t = p.t;

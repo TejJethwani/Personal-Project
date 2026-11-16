@@ -19,8 +19,9 @@ export const ULT_STYLE: Record<string, { col: string; col2: string; tag: string 
   comet: { col: '#ff7a1a', col2: '#ffe14d', tag: 'A trail of fire from thirty metres' },
   charge: { col: '#c9a227', col2: '#ff4d4d', tag: 'Through them. Not round them.' },
   fk: { col: '#f6d77a', col2: '#ffffff', tag: 'The dead ball obeys one man' },
+  crescent: { col: '#c9b8ff', col2: '#7ad7ff', tag: 'Out past the post — and back in' },
 };
-export const ULT_NAME: Record<string, string> = { comet: 'Comet Drive', charge: 'Bulldozer Charge', fk: 'Free-Kick Sovereign', dag: 'Dead Angle Genesis', zero: 'Zero-Frame Strike', trance: 'Monster Trance', puppet: 'Puppet-Master Pass', sky: 'Sky Tyrant', chain: 'Chain Reaction', sprint: 'God Sprint', curtain: 'Iron Curtain', dominion: 'Field Dominion', predator: "Predator's Eye" };
+export const ULT_NAME: Record<string, string> = { crescent: 'Crescent Strike', comet: 'Comet Drive', charge: 'Bulldozer Charge', fk: 'Free-Kick Sovereign', dag: 'Dead Angle Genesis', zero: 'Zero-Frame Strike', trance: 'Monster Trance', puppet: 'Puppet-Master Pass', sky: 'Sky Tyrant', chain: 'Chain Reaction', sprint: 'God Sprint', curtain: 'Iron Curtain', dominion: 'Field Dominion', predator: "Predator's Eye" };
 const DUR = 2300;
 const e3 = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -154,6 +155,18 @@ function motif(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, k
       for (let i = 0; i < 9; i++) { const a = -Math.PI * 0.05 - rnd(i) * Math.PI * 0.9; let x = cx, y = H * 0.8; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.moveTo(x, y); for (let j = 1; j <= 5 * k; j++) { x += Math.cos(a + (rnd(i * 7 + j) - 0.5) * 0.9) * m * 0.07; y += Math.sin(a + (rnd(i * 5 + j) - 0.5) * 0.9) * m * 0.05; ctx.lineTo(x, y); } ctx.stroke(); }
       for (const s2 of [-1, 1]) { const sx = cx + s2 * m * 0.24, sy = H * 0.45, br = e3(t * 2.6 - 0.6); ctx.globalAlpha = 1; for (let i = 0; i < 6; i++) { const a = (i / 6) * 6.3; ctx.fillStyle = i % 2 ? '#8892a6' : '#aab6cc'; ctx.save(); ctx.translate(sx + Math.cos(a) * br * m * 0.22 * s2, sy + Math.sin(a) * br * m * 0.18); ctx.rotate(a + br * 3); ctx.fillRect(-m * 0.035, -m * 0.05, m * 0.07, m * 0.1); ctx.restore(); } }
       for (let r = 0; r < 3; r++) { const kk = (t * 1.4 + r / 3) % 1; ctx.strokeStyle = col2; ctx.globalAlpha = 1 - kk; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(cx, H * 0.8, kk * W * 0.6, kk * H * 0.16, 0, 0, 6.3); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'crescent': { // a goal frame, a crescent moon, and the ball sweeping far outside the post and back in
+      const gx = W * 0.6, gy = H * 0.3, gw = W * 0.26, gh = H * 0.22;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.9; ctx.strokeRect(gx, gy, gw, gh);
+      ctx.fillStyle = col; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(W * 0.2, H * 0.22, m * 0.09, 0, 6.3); ctx.fill(); ctx.fillStyle = '#05070d'; ctx.beginPath(); ctx.arc(W * 0.2 + m * 0.04, H * 0.2, m * 0.08, 0, 6.3); ctx.fill();
+      const k = e3(t * 1.6 - 0.15); ctx.globalAlpha = 1; ctx.strokeStyle = col2; ctx.lineWidth = 5; ctx.beginPath();
+      const P = (u: number) => [W * 0.1 + (gx + gw * 0.85 - W * 0.1) * u + Math.sin(u * Math.PI) * W * 0.32, H * 0.85 + (gy + gh * 0.5 - H * 0.85) * u - Math.sin(u * Math.PI) * H * 0.1] as const;
+      for (let i = 0; i <= 50 * k; i++) { const [x, y] = P(i / 50); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke(); const [bx, by] = P(k); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, m * 0.022, 0, 6.3); ctx.fill();
+      for (let i = 0; i < 14; i++) { const u = Math.max(0, k - i * 0.025); const [x, y] = P(u); ctx.fillStyle = col; ctx.globalAlpha = 0.5 * (1 - i / 14); ctx.beginPath(); ctx.arc(x, y, m * 0.02 * (1 - i / 16), 0, 6.3); ctx.fill(); }
       ctx.globalAlpha = 1;
       break;
     }

@@ -5,6 +5,7 @@
 import { ordinal } from './util';
 import type { Game } from './types';
 import { S } from './match/model';
+import { ovr } from './attributes';
 import { LEAGUES } from './data/clubs';
 import { hashStr } from './rng';
 import { tableOf, compFixtures } from './competitions';
@@ -100,5 +101,45 @@ export function weeklyPress(g: Game, week: number): void {
       const lead = top[0];
       addNews(g, 'paper', `${NAME[PAPER]} Ballon d'Or watch: ${lead.name} ${PAPER === 'express' ? 'is OUR man' : 'leads our list'}`, `${VIEW[PAPER]} ${top.map((x, i) => `${i + 1}. ${x.name} (${x.clubName}) — ${x.g} goals, ${x.a} assists`).join(' · ')}.${mine >= 0 ? ` ${me.sn} is on our list.` : ''} Other papers see it differently, and the 100 journalists vote in late October.`, { imp: mine >= 0 ? 2 : 1, pids: top.map((x) => x.pid), me: mine >= 0, paper: PAPER });
     }
+  }
+  // ── stories only one paper runs ──
+  const sl = LEAGUES.filter((L) => L.tier === 1).map((L) => L.id);
+  // Blue Lock Sports: every Blue Lock graduate who scored or assisted this week, wherever he plays
+  {
+    const done: Record<string, { g: number; a: number; club: string }> = {};
+    for (const id in w.fixtures) {
+      const f = w.fixtures[id];
+      if (!f.played || f.s !== w.season || f.day <= w.day - 7 || !f.goals) continue;
+      for (const gl of f.goals) {
+        for (const [pid, k] of [[gl[2], 'g'], [gl[3], 'a']] as const) { const q = w.players[pid]; if (!q || q.origin !== 'bluelock' || pid === me.id || gl[4] === 2) continue; const e = (done[pid] ??= { g: 0, a: 0, club: q.club ? teamName(w, q.club) : '' }); e[k]++; }
+      }
+    }
+    const list = Object.entries(done).sort((a, b) => b[1].g * 2 + b[1].a - (a[1].g * 2 + a[1].a));
+    if (list.length) {
+      const [lid, lead] = list[0];
+      addNews(g, 'nel', `Egoists abroad: ${w.players[lid].name} ${lead.g >= 2 ? `scores ${lead.g}` : lead.g ? 'on target' : 'turns provider'} for ${lead.club}`, `This week from the Blue Lock graduates: ${list.slice(0, 8).map(([pid, e]) => `${w.players[pid].name} (${e.club}) ${[e.g ? `${e.g} goal${e.g > 1 ? 's' : ''}` : '', e.a ? `${e.a} assist${e.a > 1 ? 's' : ''}` : ''].filter(Boolean).join(', ')}`).join(' · ')}.`, { imp: 2, pids: list.slice(0, 4).map(([pid]) => pid), paper: 'bls' });
+    }
+  }
+  // GOAL EXPRESS: transfer gossip — stars who have outgrown their club, or whose contracts are running down
+  if (week % 2 === 1) {
+    const cands = Object.values(w.players).filter((q) => q.club && !q.retired && q.id !== me.id && q.rep >= 70 && w.clubs[q.club] && ((q.con?.until ?? 99) <= w.season + 1 || ovr(q) > 38 + w.clubs[q.club].rep * 0.5 + 6)).sort((a, b) => b.rep - a.rep).slice(0, 12);
+    const q = cands[(week * 7 + w.season) % Math.max(1, cands.length)];
+    if (q) {
+      const suitors = Object.values(w.clubs).filter((c2) => c2.league && sl.includes(c2.league) && c2.id !== q.club && c2.rep >= (w.clubs[q.club!]?.rep ?? 0)).sort((a, b) => b.rep - a.rep).slice(0, 6);
+      const sx = suitors[(week + q.name.length) % Math.max(1, suitors.length)];
+      if (sx) addNews(g, 'transfer', `${sx.name} plot raid for ${q.name}`, `${q.name} (${teamName(w, q.club!)}) is wanted by ${sx.name}. ${(q.con?.until ?? 99) <= w.season + 1 ? 'His contract is running down and talks have stalled.' : 'Our sources say he has outgrown his club.'} Will he go? We will tell you first.`, { imp: 2, pids: [q.id], clubs: [sx.id], paper: 'express' });
+    }
+  }
+  // Le Monde du Football: the five big leagues at a glance
+  if (week % 2 === 0) {
+    const rows = sl.filter((id) => w.comps[id] && !w.comps[id].done).map((id) => { const t3 = tableOf(w, id); return t3.length && t3[0].p >= 3 ? `${w.comps[id].name}: ${t3[0].name} ${t3[0].pts} pts${t3[1] ? ` (${t3[1].name} ${t3[1].pts})` : ''}` : ''; }).filter(Boolean);
+    if (rows.length >= 3) addNews(g, 'world', 'Le classement: who leads across Europe', `${rows.join(' · ')}.`, { imp: 2, paper: 'monde' });
+  }
+  // The Touchline: a tactical column on the side in the best form in the user's league
+  if (week % 3 === 0 && tab.length > 4) {
+    const form = (id: string) => compFixtures(w, lg).filter((f) => f.played && (f.h === id || f.a === id)).slice(-5).reduce((x, f) => x + (f.sc ? ((f.h === id ? f.sc[0] - f.sc[1] : f.sc[1] - f.sc[0]) > 0 ? 3 : f.sc[0] === f.sc[1] ? 1 : 0) : 0), 0);
+    const best = tab.slice(0, 10).map((r) => ({ r, f: form(r.id) })).sort((a, b) => b.f - a.f)[0];
+    const cl = w.clubs[best?.r.id ?? ''];
+    if (cl && best.f >= 10) addNews(g, 'paper', `Analysis: how ${cl.name} found their rhythm`, `${best.f} points from their last five. ${cl.name} play ${cl.tac.form} with a ${cl.style} identity — ${cl.tac.press > 0.6 ? 'they press high and win the ball where it hurts' : cl.tac.press < 0.4 ? 'they sit deep and strike on the break' : 'they control the middle and choose their moments'}. ${cl.mgr.name} has them believing.`, { imp: 2, clubs: [cl.id], paper: 'touchline' });
   }
 }

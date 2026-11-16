@@ -645,6 +645,13 @@ export const ULTIMATES: AbilityDef[] = [
     lines: ['{n} is going THROUGH them! Two defenders on the floor!', 'Nobody can stop {n} — BULLDOZER CHARGE!'],
   },
   {
+    id: 'crescent_strike', kind: 'ultimate', name: 'Crescent Strike', tags: ['shoot'], rarity: 5, ult: 'crescent',
+    desc: 'A shot struck so far round the ball that it sets off metres wide of the post — the keeper lets it go — then hooks back in like a crescent moon.',
+    req: 'Flow State active. On the ball between 14 and 30 metres from goal.', fx: [], cost: 'Consumes 40% of remaining Flow time and 7 stamina.',
+    counter: 'Closing down his body shape before he wraps his foot round it; a keeper who refuses to trust the line.', limits: 'Still a shot: distance and pressure apply. Not available inside the six-yard box.',
+    lines: ['That was going WIDE — and it has come back in! CRESCENT STRIKE!', '{n} bent it round the whole stadium!'],
+  },
+  {
     id: 'fk_sovereign', kind: 'ultimate', name: 'Free-Kick Sovereign', tags: ['shoot'], rarity: 4, ult: 'fk',
     desc: 'Over the wall, round the keeper, into the one corner nobody can reach: a dead ball becomes a goal.',
     req: 'Flow State active. A direct free kick within 32 metres.', fx: [], cost: 'Consumes 40% of remaining Flow time and 5 stamina.',

@@ -237,6 +237,8 @@ function pickFlair0(rp: Replay): Flair {
   const d = rp.d, ag = Math.abs(rp.gy), goal = rp.res === 'goal';
   if (rp.v === 'pen') return ag < 0.3 && rp.gz > 0.45 && goal ? FL('Panenka', { arc: 2.4, speed: 0.5, gk: 'early', cam: 'net', chipH: 1.3 }) : FL('Penalty', { cam: 'net', speed: 1.2 });
   if (rp.v.startsWith('dag')) return FL('Dead Angle Genesis', { pose: 'bicycle', cam: 'orbit', curl: 1.6, arc: 0.9 });
+  if (rp.ult === 'crescent') return FL('Crescent Strike', { curlOut: true, curl: 5.5 + d * 0.22, arc: 0.9, cam: 'chase', speed: 0.85, top: r % 2 === 0 });
+  if (d > 14 && goal && r >= 96) return FL('Impossible bend', { curlOut: true, curl: 4 + d * 0.18, arc: 0.8, cam: 'chase', speed: 0.88 });
   if (rp.v === 'fk') return r % 2 ? FL('Free-kick curler', { curl: d * 0.1, arc: d * 0.09, cam: 'chase' }) : FL('Free kick round the wall', { curl: d * 0.13, arc: d * 0.08, cam: 'chase', curlOut: true });
   if (rp.v === 'header') return d < 8 && r < 55 ? FL('Diving header', { pose: 'dive', cam: 'low', arc: 0.1 }) : FL('Towering header', { pose: 'leap', arc: 0.2, cam: r < 50 ? 'side' : 'net' });
   if (rp.v === 'volley') return r < 36 && d < 17 ? FL('Bicycle kick', { pose: 'bicycle', cam: 'orbit', arc: 0.8 }) : r < 68 ? FL('Scissor volley', { pose: 'scissor', cam: 'low', arc: 0.5 }) : FL('Volley', { arc: 0.6, speed: 1.2 });
@@ -269,6 +271,7 @@ const ULT_LINES: Record<string, [string, string, string]> = {
   comet: ['Thirty metres? Close enough.', 'He has set the ball on fire! The keeper never had a chance!', 'Distance is just a number.'],
   charge: ['Get out of my way.', 'He went straight THROUGH them! Two defenders on the floor!', 'I do not go round. I go through.'],
   fk: ['Build your wall. It will not matter.', 'Over the wall, into the top corner — the keeper did not even move!', 'Dead balls are mine.'],
+  crescent: ['Watch it leave. Then watch it come back.', 'That was going wide by a mile — and it has curled back INTO THE NET!', 'The moon always comes back round.'],
   predator: ['Found it. The kill spot.', 'He smelled that chance before anyone else in the stadium!', 'I only need one opening.'],
 };
 const LONG_LINES = ['{n} looks up… {d} metres out. Surely not?', 'There is space in front of {n} — {d} metres. He is thinking about it!', '{n}, {d} metres from goal. He is going to hit this!', 'Nobody closes {n} down. {d} metres. Have a go!'];
@@ -276,7 +279,7 @@ const CELE = ['Knee slide', 'Arms-wide run', 'Backflip', 'Point to the sky', 'Ju
 
 interface Scene {
   rp: Replay; long: boolean; dir: number; goalX: number; shot: V3; passFrom: V3 | null; end: V3; after: V3; h0: number; fl: Flair;
-  tP0: number; tPass: number; tStrike: number; tFlight: number; tCele: number; tEnd: number; side: number; cele: number; celeDir: V3; quick: boolean; tIntro: number; tDrib: number; blk: number; drib: number[]; dribL: number; dribA: number; carry?: boolean; trick?: boolean;
+  tP0: number; tPass: number; tStrike: number; tFlight: number; tCele: number; tEnd: number; side: number; cele: number; celeDir: V3; quick: boolean; tIntro: number; tDrib: number; blk: number; drib: number[]; dribL: number; dribA: number; carry?: boolean; trick?: boolean; giveFrom?: V3 | null;
 }
 function buildScene(rp: Replay, quick = false, ms?: MatchState): Scene {
   const foe = (i: number) => (ms?.pl[i] ? ms.pl[i].t !== rp.t : (i < 11) !== (rp.sh < 11));
@@ -317,7 +320,10 @@ function buildScene(rp: Replay, quick = false, ms?: MatchState): Scene {
   const tCele = tStrike + tFlight + 1.0;
   const side = sz < 34 ? -1 : 1;
   const celeDir = norm([dir * 0.25, 0, side * 1]);
-  return { rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, fl, tP0: tP0x, tPass, tStrike, tFlight, tCele, tEnd: hasCele ? tCele + 3.0 : tStrike + tFlight + (quick ? 1.0 : 1.7), side, tIntro: quick ? 0 : rp.ult ? 1.9 : long || fl.cam === 'chase' ? 1.1 : 0, blk, ...dribSetup(rp, quick, sx, sz, foe, !!passFrom), cele: ((((rp.id + 1) * 2654435761 + rp.min * 40503 + rp.sh * 97) >>> 9) >>> 0) % CELE.length, celeDir, quick };
+  const sd = norm(sub([goalX, 0, 34], [sx, 0, sz]));
+  // Chain Reaction is a one-two: he plays it into his partner from deeper, runs past, and gets it back first time
+  const giveFrom: V3 | null = rp.ult === 'chain' && passFrom ? [sx - sd[0] * 11 + sd[2] * 2.5, 0.11, sz - sd[2] * 11 - sd[0] * 2.5] : null;
+  return { giveFrom, rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, fl, tP0: tP0x, tPass, tStrike, tFlight, tCele, tEnd: hasCele ? tCele + 3.0 : tStrike + tFlight + (quick ? 1.0 : 1.7), side, tIntro: quick ? 0 : rp.ult ? 1.9 : long || fl.cam === 'chase' ? 1.1 : 0, blk, ...dribSetup(rp, quick, sx, sz, foe, !!passFrom), cele: ((((rp.id + 1) * 2654435761 + rp.min * 40503 + rp.sh * 97) >>> 9) >>> 0) % CELE.length, celeDir, quick };
 }
 /** Dribbling ultimates open with the run itself: who gets beaten, how far the run is, how wide the weave. */
 function dribSetup(rp: Replay, quick: boolean, sx: number, sz: number, foe: (i: number) => boolean, passed = false): { tDrib: number; drib: number[]; dribL: number; dribA: number; carry?: boolean; trick?: boolean } {
@@ -327,13 +333,18 @@ function dribSetup(rp: Replay, quick: boolean, sx: number, sz: number, foe: (i: 
     const h = (rp.id * 2654435761 + Math.round(rp.d * 31)) >>> 0;
     return { tDrib: rp.ult ? 1.1 : 0.85, drib: [], dribL: rp.ult === 'comet' ? 7 : 5, dribA: h % 3 === 0 ? 0.9 : 0.3, carry: true, trick: h % 3 === 0 };
   }
-  if (quick || (rp.ult !== 'trance' && rp.ult !== 'sprint' && rp.ult !== 'chain' && rp.ult !== 'charge')) return { tDrib: 0, drib: [], dribL: 0, dribA: 0 };
+  if (quick || (rp.ult !== 'trance' && rp.ult !== 'sprint' && rp.ult !== 'charge')) return { tDrib: 0, drib: [], dribL: 0, dribA: 0 };
   const opp = rp.pl.filter((x) => x[0] !== rp.gk && x[0] !== rp.sh && foe(x[0])).map((x) => ({ i: x[0], d: Math.hypot(x[1] * 1.05 - sx, x[2] * 0.68 - sz) })).sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.i);
-  return rp.ult === 'charge' ? { tDrib: 2.2, drib: opp.slice(0, 2), dribL: 16, dribA: 0.35 } : rp.ult === 'sprint' ? { tDrib: 2.0, drib: opp, dribL: 30, dribA: 0.7 } : rp.ult === 'chain' ? { tDrib: 2.2, drib: opp, dribL: 20, dribA: 1.6 } : { tDrib: 3.0, drib: opp, dribL: 21, dribA: 2.3 };
+  return rp.ult === 'charge' ? { tDrib: 2.2, drib: opp.slice(0, 2), dribL: 16, dribA: 0.35 } : rp.ult === 'sprint' ? { tDrib: 2.0, drib: opp, dribL: 30, dribA: 0.7 } : { tDrib: 3.0, drib: opp, dribL: 21, dribA: 2.3 };
 }
 function ballAt(sc: Scene, t: number): { p: V3; u: number; phase: 0 | 1 | 2 | 3 } {
   const { rp, fl } = sc;
   if (t < sc.tStrike) {
+    if (sc.giveFrom && sc.passFrom && t <= sc.tP0) {
+      const u = c01((t - (sc.tP0 - 0.8)) / 0.8);
+      const p = lerp3(sc.giveFrom, sc.passFrom, ease(u)); p[1] = 0.11;
+      return { p, u, phase: u > 0 ? 1 : 0 };
+    }
     if (sc.passFrom && t > sc.tP0) {
       const u = c01((t - sc.tP0) / sc.tPass);
       const p = lerp3(sc.passFrom, [sc.shot[0], sc.h0, sc.shot[2]], u);
@@ -460,6 +471,9 @@ function ultFx(ctx: CanvasRenderingContext2D, cam: Cam, sc: Scene, ms: MatchStat
       ctx.strokeStyle = us.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.85 * Math.min(1, k * 2);
       for (let i = 0; i < 7; i++) { let p0: V3 = add(sp, mul(back, i * 2.2)); for (let j = 1; j < 4; j++) { const p1: V3 = add(add(p0, mul(perp, ((i + j) % 2 ? 1 : -1) * 0.7)), mul(back, 0.6)); L([p0[0], 0.04, p0[2]], [p1[0], 0.04, p1[2]]); p0 = p1; } }
       for (let r = 0; r < 3; r++) { const rr = ((t * 1.1 + r / 3) % 1) * 9; ctx.strokeStyle = us.col2; ctx.globalAlpha = 0.7 * (1 - rr / 9); ctx.lineWidth = 3; for (let a = 0; a < 24; a++) L([sp[0] + Math.cos(a * 0.262) * rr, 0.05, sp[2] + Math.sin(a * 0.262) * rr], [sp[0] + Math.cos((a + 1) * 0.262) * rr, 0.05, sp[2] + Math.sin((a + 1) * 0.262) * rr]); }
+    } else if (key === 'crescent') { // a ghost of the crescent before he strikes: the whole impossible path, drawn on the night sky
+      ctx.strokeStyle = us.col; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.75 * Math.min(1, k * 2) * (fl > 0 ? 0.35 : 1);
+      let p0 = ballAt(sc, sc.tStrike).p; for (let i = 1; i <= 24; i++) { const p1 = ballAt(sc, sc.tStrike + (i / 24) * sc.tFlight).p; if (i % 2) L(p0, p1); p0 = p1; }
     } else if (key === 'fk') { // the curl drawn in gold over the wall before he strikes
       ctx.strokeStyle = us.col; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.8 * Math.min(1, k * 2) * (fl > 0 ? 0.4 : 1);
       let p0 = ballAt(sc, sc.tStrike).p; for (let i = 1; i <= 16; i++) { const p1 = ballAt(sc, sc.tStrike + (i / 16) * sc.tFlight).p; if (i % 2) L(p0, p1); p0 = p1; }
@@ -648,6 +662,11 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
         if (rp.v === 'pen') { X = sc.shot[0] - dir * 0.5; Z = 34; } else { X = sc.shot[0] - sdir[0] * 0.45; Z = sc.shot[2] - sdir[2] * 0.45; }
         const run = c01((sc.tStrike - 0.22 - t) / 0.9);
         X -= sdir[0] * run * 3.2; Z -= sdir[2] * run * 3.2;
+        if (sc.giveFrom && t < sc.tStrike - 0.22) { // the one-two: plays it in, then sprints into the space for the return
+          const t0 = sc.tP0 - 0.8, u = c01((t - t0) / Math.max(0.3, sc.tStrike - 0.22 - t0));
+          X = lerp(sc.giveFrom[0] - sdir[0] * 0.4, sc.shot[0] - sdir[0] * 0.45, ease(u)); Z = lerp(sc.giveFrom[2] - sdir[2] * 0.4, sc.shot[2] - sdir[2] * 0.45, ease(u));
+          if (Math.abs(t - t0) < 0.3) pose.strike = c01((t - t0 + 0.3) / 0.6); else if (u > 0 && u < 1) pose.runPh = t * 16;
+        }
         const w = c01((k0 + 0.3) / 0.75), sw = Math.sin(w * Math.PI);
         const sWin = k0 > -0.3 && k0 < 0.42; // the kicking motion: back-swing, contact at k0 = 0, follow-through
         if (intro >= 0) { pose.glow = usC?.col; pose.arms = 0; }

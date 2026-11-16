@@ -485,3 +485,6 @@ body.rm .cer-lights i, body.rm .cer-win .burst, body.rm .cer-nom.roll { animatio
 .bdo-f { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid rgba(246,215,122,.2); border-radius: 6px; }
 .bdo-f .s { font-size: 11px; letter-spacing: .1em; color: var(--muted, #8a93a6); } .bdo-f b { font-family: var(--disp); font-size: 22px; }
 .bdo-f.pod { border-color: rgba(246,215,122,.55); } .bdo-f.win { border-color: #f6d77a; background: rgba(246,215,122,.12); } .bdo-f.win b { color: #f6d77a; }
+.npaper .bl-table { margin: 12px 0; padding: 10px 12px; border: 2px solid #0a2a5c; background: #fff; }
+.npaper .bl-table table { width: 100%; font-size: 13px; color: #0d1b33; } .npaper .bl-table th { color: #1060c9; text-align: left; font-size: 11px; } .npaper .bl-table tr.me td { background: #e6f2ff; font-weight: 700; }
+.npaper .bl-table .link { color: #0d1b33; }

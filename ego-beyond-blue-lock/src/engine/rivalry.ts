@@ -51,7 +51,13 @@ export function afterMatchRivalry(g: Game, ms: MatchState): string[] {
     if (!declared && !c.rel[q.id] && heat < 4) continue;
     const r = relOf(g, q.id);
     if (heat) adjust(g, q.id, { rival: Math.max(1, Math.round(heat)) });
-    if (!declared && r.rival >= 20 && c.rivals.length < MAX_RIVALS && p.rep >= w.players[c.pid].rep - 25 && (heat >= 7 || r.rival >= 32)) {
+    // a rivalry is personal: they grow one at a time (six weeks apart at least)
+    const hisTeam = p.nelTeam && w.phase === 'nel' ? p.nelTeam : p.club ?? '';
+    // at most two rivals from any one team (a rival who later joins that team stays a rival: nothing is ever removed for moving)
+    const sameTeam = c.rivals.filter((id) => { const o = w.players[id]; return !!o && (w.phase === 'nel' && o.nelTeam ? o.nelTeam : o.club ?? '') === hisTeam; }).length >= 2;
+    const recent = w.abs - Number(c.flags.lastAutoRival ?? -999) < 42;
+    if (!declared && !sameTeam && !recent && r.rival >= 20 && c.rivals.length < MAX_RIVALS && p.rep >= w.players[c.pid].rep - 25 && (heat >= 7 || r.rival >= 32)) {
+      c.flags.lastAutoRival = w.abs;
       c.rivals.push(q.id);
       remember(g, q.id, 'rival_declared', `A rivalry with ${p.sn} grew out of your matches.`, 1);
       milestone(g, 'rival', `A rivalry is born: ${p.name}.`);
@@ -81,7 +87,7 @@ export function afterMatchRivalry(g: Game, ms: MatchState): string[] {
   return notes;
 }
 
-export interface Faceoff { rival: Player; lines: string[]; h: H2H; replies: { tone: 'cold' | 'fire' | 'respect'; text: string }[] }
+export interface Faceoff { rival: Player; lines: string[]; h: H2H; replies: { tone: 'cold' | 'fire' | 'respect'; text: string }[]; second?: Player; secondLine?: string }
 /** A declared rival in the opposing team: the tunnel scene before kick-off. */
 export function faceoffFor(g: Game, fx: Fixture, side: string): Faceoff | null {
   const w = g.world, c = g.career;
@@ -91,7 +97,11 @@ export function faceoffFor(g: Game, fx: Fixture, side: string): Faceoff | null {
   const info = teamInfo(w, opp, !!comp?.u20);
   const sheet = pickSheet(null, w, info);
   const inXi = new Set(sheet.xi.map((x) => x.pid));
-  const id = c.rivals.find((r) => inXi.has(r)) ?? c.rivals.find((r) => info.squad.includes(r));
+  // the hottest rival in their side does the talking; a second rival in the same team adds his own line
+  const hot = (ids: string[]) => [...ids].sort((a, b) => (c.rel[b]?.rival ?? 0) - (c.rel[a]?.rival ?? 0));
+  const inTeam = hot(c.rivals.filter((r) => inXi.has(r)));
+  const id = inTeam[0] ?? hot(c.rivals.filter((r) => info.squad.includes(r)))[0];
+  const p2 = inTeam[1] ? w.players[inTeam[1]] : undefined;
   const p = id ? w.players[id] : null;
   if (!p) return null;
   const me = w.players[c.pid];
@@ -102,10 +112,12 @@ export function faceoffFor(g: Game, fx: Fixture, side: string): Faceoff | null {
     rival: p, h: h2h(g, p.id),
     lines: [smartLine(p, 'pre', { lead: 0, myGoals: 0, h2hDiff: hh.w - hh.l }, me.sn, info.name, w.season, salt), smartLine(p, 'press', { lead: 0, myGoals: 0, h2hDiff: hh.w - hh.l }, me.sn, info.name, w.season, salt + 3)],
     replies: [{ tone: 'cold', text: REPLIES.cold[k(1)] }, { tone: 'fire', text: REPLIES.fire[k(5)] }, { tone: 'respect', text: REPLIES.respect[k(9)] }],
+    ...(p2 ? { second: p2, secondLine: smartLine(p2, 'pre', { lead: 0, myGoals: 0, h2hDiff: h2h(g, p2.id).w - h2h(g, p2.id).l }, me.sn, info.name, w.season, salt + 7) } : {}),
   };
 }
 /** The user's answer in the tunnel. It changes the rivalry and how he starts the match. */
-export function applyFaceoff(g: Game, fx: Fixture, rivalId: string, tone: 'cold' | 'fire' | 'respect'): string[] {
+export function applyFaceoff(g: Game, fx: Fixture, rivalId: string, tone: 'cold' | 'fire' | 'respect', secondId?: string): string[] {
+  if (secondId) adjust(g, secondId, tone === 'fire' ? { rival: 3 } : tone === 'cold' ? { rival: 2 } : { resp: 2 });
   const c = g.career;
   c.flags.hypeFid = fx.id; c.flags.hype = tone;
   const fxs = tone === 'fire' ? adjust(g, rivalId, { rival: 5, resp: -1 }) : tone === 'cold' ? adjust(g, rivalId, { rival: 3, resp: 1 }) : adjust(g, rivalId, { rival: 1, resp: 3, friend: 1 });

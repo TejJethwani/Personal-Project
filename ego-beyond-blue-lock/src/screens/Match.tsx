@@ -203,11 +203,11 @@ function PreMatch({ g }: { g: Game }) {
         <Card title={`${teamName(w, opp)} — ${oppSheet.form}`}><div className="small">{oppSheet.xi.map((x) => { const p = w.players[x.pid]; return <div key={x.pid} className="row between" style={{ padding: '1px 0' }}><span className="row gap6"><span className="dim" style={{ width: 24 }}>{x.pos}</span><PlayerAvatar g={g} p={p} size={24} /><PlayerLink g={g} id={p.id} />{g.career.rivals.includes(p.id) ? ' ⚔' : ''}</span><span className="num">{ovr(p)}</span></div>; })}</div>
           {known.length > 0 && <p className="small warn mt">You have history with: {known.map((p) => p.sn).join(', ')}.</p>}</Card>
       </div>
-      {face && <Card title={`The tunnel — ${face.rival.name}`} className="hot mb" right={<span className="tiny muted">Head to head: {face.h.w}W {face.h.d}D {face.h.l}L · duels {face.h.dw}–{face.h.dl}</span>}>
+      {face && <Card title={`The tunnel — ${face.rival.name}${face.second ? ` and ${face.second.name}` : ''}`} className="hot mb" right={<span className="tiny muted">Head to head: {face.h.w}W {face.h.d}D {face.h.l}L · duels {face.h.dw}–{face.h.dl}</span>}>
         <Cutscene3D g={g} kind="tunnel" title="BEFORE KICK-OFF" me={me} other={face.rival}
-          beats={[{ who: 'other', name: face.rival.sn, text: face.lines[0] }, { who: 'other', name: face.rival.sn, text: face.lines[1] }]}
+          beats={[{ who: 'other', name: face.rival.sn, text: face.lines[0] }, ...(face.second && face.secondLine ? [{ who: 'other' as const, name: face.second.sn, text: face.secondLine }] : []), { who: 'other', name: face.rival.sn, text: face.lines[1] }]}
           choices={face.replies.map((r) => ({ id: r.tone, label: r.tone === 'fire' ? 'Trash-talk back' : r.tone === 'cold' ? 'Stay ice cold' : 'Show respect', text: r.text }))}
-          onChoose={(id) => act((x) => applyFaceoff(x, x.world.fixtures[fx.id], face.rival.id, id as 'cold' | 'fire' | 'respect')) ?? []}
+          onChoose={(id) => act((x) => applyFaceoff(x, x.world.fixtures[fx.id], face.rival.id, id as 'cold' | 'fire' | 'respect', face.second?.id)) ?? []}
           onClose={() => setFaceDone(true)} />
       </Card>}
       <Card title="How do you want to play it?">

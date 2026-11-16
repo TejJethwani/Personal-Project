@@ -128,7 +128,7 @@ function mkPlayer(w: World, p: Player, t: 0 | 1, slot: { pos: Pos; x: number; y:
     boost: line === 3 ? [A.FIN, A.POS, A.DRI, A.COM] : line === 2 ? [A.VIS, A.SPA, A.DEC, A.BCO] : line === 1 ? [A.TAC, A.INT, A.DAW] : [A.GKR, A.GKP],
     run: 0, runT: 0, open: false, beat: 0, yc: 0, rc: false, inj: 0,
     ab: p.ab.map((r) => ({ id: r.id, lv: r.lv, evo: r.evo })), abN: {}, ego: p.pers.ego, agg: 40 + p.pers.temper * 0.4,
-    user: false, star: false, chem: 50, trust: 50, rival: false, mk: markedMan(p), mka: markedCreator(p), foot: p.foot === 'L' ? 0 : p.foot === 'R' ? 1 : 2,
+    user: false, star: false, chem: 50, trust: 50, rival: false, mk: markedMan(p), mka: markedCreator(p), age: w.season - p.born, role: p.con?.role ?? '', foot: p.foot === 'L' ? 0 : p.foot === 'R' ? 1 : 2,
     streak: 0, lostTo: -1, ultN: 0, req: 0, focus: 0,
   };
 }
