@@ -13,7 +13,7 @@ import { winnerId } from './match/setup';
 import { addNews, milestone, ordinal, log } from './util';
 import { compSeasonAwards, worldAwards, tournamentAwards, pruneAwards, seasonLines } from './awards';
 import { rememberSeasonClubs, bdoSnapshot } from './ballondor';
-import { archiveSheets, totsCup } from './teamsheets';
+import { archiveSheets, setupTotsCup, totsCupFinish } from './teamsheets';
 import { archiveStats, contractYearEnd, managerChanges, ensureSquads, aiLoans, buildOffer, levelOf } from './transfers';
 import { yearlyDevelopment, pruneRetired } from './development';
 import { scheduleBreakFriendlies, finishTournament } from './international';
@@ -184,7 +184,7 @@ export function endSeason(g: Game): void {
   awardIds.push(...worldAwards(g));
   rememberSeasonClubs(g);
   archiveSheets(g);
-  totsCup(g);
+  setupTotsCup(g);
   g.career.flags.ceremony = w.season; // the UI presents the season's awards as a ceremony
   w.rec.seasons = { v: (w.rec.seasons?.v ?? 0) + 1, pid: '', name: '', s: w.season };
   managerChanges(g, positions);
@@ -241,6 +241,7 @@ function applyMovement(g: Game): void {
 export function rollover(g: Game): void {
   const w = g.world;
   const me = g.career.pid;
+  if (w.totsLive) totsCupFinish(g, true); // never carry the cup into a new season
   // the Ballon d'Or judges the whole season, summer tournament included: take the cases before the lines are archived
   bdoSnapshot(g);
   // archive every player's season lines into their career history

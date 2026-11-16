@@ -178,7 +178,7 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
   const pl: MPlayer[] = [];
   const teams: MTeam[] = [];
   const early = comp?.kind === 'cup' && !['Final', 'Semi-final', 'Quarter-final'].includes(fx.stg ?? '');
-  const rotate = early ? 0.6 : comp?.kind === 'friendly' ? 1 : 0;
+  const rotate = early ? 0.6 : comp?.kind === 'friendly' && fx.comp !== 'totscup' ? 1 : 0;
   let sel: Sheet['userScore'];
   for (let t = 0; t < 2; t++) {
     const info = infos[t];

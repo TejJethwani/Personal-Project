@@ -7,10 +7,12 @@ import type { AwardXI, Game, Pos } from './types';
 import { LEAGUES } from './data/clubs';
 import { ovr } from './attributes';
 import { pickSheet, teamInfo, teamName } from './match/setup';
-import { mkComp } from './competitions';
+import { mkComp, addFixture, roundRobin, seasonLabel } from './competitions';
+import { rngOf } from './worldgen';
+import { winnerId } from './match/setup';
 import { S } from './match/model';
 import { seasonLines } from './awards';
-import { tempClub, autoSheet, playSim } from './quickmatch';
+import { tempClub } from './quickmatch';
 import { addNews, milestone } from './util';
 
 export interface TotsTeam { lg: string; name: string; xi: string[]; form: string }
@@ -35,66 +37,107 @@ export function archiveSheets(g: Game): void {
 const TOP = LEAGUES.filter((l) => l.tier === 1);
 const LG_COL: Record<string, [string, string]> = { eng1: ['#3d195b', '#00ff85'], esp1: ['#ee2523', '#ffffff'], ger1: ['#d20515', '#ffffff'], ita1: ['#008fd7', '#ffffff'], fra1: ['#091c3e', '#dae025'], ned1: ['#ff6200', '#ffffff'], por1: ['#00205b', '#ffffff'] };
 
-/** The end-of-season Team of the Season Cup. Runs after the season awards; leaves no trace on players. */
-export function totsCup(g: Game): TotsCup | null {
+export const TOTS_RR_DAYS = [341, 342, 343, 344, 345, 346, 347];
+export const TOTS_FINAL_DAY = 349;
+/** The live cup between the end of the club season and the final. */
+export interface TotsLive { s: number; teams: TotsTeam[]; made: string[]; final?: string; allStars?: TotsTeam }
+
+/**
+ * The Team of the Season Cup, played as real fixtures after the summer tournament: each top league's Team of
+ * the Season plays the others once (one round a day), the table-topper meets the All-Stars of every other league.
+ * If the user is in one of the sides, his matches are played like any other fixture.
+ */
+export function setupTotsCup(g: Game): void {
   const w = g.world, s = w.season;
-  if (w.totsCup?.some((x) => x.s === s)) return null;
-  if (!w.comps.totscup) mkComp(w, { id: 'totscup', name: 'Team of the Season Cup', sn: 'TOTS Cup', kind: 'friendly', teams: [] });
-  const teams: TotsTeam[] = [];
-  const made: string[] = [];
+  if (w.totsLive || w.totsCup?.some((x) => x.s === s)) return;
+  const teams: TotsTeam[] = [], made: string[] = [];
   for (const L of TOP) {
     const a = w.awards[`tots:${L.id}:${s}`];
     if (!a?.xi || a.xi.length !== 11) continue;
     const xi = a.xi.map((x) => x.pid).filter((id) => w.players[id] && !w.players[id].retired);
     if (xi.length < 11) continue;
-    // a bench of the league's next-best performers
     const bench = seasonLines(g, L.id).filter((c) => !xi.includes(c.p.id) && !c.p.retired && c.line[S.RATN] >= 8).sort((x, y) => y.score - x.score).slice(0, 8).map((c) => c.p.id);
     const id = 'tots_' + L.id;
     w.clubs[id] = tempClub(g, id, `${L.name} TOTS`, L.sn, LG_COL[L.id] ?? ['#222', '#fff'], a.form ?? '4-3-3', [...xi, ...bench], `${L.name} Team of the Season`);
     made.push(id);
     teams.push({ lg: L.id, name: `${L.name} TOTS`, xi, form: a.form ?? '4-3-3' });
   }
-  const clean = () => { for (const id of made) delete w.clubs[id]; };
-  if (teams.length < 3) { clean(); return null; }
-  const sheet = (id: string) => autoSheet(g, id);
-  const table: Record<string, TotsRow> = Object.fromEntries(teams.map((t) => [t.lg, { lg: t.lg, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }]));
-  const matches: TotsMatch[] = [];
-  const scorers = (ms: ReturnType<typeof playSim>) => ms.goals.filter((x) => x[4] !== 2).map((x) => `${w.players[x[2]]?.sn ?? '?'} ${x[0]}'`);
-  for (let i = 0; i < teams.length; i++) for (let j = i + 1; j < teams.length; j++) {
-    const h = 'tots_' + teams[i].lg, a = 'tots_' + teams[j].lg;
-    const ms = playSim(g, h, a, [sheet(h), sheet(a)], { comp: 'totscup', neutral: true });
-    const [x, y] = ms.score;
-    matches.push({ h: teams[i].lg, a: teams[j].lg, sc: [x, y], scorers: scorers(ms) });
-    const A = table[teams[i].lg], B = table[teams[j].lg];
+  if (teams.length < 3) { for (const id of made) delete w.clubs[id]; return; }
+  if (!w.comps.totscup) mkComp(w, { id: 'totscup', name: 'Team of the Season Cup', sn: 'TOTS Cup', kind: 'friendly', teams: [] });
+  w.comps.totscup.teams = [...made];
+  const rounds = roundRobin(made, false, rngOf(w));
+  rounds.forEach((r, k) => { for (const [h, a] of r) if (h && a) addFixture(w, { comp: 'totscup', rd: k + 1, day: TOTS_RR_DAYS[Math.min(k, TOTS_RR_DAYS.length - 1)], h, a, neutral: true, stg: 'Group' }); });
+  w.totsLive = { s, teams, made };
+  const me = g.career.pid, mine = teams.find((t) => w.clubs['tots_' + t.lg].squad.includes(me));
+  addNews(g, 'world', 'The Team of the Season Cup is coming', `${teams.length} Teams of the Season meet once each after the summer; the winners face the All-Stars of every other league.${mine ? ` You are in the ${mine.name} squad.` : ''}`, { imp: 2, me: !!mine });
+}
+
+/** Live standings of the round robin. */
+export function totsTable(g: Game): TotsRow[] {
+  const w = g.world, L = w.totsLive;
+  if (!L) return [];
+  const rows: Record<string, TotsRow> = Object.fromEntries(L.teams.map((t) => [t.lg, { lg: t.lg, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }]));
+  for (const id in w.fixtures) {
+    const f = w.fixtures[id];
+    if (f.comp !== 'totscup' || f.stg !== 'Group' || !f.played || !f.sc) continue;
+    const A = rows[f.h.slice(5)], B = rows[f.a.slice(5)];
+    if (!A || !B) continue;
+    const [x, y] = f.sc;
     A.p++; B.p++; A.gf += x; A.ga += y; B.gf += y; B.ga += x;
     if (x > y) { A.w++; B.l++; A.pts += 3; } else if (x < y) { B.w++; A.l++; B.pts += 3; } else { A.d++; B.d++; A.pts++; B.pts++; }
   }
-  const rows = Object.values(table).sort((a, b) => b.pts - a.pts || b.gf - b.ga - (a.gf - a.ga) || b.gf - a.gf);
-  const winner = rows[0].lg;
-  // the All-Stars: every other league's Team of the Season, the best eleven of them picked on the day
-  const pool = [...new Set(teams.filter((t) => t.lg !== winner).flatMap((t) => t.xi))];
+  return Object.values(rows).sort((a, b) => b.pts - a.pts || b.gf - b.ga - (a.gf - a.ga) || b.gf - a.gf);
+}
+
+/** After the round robin: the All-Stars are picked and the final is scheduled. */
+export function totsCupFinal(g: Game): void {
+  const w = g.world, L = w.totsLive;
+  if (!L || L.final) return;
+  const table = totsTable(g);
+  if (!table.length) return;
+  const winner = table[0].lg;
+  const pool = [...new Set(L.teams.filter((t) => t.lg !== winner).flatMap((t) => t.xi))].filter((id) => w.players[id] && !w.players[id].retired);
   w.clubs.tots_allstars = tempClub(g, 'tots_allstars', 'All-Stars', 'ALL', ['#f4f4f4', '#d4af37'], '4-3-3', pool, 'The best of every other league');
-  made.push('tots_allstars');
+  L.made.push('tots_allstars');
   const as = pickSheet(null, w, teamInfo(w, 'tots_allstars'));
-  const allStars: TotsTeam = { lg: 'allstars', name: 'All-Stars', xi: as.xi.map((x) => x.pid), form: as.form };
-  const fh = 'tots_' + winner;
-  const fms = playSim(g, fh, 'tots_allstars', [sheet(fh), sheet('tots_allstars')], { comp: 'totscup', neutral: true, knockout: true });
-  const final: TotsMatch = { h: winner, a: 'allstars', sc: [fms.score[0], fms.score[1]], pens: fms.pens ? [fms.pens[0], fms.pens[1]] : undefined, scorers: scorers(fms) };
-  const champion = fms.winner === 0 ? winner : 'allstars';
-  clean();
-  const cup: TotsCup = { s, teams, table: rows, matches, winner, allStars, final, champion };
+  L.allStars = { lg: 'allstars', name: 'All-Stars', xi: as.xi.map((x) => x.pid), form: as.form };
+  const fx = addFixture(w, { comp: 'totscup', rd: 99, day: TOTS_FINAL_DAY, h: 'tots_' + winner, a: 'tots_allstars', neutral: true, ko: true, stg: 'Final' });
+  L.final = fx.id;
+  const me = g.career.pid;
+  const inIt = w.clubs['tots_' + winner].squad.includes(me) ? `the ${lgName(winner)} TOTS` : w.clubs.tots_allstars.squad.includes(me) ? 'the All-Stars' : '';
+  addNews(g, 'world', `${lgName(winner)} TOTS top the table — the All-Stars await`, `${lgName(winner)}'s Team of the Season finished first with ${table[0].pts} points and meet the All-Stars in the final.${inIt ? ` You are in the squad for ${inIt}.` : ''}`, { imp: 2, me: !!inIt });
+}
+
+/** After the final: the cup goes into the record books and the borrowed sides are dissolved. */
+export function totsCupFinish(g: Game, force = false): TotsCup | null {
+  const w = g.world, L = w.totsLive;
+  if (!L) return null;
+  const fin = L.final ? w.fixtures[L.final] : undefined;
+  if (L.final && !fin?.played && !force) return null;
+  const scorers = (f: { goals?: [number, number, string, string, number, number, number][] }) => (f.goals ?? []).filter((x) => x[4] !== 2).map((x) => `${w.players[x[2]]?.sn ?? '?'} ${x[0]}'`);
+  const matches: TotsMatch[] = [];
+  for (const id in w.fixtures) { const f = w.fixtures[id]; if (f.comp === 'totscup' && f.stg === 'Group' && f.played && f.sc) matches.push({ h: f.h.slice(5), a: f.a.slice(5), sc: [f.sc[0], f.sc[1]], scorers: scorers(f as never) }); }
+  const table = totsTable(g);
+  const winner = table[0]?.lg ?? '';
+  const final: TotsMatch = fin?.sc ? { h: winner, a: 'allstars', sc: [fin.sc[0], fin.sc[1]], pens: fin.pens ? [fin.pens[0], fin.pens[1]] : undefined, scorers: scorers(fin as never) } : { h: winner, a: 'allstars', sc: [0, 0], scorers: [] };
+  const champion = fin ? (winnerId(fin) === fin.h ? winner : 'allstars') : winner;
+  const cup: TotsCup = { s: L.s, teams: L.teams, table, matches, winner, allStars: L.allStars ?? { lg: 'allstars', name: 'All-Stars', xi: [], form: '4-3-3' }, final, champion };
   (w.totsCup ??= []).push(cup);
   if (w.totsCup.length > 30) w.totsCup.shift();
-  const lgName = (lg: string) => (lg === 'allstars' ? 'the All-Stars' : `the ${LEAGUES.find((l) => l.id === lg)?.name} Team of the Season`);
-  addNews(g, 'world', `Team of the Season Cup: ${champion === 'allstars' ? 'the All-Stars' : LEAGUES.find((l) => l.id === winner)?.name + ' TOTS'} lift the trophy`, `${lgName(winner)} topped the round robin and met ${lgName('allstars')} in the final: ${final.sc[0]}–${final.sc[1]}${final.pens ? ` (${final.pens[0]}–${final.pens[1]} on penalties)` : ''}.`, { imp: 2 });
+  // the cup lines are kept in the cup record, not in anyone's season statistics
+  for (const id in w.players) delete w.players[id].ss.totscup;
+  for (const id of Object.keys(w.fixtures)) if (w.fixtures[id].comp === 'totscup') delete w.fixtures[id];
+  for (const id of L.made) delete w.clubs[id];
+  delete w.totsLive;
+  const lgN = (lg: string) => (lg === 'allstars' ? 'the All-Stars' : `the ${lgName(lg)} Team of the Season`);
+  addNews(g, 'world', `Team of the Season Cup: ${champion === 'allstars' ? 'the All-Stars' : lgName(winner) + ' TOTS'} lift the trophy`, `${lgN(winner)} met ${lgN('allstars')} in the final: ${final.sc[0]}–${final.sc[1]}${final.pens ? ` (${final.pens[0]}–${final.pens[1]} on penalties)` : ''}.`, { imp: 2 });
   const me = g.career.pid;
-  const mine = (champion === 'allstars' ? allStars.xi : teams.find((t) => t.lg === winner)?.xi ?? []).includes(me);
-  if (teams.some((t) => t.xi.includes(me)) || allStars.xi.includes(me)) {
-    if (mine) milestone(g, 'award', `Won the ${s}/${String((s + 1) % 100).padStart(2, '0')} Team of the Season Cup.`);
-    addNews(g, 'award', mine ? 'Team of the Season Cup winners — and you were in the side' : 'You played in the Team of the Season Cup', `${lgName(winner)} v ${lgName('allstars')}: ${final.sc[0]}–${final.sc[1]}.`, { imp: 2, me: true });
-  }
+  const side = (champion === 'allstars' ? cup.allStars.xi : cup.teams.find((t) => t.lg === winner)?.xi ?? []);
+  if (side.includes(me)) milestone(g, 'award', `Won the ${seasonLabel(L.s)} Team of the Season Cup.`);
   return cup;
 }
+const lgName = (id: string) => LEAGUES.find((l) => l.id === id)?.name ?? id;
+
 
 // ── the best elevens in history ──
 const SLOT_OK: Record<string, Pos[]> = {

@@ -117,7 +117,7 @@ export function journalists(): { j: string; out: string; nat: string; wG: number
     const r = Rng.seeded(h);
     const j = `${r.pick(pool.first)} ${r.pick(pool.last)}`;
     // each voter has a style: the stat-counter, the trophy-hunter, the purist who watches every game
-    return { j, out: `${n.name} ${OUTLETS[h % OUTLETS.length]}`, nat: n.id, wG: 0.75 + r.next() * 0.45, wT: 0.7 + r.next() * 0.9, wF: 0.95 + r.next() * 0.45, homer: 0.03 + r.next() * 0.07 };
+    return { j, out: `${n.name} ${OUTLETS[h % OUTLETS.length]}`, nat: n.id, wG: 0.6 + r.next() * 0.8, wT: 0.5 + r.next() * 1.2, wF: 0.85 + r.next() * 0.6, homer: 0.04 + r.next() * 0.12 };
   });
 }
 
@@ -132,7 +132,7 @@ export function ballonDorGala(g: Game): string[] {
   const short = rows.slice(0, 30);
   const pts: Record<string, number> = {}, firsts: Record<string, number> = {}, votes: BdoVote[] = [];
   for (const J of journalists()) {
-    const sc = short.map((r) => ({ r, v: (r.sGoals * J.wG + r.sTroph * J.wT + r.sForm * J.wF) * (1 + (r.nat === J.nat ? J.homer : 0)) * (1 + (rng.next() - 0.5) * 0.24) }));
+    const sc = short.map((r) => ({ r, v: (r.sGoals * J.wG + r.sTroph * J.wT + r.sForm * J.wF) * (1 + (r.nat === J.nat ? J.homer : 0)) * (1 + (rng.next() - 0.5) * 0.36) }));
     sc.sort((a, b) => b.v - a.v);
     const picks = sc.slice(0, 10).map((x) => x.r.pid);
     picks.forEach((pid, i) => { pts[pid] = (pts[pid] ?? 0) + BDO_POINTS[i]; if (i === 0) firsts[pid] = (firsts[pid] ?? 0) + 1; });

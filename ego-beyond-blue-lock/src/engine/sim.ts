@@ -14,6 +14,7 @@ import { clockLabel } from './match/rules';
 import { afterNelRound, concludeNel, canonWinner, NEL_END_DAY, PROLOGUE_END_DAY } from './nel';
 import { onCompFinished, endSeason, rollover, startPro } from './season';
 import { ballonDorGala, BDO_DAY } from './ballondor';
+import { totsCupFinal, totsCupFinish, TOTS_FINAL_DAY } from './teamsheets';
 import { weeklyAwards, monthlyAwards } from './awards';
 import { weeklyPress } from './press';
 import { afterMatchRivalry } from './rivalry';
@@ -31,6 +32,7 @@ export function userSide(g: Game, fx: Fixture): string | null {
   const me = w.players[g.career.pid];
   if (!me || me.retired) return null;
   const comp = w.comps[fx.comp];
+  if (fx.comp === 'totscup') { for (const t of [fx.h, fx.a]) if (w.clubs[t]?.squad.includes(me.id)) return t; return null; }
   if (comp?.natTeams) {
     for (const t of [fx.h, fx.a]) { const sq = comp.u20 ? w.nations[t]?.u20squad : w.nations[t]?.squad; if (sq?.includes(me.id)) return t; }
     return null;
@@ -93,6 +95,8 @@ function morning(g: Game): void {
     if (w.day % 28 === 14) { worldDevTick(g); userAgeing(g); }
     if (w.day === SEASON_END_DAY) endSeason(g);
     if (w.day === BDO_DAY) ballonDorGala(g);
+    if (w.day === TOTS_FINAL_DAY - 1) totsCupFinal(g);
+    if (w.day === TOTS_FINAL_DAY + 1) totsCupFinish(g);
     if (w.day === SUMMER_TOURNAMENT_DAY - 1) setupSummerTournament(g);
     if (w.day > SEASON_END_DAY && w.day % 7 === 3) aiTransferDay(g, 1.5);
   } else {

@@ -578,6 +578,7 @@ export interface World {
   sheetArchive?: Record<number, Record<string, { form: string; xi: [string, string, number, string][] }>>;
   /** the Team of the Season Cup, one per season */
   totsCup?: import('./teamsheets').TotsCup[];
+  totsLive?: import('./teamsheets').TotsLive;
 }
 
 export interface Game {

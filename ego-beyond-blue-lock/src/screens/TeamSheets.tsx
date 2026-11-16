@@ -8,7 +8,7 @@ import { LEAGUES } from '../engine/data/clubs';
 import { ovr } from '../engine/attributes';
 import { pickSheet, teamInfo, teamName } from '../engine/match/setup';
 import { seasonLabel } from '../engine/competitions';
-import { historyXI, TOP_LEAGUES } from '../engine/teamsheets';
+import { historyXI, TOP_LEAGUES, totsTable } from '../engine/teamsheets';
 import { Card, ClubBadge, Empty, Tabs } from '../ui/kit';
 import { TotwPitch } from '../ui/Totw';
 import { Trophy } from '../ui/Trophy';
@@ -74,17 +74,38 @@ function Tots({ g }: { g: Game }) {
   );
 }
 
+function LiveCup({ g }: { g: Game }) {
+  const w = g.world, L = w.totsLive!;
+  const table = totsTable(g);
+  const fx = Object.values(w.fixtures).filter((f) => f.comp === 'totscup').sort((a, b) => a.day - b.day);
+  const nm = (id: string) => (id === 'tots_allstars' ? 'All-Stars' : lgName(id.slice(5)) + ' TOTS');
+  const me = g.career.pid, mine = L.made.find((id) => w.clubs[id]?.squad.includes(me));
+  return (
+    <Card className="hot mb" title={<span className="row gap6"><Trophy kind="club" size={26} />Team of the Season Cup {seasonLabel(L.s)} — in progress</span>} right={mine ? <span className="chip b">You: {nm(mine)}</span> : undefined}>
+      <div className="grid g2">
+        <table><thead><tr><th>#</th><th>Team</th><th className="n">P</th><th className="n">W</th><th className="n">D</th><th className="n">L</th><th className="n">GD</th><th className="n">Pts</th></tr></thead><tbody>
+          {table.map((r, i) => <tr key={r.lg} className={'tots_' + r.lg === mine ? 'me' : ''}><td>{i + 1}</td><td>{lgName(r.lg)}</td><td className="n">{r.p}</td><td className="n">{r.w}</td><td className="n">{r.d}</td><td className="n">{r.l}</td><td className="n">{r.gf - r.ga}</td><td className="n"><b>{r.pts}</b></td></tr>)}
+        </tbody></table>
+        <div className="small">{fx.map((f) => <div key={f.id} className={`row between ${f.h === mine || f.a === mine ? 'blue' : ''}`} style={{ padding: '2px 0' }}><span className="muted" style={{ width: 70 }}>{f.stg === 'Final' ? 'FINAL' : `Round ${f.rd}`}</span><span>{nm(f.h)}</span><b className="num">{f.played && f.sc ? `${f.sc[0]}–${f.sc[1]}${f.pens ? ` (${f.pens[0]}–${f.pens[1]} p)` : ''}` : 'v'}</b><span>{nm(f.a)}</span></div>)}</div>
+      </div>
+      <p className="tiny dim mt">One round a day after the summer tournament; the table-topper plays the All-Stars of every other league in the final.{mine ? ' Your matches are played like any other fixture.' : ''}</p>
+    </Card>
+  );
+}
+
 function Cup({ g }: { g: Game }) {
   const w = g.world;
   const cups = [...(w.totsCup ?? [])].sort((a, b) => b.s - a.s);
   const [s, setS] = useState(cups[0]?.s);
   const c = cups.find((x) => x.s === s) ?? cups[0];
+  if (!c && w.totsLive) return <LiveCup g={g} />;
   if (!c) return <Empty>The Team of the Season Cup is played at the end of every season: each top league's Team of the Season meets the others, and the winner faces the All-Stars of every other league.</Empty>;
   const me = g.career.pid;
   const xiOf = (pids: string[], lg: string): AwardXI[] => pids.map((pid) => { const p = w.players[pid]; return { pid, name: p?.name ?? '?', pos: (p?.pos ?? 'CM') as Pos, club: p?.club ?? '', clubName: p?.club ? teamName(w, p.club) : lgName(lg), rat: 0, ovr: p ? ovr(p) : 0 }; });
   const finalists = [c.teams.find((t) => t.lg === c.winner)!, c.allStars];
   return (
     <>
+      {w.totsLive && <LiveCup g={g} />}
       <div className="row gap6 mb"><select value={c.s} onChange={(e) => setS(+e.target.value)} aria-label="Season">{cups.map((x) => <option key={x.s} value={x.s}>{seasonLabel(x.s)}</option>)}</select></div>
       <Card className="hot mb" title={<span className="row gap6"><Trophy kind="club" size={30} />Team of the Season Cup {seasonLabel(c.s)} — {c.champion === 'allstars' ? 'All-Stars' : `${lgName(c.winner)} TOTS`} win</span>}>
         <div className="row wrap gap6" style={{ alignItems: 'center', justifyContent: 'center', fontSize: 22 }}><b>{lgName(c.winner)} TOTS</b><b className="num" style={{ fontSize: 34 }}>{c.final.sc[0]} – {c.final.sc[1]}</b><b>All-Stars</b>{c.final.pens && <span className="small muted">({c.final.pens[0]}–{c.final.pens[1]} on penalties)</span>}</div>
