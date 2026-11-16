@@ -202,7 +202,8 @@ export function advance(g: Game, maxDays = 7): AdvanceReport {
     if (c.flags.awardPop) { stop = 'event'; break; }
     if (days >= maxDays) break;
   }
-  for (const n of w.news) if (n.id >= news0 && n.me && n.imp >= 2) c.digest.push(n.title);
+  // award results are revealed in the ceremonies, never in the daily ticker
+  for (const n of w.news) if (n.id >= news0 && n.me && n.imp >= 2 && n.cat !== 'award' && !/Ballon d'Or|Kopa|Yashin|Müller|Cruyff|Player of the Season|Golden Boot|Golden Glove|Team of the Season/.test(n.title)) c.digest.push(n.title);
   if (c.nextInteraction !== int0) c.digest.push(`${c.inbox.filter((x) => x.id >= int0 && !x.done).length} new interaction(s) waiting`);
   return { days, stop, digest: c.digest };
 }

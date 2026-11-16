@@ -69,6 +69,7 @@ const REP_GAIN: Partial<Record<AwardType, number>> = { potr: 2, potw: 1, potm: 3
 /** Routine recognitions: recorded and reported, but never treated as career honours (no timeline entry, no pop-up). */
 export const MINOR_AWARDS: AwardType[] = ['potw', 'totw', 'potr', 'totr', 'gotm', 'totm'];
 export const isMinorAward = (t: AwardType) => MINOR_AWARDS.includes(t);
+const CEREMONIAL = new Set<string>(['pots', 'ypots', 'tots', 'boot', 'playmaker', 'glove', 'def_s', 'mid_s', 'fwd_s', 'potm_king', 'ironman', 'dribbler', 'ballwinner', 'breakout', 'veteran', 'manager_s', 'signing_s']);
 
 function nom(g: Game, c: Cand): AwardNom {
   return { pid: c.p.id, name: c.p.name, club: c.club, clubName: teamName(g.world, c.club), line: statBlurb(c.line, c.p.pos), score: Math.round(c.score * 10) / 10 };
@@ -94,7 +95,8 @@ export function giveAward(g: Game, a: Omit<Award, 'day' | 's' | 'me'> & { s?: nu
   } else if (mine) {
     milestone(g, 'award', `${aw.title} — ${aw.compName}${aw.period ? ` (${aw.period})` : ''}.`);
     addNews(g, 'award', `You win: ${aw.title}`, `${aw.compName}${aw.period ? `, ${aw.period}` : ''}. ${aw.why}`, { imp: 3, me: true });
-    g.career.flags.awardPop = aw.id;
+    // awards revealed on stage (the season ceremony, the world gala, the Ballon d'Or gala) stay a surprise until the ceremony
+    if (!CEREMONIAL.has(aw.type) && aw.comp !== 'bdo' && aw.comp !== 'world') g.career.flags.awardPop = aw.id;
   } else if (news && aw.winner) {
     addNews(g, 'award', `${aw.winner.name} named ${aw.title}`, `${aw.compName}${aw.period ? `, ${aw.period}` : ''}: ${aw.winner.line}. ${aw.why}`, { imp: 1, pids: [aw.winner.pid], clubs: [aw.winner.club] });
   }

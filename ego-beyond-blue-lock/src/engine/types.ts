@@ -276,6 +276,8 @@ export interface News {
   clubs?: string[];
   imp: number; // 1..3
   me?: boolean;
+  /** a story only one newspaper runs */
+  paper?: string;
 }
 
 export interface Transfer {

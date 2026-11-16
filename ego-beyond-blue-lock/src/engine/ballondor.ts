@@ -43,10 +43,13 @@ const TOP5 = ['eng1', 'esp1', 'ger1', 'ita1', 'fra1'];
 const CUPS = new Set(LEAGUES.map((l) => l.cup));
 /** What winning each competition adds to a Ballon d'Or case. */
 function trophyPts(cid: string): number {
-  if (cid === 'wc') return 48; if (cid === 'ucl') return 42; if (cid === 'euro' || cid === 'copa') return 30;
-  if (TOP5.includes(cid)) return 24; if (LEAGUE_W[cid]) return 12; if (cid === 'uel') return 16;
-  if (cid === 'afcon' || cid === 'asian' || cid === 'gold') return 16; if (CUPS.has(cid)) return 8; return 0;
+  // the big ones decide Ballon d'Ors: a World Cup or a Champions League is worth a whole season of goals
+  if (cid === 'wc') return 95; if (cid === 'ucl') return 85; if (cid === 'euro' || cid === 'copa') return 60;
+  if (TOP5.includes(cid)) return 34; if (LEAGUE_W[cid]) return 14; if (cid === 'uel') return 26;
+  if (cid === 'afcon' || cid === 'asian' || cid === 'gold') return 26; if (CUPS.has(cid)) return 10; return 0;
 }
+/** Diminishing returns: past an elite level, more of the same impresses voters less and less. */
+const soft = (x: number, knee: number) => (x <= knee ? x : knee + (x - knee) * 0.45);
 
 /** Every player's case for the season `s` (call before the season's stat lines are archived). */
 export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>): BdoRow[] {
@@ -81,7 +84,7 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     const sForm = (rat - 6.6) * 40 * Math.min(1, n / 35) + (good - 0.35) * 200 * Math.min(1, n / 30) - poor * 90 + Math.min(1, line[S.APP] / 50) * 30 + line[S.POTM] * 1.5
       // and how he played when it mattered most: knockout ties and finals
       + bigGA * 4 + (bigN ? (bigRat - 6.8) * 6 * Math.min(bigN, 8) : 0);
-    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, good: Math.round(good * 100), bigGA, sGoals, sTroph: tPts * 1.3, sForm });
+    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, good: Math.round(good * 100), bigGA, sGoals: soft(sGoals, 160), sTroph: tPts * 1.3, sForm: soft(sForm, 150) });
   }
   return rows.sort((a, b) => base(b) - base(a));
 }
@@ -114,7 +117,7 @@ export function journalists(): { j: string; out: string; nat: string; wG: number
     const r = Rng.seeded(h);
     const j = `${r.pick(pool.first)} ${r.pick(pool.last)}`;
     // each voter has a style: the stat-counter, the trophy-hunter, the purist who watches every game
-    return { j, out: `${n.name} ${OUTLETS[h % OUTLETS.length]}`, nat: n.id, wG: 0.8 + r.next() * 0.4, wT: 0.75 + r.next() * 0.6, wF: 0.95 + r.next() * 0.45, homer: 0.03 + r.next() * 0.07 };
+    return { j, out: `${n.name} ${OUTLETS[h % OUTLETS.length]}`, nat: n.id, wG: 0.75 + r.next() * 0.45, wT: 0.7 + r.next() * 0.9, wF: 0.95 + r.next() * 0.45, homer: 0.03 + r.next() * 0.07 };
   });
 }
 
@@ -129,7 +132,7 @@ export function ballonDorGala(g: Game): string[] {
   const short = rows.slice(0, 30);
   const pts: Record<string, number> = {}, firsts: Record<string, number> = {}, votes: BdoVote[] = [];
   for (const J of journalists()) {
-    const sc = short.map((r) => ({ r, v: (r.sGoals * J.wG + r.sTroph * J.wT + r.sForm * J.wF) * (1 + (r.nat === J.nat ? J.homer : 0)) * (1 + (rng.next() - 0.5) * 0.18) }));
+    const sc = short.map((r) => ({ r, v: (r.sGoals * J.wG + r.sTroph * J.wT + r.sForm * J.wF) * (1 + (r.nat === J.nat ? J.homer : 0)) * (1 + (rng.next() - 0.5) * 0.24) }));
     sc.sort((a, b) => b.v - a.v);
     const picks = sc.slice(0, 10).map((x) => x.r.pid);
     picks.forEach((pid, i) => { pts[pid] = (pts[pid] ?? 0) + BDO_POINTS[i]; if (i === 0) firsts[pid] = (firsts[pid] ?? 0) + 1; });

@@ -5,6 +5,7 @@
 import { ordinal } from './util';
 import type { Game } from './types';
 import { S } from './match/model';
+import { hashStr } from './rng';
 import { tableOf, compFixtures } from './competitions';
 import { teamName } from './match/setup';
 import { addNews } from './util';
@@ -62,14 +63,25 @@ export function weeklyPress(g: Game, week: number): void {
     if (rp && !rp.retired) rivalQuoteReply(g, rid, quote, diff >= 1);
     if (rp && !rp.retired) addNews(g, 'paper', `${rp.sn} on ${me.sn}: "${quote}"`, `${rp.name} was asked about his rivalry with ${me.name} this week. Head to head so far: ${h2h(g, rid).w} wins for ${me.sn}, ${h2h(g, rid).l} for ${rp.sn}, ${h2h(g, rid).d} drawn.`, { imp: 2, me: true, pids: [rid] });
   }
-  // 4. Ballon d'Or power ranking
-  if (week % 4 === 0 && week >= 8) {
-    const rows = bdoRows(g, Math.min(15, Math.max(5, Math.floor(week / 3))));
-    const top = rows.slice(0, 5);
-    if (top.length >= 5) {
+  // 4. Ballon d'Or watch: each paper has its own panel, its own taste and its own favourite, so nobody knows who leads
+  if (week % 2 === 0 && week >= 8) {
+    const PAPER = ['touchline', 'express', 'bls', 'monde'][(week / 2) % 4];
+    const rows = bdoRows(g, Math.min(15, Math.max(5, Math.floor(week / 3)))).slice(0, 25);
+    if (rows.length >= 8) {
+      const noise = (pid: string) => 1 + ((hashStr(pid + PAPER + week + w.season) % 1000) / 1000 - 0.5) * 0.3;
+      const taste = (r: (typeof rows)[number]) => {
+        const p2 = w.players[r.pid];
+        if (PAPER === 'touchline') return (r.sForm * 1.5 + r.sGoals * 0.7 + r.sTroph * 0.5);
+        if (PAPER === 'express') return (r.sGoals * 1.6 + r.sForm * 0.5 + r.sTroph * 0.5) * (w.clubs[r.club]?.league === 'eng1' ? 1.25 : 1);
+        if (PAPER === 'bls') return (r.sGoals + r.sForm + r.sTroph * 0.6) * (p2?.origin === 'bluelock' || r.nat === 'JPN' ? 1.45 : 1);
+        return (r.sTroph * 1.7 + r.sForm + r.sGoals * 0.7) * ((p2?.ss.ucl?.[S.APP] ?? 0) > 0 ? 1.12 : 1);
+      };
+      const top = [...rows].sort((a, b) => taste(b) * noise(b.pid) - taste(a) * noise(a.pid)).slice(0, 5);
       const mine = top.findIndex((x) => x.pid === me.id);
-      const gap = bdoBase(top[0]) - bdoBase(top[1]);
-      addNews(g, 'paper', `Ballon d'Or power ranking: ${top[0].name} out in front`, `${top.map((x, i) => `${i + 1}. ${x.name} (${x.clubName}) — ${x.g} goals, ${x.a} assists, avg ${x.rat.toFixed(2)}`).join(' · ')}. ${gap > 40 ? `${top[0].name} is the clear favourite as things stand.` : `${top[0].name} and ${top[1].name} are neck and neck; trophies in May and the summer tournament will decide it.`}${mine >= 0 ? ' You are in the conversation.' : ''} The vote is in late October.`, { imp: mine >= 0 ? 2 : 1, pids: top.map((x) => x.pid), me: mine >= 0 });
+      const NAME: Record<string, string> = { touchline: 'The Touchline', express: 'GOAL EXPRESS', bls: 'Blue Lock Sports', monde: 'Le Monde du Football' };
+      const VIEW: Record<string, string> = { touchline: 'Our writers judge on week-in, week-out level, not highlight reels.', express: 'Goals win Ballon d\'Ors. Our list is simple: who is putting the ball in the net?', bls: 'Our correspondents back the egoists — and they are not shy about it.', monde: 'Silver decides it in the end. Our panel weighs the big trophies and the European nights.' };
+      const lead = top[0];
+      addNews(g, 'paper', `${NAME[PAPER]} Ballon d'Or watch: ${lead.name} ${PAPER === 'express' ? 'is OUR man' : 'leads our list'}`, `${VIEW[PAPER]} ${top.map((x, i) => `${i + 1}. ${x.name} (${x.clubName}) — ${x.g} goals, ${x.a} assists`).join(' · ')}.${mine >= 0 ? ` ${me.sn} is on our list.` : ''} Other papers see it differently, and the 100 journalists vote in late October.`, { imp: mine >= 0 ? 2 : 1, pids: top.map((x) => x.pid), me: mine >= 0, paper: PAPER });
     }
   }
 }

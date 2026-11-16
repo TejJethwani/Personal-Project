@@ -71,7 +71,7 @@ export function NewsScreen({ g }: { g: Game }) {
   const cur = wk != null && weeks.includes(wk) ? wk : weeks[0];
   const inCat = (n: News) => (cat === 'all' ? true : cat === 'me' ? n.me : cat === 'club' ? n.cat === 'club' || n.cat === 'manager' : cat === 'world' ? ['world', 'record', 'youth'].includes(n.cat) : n.cat === cat);
   const score = (n: News) => n.imp + (paper.boost[n.cat] ?? 0) + (n.me ? 0.6 : 0) + (paper.cls === 'tabloid' && /€\d{3}|\d{3}m|record|sacked|row|fires back/i.test(n.title + n.body) ? 1 : 0);
-  const list = w.news.filter((n) => weekOf(n) === cur && inCat(n) && (!paper.only || paper.only(g, n))).sort((a, b) => score(b) - score(a) || b.id - a.id);
+  const list = w.news.filter((n) => weekOf(n) === cur && inCat(n) && (n.paper ? n.paper === paper.id : !paper.only || paper.only(g, n))).sort((a, b) => score(b) - score(a) || b.id - a.id);
   const lead = list[0];
   const idx = weeks.indexOf(cur);
   const name = me.name, sn = me.sn || me.name;

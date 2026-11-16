@@ -40,10 +40,10 @@ export function log(w: World, k: string, m: string): void {
   if (w.log.length > 1500) w.log.splice(0, 300);
 }
 
-export function addNews(g: Game, cat: NewsCat, title: string, body: string, o: { imp?: number; pids?: string[]; clubs?: string[]; me?: boolean } = {}): News {
+export function addNews(g: Game, cat: NewsCat, title: string, body: string, o: { imp?: number; pids?: string[]; clubs?: string[]; me?: boolean; paper?: string } = {}): News {
   const w = g.world;
   const me = o.me ?? !!o.pids?.includes(g.career.pid);
-  const n: News = { id: w.newsId++, s: w.season, day: w.day, date: fmtDate(w, w.day), cat, title, body, imp: o.imp ?? 1, pids: o.pids, clubs: o.clubs, me };
+  const n: News = { id: w.newsId++, s: w.season, day: w.day, date: fmtDate(w, w.day), cat, title, body, imp: o.imp ?? 1, pids: o.pids, clubs: o.clubs, me, ...(o.paper ? { paper: o.paper } : {}) };
   w.news.push(n);
   if (w.news.length > 520) {
     // keep the feed bounded: drop the oldest low-importance items first
