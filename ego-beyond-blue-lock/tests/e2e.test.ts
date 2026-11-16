@@ -74,7 +74,7 @@ describe('full career simulation', () => {
     const awards = Object.values(w.awards);
     const potw = awards.filter((a) => a.type === 'potw' && a.s === w.season);
     expect(potw.length).toBeGreaterThan(50);
-    for (const a of potw) { const p = w.players[a.winner!.pid]; expect(p.ss[a.comp]?.[S.APP], a.id).toBeGreaterThan(0); }
+    for (const a of potw) { const p = w.players[a.winner!.pid]; const apps = (p.ss[a.comp]?.[S.APP] ?? 0) + p.hist.filter((h) => h.s === w.season && h.comp === a.comp).reduce((s, h) => s + h.ap, 0); expect(apps, a.id).toBeGreaterThan(0); } // a winner may have been sold since: his stats then live in his history
     const totw = awards.filter((a) => a.type === 'totw');
     for (const a of totw.slice(0, 40)) { expect(a.xi!.length).toBe(11); expect(a.xi!.filter((x) => x.pos === 'GK').length).toBe(1); expect(new Set(a.xi!.map((x) => x.pid)).size).toBe(11); }
     // not just strikers: defenders and midfielders are recognised

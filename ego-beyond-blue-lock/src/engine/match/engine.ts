@@ -363,7 +363,10 @@ function doCorner(ms: MatchState, rng: Rng, t: 0 | 1): void {
   M2.time(ms, 4, 26, 0);
   const side = rng.chance(0.5) ? 4 : 96;
   ms.bx = t === 0 ? 98 : 2; ms.by = side; shape(ms);
-  const taker = ms.pl[pickTaker(ms, t, (p) => p.a[A.CRO] + (p.line === 3 ? -6 : 0))];
+  // two corner takers, one for each side, so a single crosser doesn't collect every set-piece assist
+  const tk1 = pickTaker(ms, t, (p) => p.a[A.CRO] + (p.line === 3 ? -6 : 0));
+  const tk2 = pickTaker(ms, t, (p) => (ms.pl.indexOf(p) === tk1 ? -999 : p.a[A.CRO] + (p.line === 3 ? -6 : 0)));
+  const taker = ms.pl[side === 4 || ms.pl[tk2].a[A.CRO] < ms.pl[tk1].a[A.CRO] - 14 ? tk1 : tk2];
   const tgtI = pickTaker(ms, t, (p) => (p === taker ? -999 : airSk(ms, p) + (p.line === 1 ? 4 : 0) + rng.next() * 14));
   const tgt = ms.pl[tgtI];
   const defI = pickTaker(ms, 1 - t, (p) => airSk(ms, p) + rng.next() * 12);
@@ -375,7 +378,7 @@ function doCorner(ms: MatchState, rng: Rng, t: 0 | 1): void {
   if (ms.verb > 1) emit(ms, 'corner', t, ti, -1, 0, say(ms, 'corner', '', '', ms.teams[t].name), 0);
   if (rng.next() < p) {
     taker.s[S.PC]++; tgt.s[S.AW]++; def.s[S.AL]++;
-    ms.poss = t; ms.from = ti;
+    ms.poss = t; ms.from = ti; ms.fromT = ms.play;
     give(ms, tgtI, t === 0 ? 91 + rng.next() * 4 : 9 - rng.next() * 4, 42 + rng.next() * 16, ARR.CROSS);
     ms.bh = 2; ms.press = 0.45; ms.nd = defI;
     resolveShot(ms, rng, tgt, 'header', null, '');
@@ -577,7 +580,7 @@ function riskLabel(p: number): string { return p >= 0.8 ? 'Safe' : p >= 0.58 ? '
 /** Global finishing offset applied to the xG logit (calibrated so league-wide goals ≈ xG). */
 const SHOT_OFFSET = 0;
 /** Utility cost of shooting: higher values make players wait for better chances (fewer, better shots). */
-const SHOT_COST = 0.2;
+const SHOT_COST = 0.15;
 /** First-to-three matches are about patience: chances are rarer so a match lasts about an hour of playing time. */
 const NEL_EXTRA = -0.02;
 function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number; v: number }[] } | null, ult: string): { xg: number; p: number; d: number; theta: number } {
@@ -822,6 +825,12 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
     const pc = passCalc(ms, c, m, kind, tx, ty, null);
     let u = pc.p * ev(tax, ty) - (1 - pc.p) * (ev(100 - tax, 100 - ty) * 0.8 + 0.035 - T.tac.direct * 0.012) + T.tac.direct * 0.0004 * (tax - cax);
     if (kind === 'through') u += pc.p * 0.06;
+    // a creator who has already carved the defence open gets watched: his next final ball into the box is closed down
+    if (tax > 76) {
+      u -= (c.s[S.KP] * 0.022 + c.s[S.A] * 0.05 + c.mka * 0.03) * pc.p;
+      // a deep midfielder threading a simple ball into the box is rarer than wide play and No. 10s
+      if (kind === 'pass' && (c.pos === 'CM' || c.pos === 'DM' || c.line <= 1)) u -= 0.02 * pc.p;
+    }
     else if (kind === 'cross') u += pc.p * 0.05 * (0.6 + T.tac.width * 0.8);
     else if (kind === 'cutback') u += pc.p * 0.05;
     if (m.user && !c.user) { u *= 0.86 + m.trust / 340; if (m.req > 0) u += 0.012 * (1.25 - c.ego / 100) * (0.5 + m.chem / 100); }
@@ -1052,6 +1061,11 @@ function sendOff(ms: MatchState, p: MPlayer): void {
   }
 }
 
+/** The team-mate who set this shot up, or -1. Only a recent final ball counts: a pass the shooter then carried 40 m is not an assist. */
+export const ASSIST_WINDOW = 9;
+function setter(ms: MatchState, ci: number, t: number): number {
+  return ms.from >= 0 && ms.from !== ci && ms.pl[ms.from].t === t && ms.play - ms.fromT <= ASSIST_WINDOW ? ms.from : -1;
+}
 function goal(ms: MatchState, rng: Rng, c: MPlayer, v: string, xg: number, d: number, flag: number, abId: string): void {
   const t = c.t;
   const ci = ms.pl.indexOf(c);
@@ -1059,7 +1073,7 @@ function goal(ms: MatchState, rng: Rng, c: MPlayer, v: string, xg: number, d: nu
   if (flag === 1) c.s[S.PENG]++;
   ms.score[t]++;
   let ai = -1;
-  if (flag !== 1 && ms.from >= 0 && ms.from !== ci && ms.pl[ms.from].t === t) { ai = ms.from; ms.pl[ai].s[S.A]++; }
+  if (flag !== 1) { ai = setter(ms, ci, t); if (ai >= 0) ms.pl[ai].s[S.A]++; }
   const D = ms.teams[1 - t].on;
   for (let k = 0; k < D.length; k++) ms.pl[D[k]].s[S.GC]++;
   const winner = ms.rules.kind === 'nel' && ms.score[t] >= ms.rules.goalTarget;
@@ -1092,7 +1106,7 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
   // capture the moment for the 3D replay (no RNG is consumed here, so the simulation is unchanged)
   const ci = ms.pl.indexOf(c);
   const gk = gkOf(ms, 1 - c.t);
-  const from = v !== 'pen' && ms.from >= 0 && ms.from !== ci && ms.pl[ms.from].t === c.t ? ms.from : -1;
+  const from = v !== 'pen' ? setter(ms, ci, c.t) : -1;
   const sc0 = ms.score[c.t], ev0 = ms.ev.length;
   const h = (ms.steps * 2654435761) >>> 0;
   const s = shotCalc(ms, c, v.startsWith('dag') ? 'placed' : v, act, ult);
@@ -1133,7 +1147,7 @@ function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id
   const xg = v.startsWith('dag') ? Math.min(s.xg, 0.12) : s.xg;
   c.s[S.SH]++; c.s[S.XG] += xg; touch(c);
   if (DBG.on) { const k = v + '/' + ms.arr + (s.d > 18 ? '/far' : '/box'); DBG[k + ' n'] = (DBG[k + ' n'] ?? 0) + 1; DBG[k + ' xg'] = (DBG[k + ' xg'] ?? 0) + xg; DBG[k + ' pr'] = (DBG[k + ' pr'] ?? 0) + ms.press; }
-  if (!isPen && ms.from >= 0 && ms.from !== ci && ms.pl[ms.from].t === t) { ms.pl[ms.from].s[S.KP]++; ms.pl[ms.from].s[S.XA] += xg; flowGain(ms, ms.pl[ms.from], 8, 'key'); }
+  { const si = isPen ? -1 : setter(ms, ci, t); if (si >= 0) { ms.pl[si].s[S.KP]++; ms.pl[si].s[S.XA] += xg; flowGain(ms, ms.pl[si], 8, 'key'); } }
   machineOf(ms).time(ms, 2.5, 0, 0);
   const gk = gkOf(ms, 1 - t);
   const gi = gk ? ms.pl.indexOf(gk) : -1;
@@ -1286,7 +1300,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       if (rng.next() < p) {
         c.s[S.PC]++;
         ms.seqPasses++;
-        ms.from = ci;
+        ms.from = ci; ms.fromT = ms.play;
         const arr = kind === 'through' ? ARR.THROUGH : kind === 'cross' ? ARR.CROSS : long ? ARR.LOFT : ARR.GROUND;
         if (kind === 'cross') {
           const no = nearestOpp(ms, t, tx, ty);
@@ -1367,7 +1381,9 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
         DRIB.set(ms, { idx: ci, step: ms.steps, def: ms.nd, skill: skill ? (act ? 2 : 1) : 0 });
         nd.beat = skill ? 3 : 2;
         const adv = (skill ? 13 : 10) + paceSk(ms, c) / 30;
-        ms.bx = clamp(ms.bx + (t === 0 ? adv : -adv), 2, 98);
+        // beating a man near the box gets you to around the penalty spot, not to a tap-in on the goal line
+        const nax = Math.min(cax + adv, Math.max(cax, 92));
+        ms.bx = clamp(t === 0 ? nax : 100 - nax, 2, 98);
         ms.by = clamp(ms.by + (50 - ms.by) * 0.12 + (rng.next() - 0.5) * 8, 3, 97);
         ms.arr = ARR.SET; ms.from = -1;
         flowGain(ms, c, skill ? 10 : 7, 'dribble', nd);
@@ -1439,7 +1455,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
         const nx = react ? Math.max(ax(t, ms.bx) + adv, 84) : ax(t, ms.bx) + adv;
         ms.bx = t === 0 ? clamp(nx, 2, 96) : 100 - clamp(nx, 2, 96);
         ms.by = clamp(ms.by + (50 - ms.by) * (react ? 0.6 : 0.2), 4, 96);
-        ms.from = mi; ms.arr = ARR.GROUND; ms.bh = 0;
+        ms.from = mi; ms.fromT = ms.play; ms.arr = ARR.GROUND; ms.bh = 0;
         if (ms.uc) { if (c.user) { memo(ms, mi).pt++; memo(ms, mi).pf++; ms.uc.unselfish++; } else if (m.user) { memo(ms, ci).pt++; memo(ms, ci).pf++; } }
         emit(ms, 'onetwo', t, ci, mi, 0, say(ms, react ? 'reaction' : 'onetwo', c.nm, m.nm), react ? 2 : 1);
         flowGain(ms, c, react ? 14 : 6, 'key');
@@ -1559,7 +1575,7 @@ function anyUlt(ms: MatchState, p: MPlayer): { id: string; lv: number } | null {
 function ultStrike(ms: MatchState, rng: Rng, sh: MPlayer, key: string, from: number, v0 = 'placed'): void {
   let v = v0;
   const t = sh.t;
-  ms.car = ms.pl.indexOf(sh); ms.poss = t as 0 | 1; ms.from = from;
+  ms.car = ms.pl.indexOf(sh); ms.poss = t as 0 | 1; ms.from = from; ms.fromT = ms.play;
   const tight = key === 'dag';
   ms.bx = t === 0 ? (tight ? 96 : 88.5) : (tight ? 4 : 11.5); ms.by = tight ? (rng.chance(0.5) ? 9 + rng.next() * 7 : 84 + rng.next() * 7) : 43 + rng.next() * 14; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
   if (tight) v = 'dag:outside';

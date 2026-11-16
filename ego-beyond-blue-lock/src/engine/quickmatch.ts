@@ -79,6 +79,12 @@ export function playSim(g: Game, home: string, away: string, sheets0: [SimSheet,
     sheets = [sheets[0], { ...sheets[1], xi, bench: sheets[1].bench.filter((id) => !taken.has(id) && !xi.includes(id)) }];
   }
   SHEETS.set(home, sheets[0]); SHEETS.set(away, sheets[1]);
+  // every simulation starts from the same fresh state: tiredness, form, cards and knocks from one match must not
+  // leak into the next (after 100 back-to-back matches both sides would otherwise be exhausted and leak goals)
+  const ids = [...new Set([...squadOf(g, home), ...squadOf(g, away)])].filter((id) => w.players[id]);
+  const saved = ids.map((id) => { const p = w.players[id]; return [p, { fit: p.fit, sharp: p.sharp, form: p.form, morale: p.morale, yel: p.yel, susp: p.susp, inj: p.inj, injName: p.injName, rep: p.rep, caps: p.caps, ig: p.ig, ss: p.ss }] as const; });
+  for (const [p] of saved) p.ss = {};
+  const goalsAll = [home, away].map((id) => w.clubs[id] ? [w.clubs[id], { ...w.clubs[id].goalsAll }] as const : null);
   try {
     const nat = !w.clubs[home] || !w.clubs[away];
     if (o.nel && !w.comps.simnel) mkComp(w, { id: 'simnel', name: 'First to three', sn: 'NEL', kind: 'nel', rules: 'nel' });
@@ -88,7 +94,11 @@ export function playSim(g: Game, home: string, away: string, sheets0: [SimSheet,
     advance(ms);
     delete w.fixtures[fx.id];
     return ms;
-  } finally { SHEETS.delete(home); SHEETS.delete(away); }
+  } finally {
+    SHEETS.delete(home); SHEETS.delete(away);
+    for (const [p, v] of saved) Object.assign(p, v);
+    for (const x of goalsAll) if (x) x[0].goalsAll = x[1];
+  }
 }
 export interface SimSummary { i: number; score: [number, number]; winner: number; pens: [number, number] | null; goals: number; lead: number; comeback: number; lateWinner: number; reds: number; xg: [number, number]; intensity: number; scorers: string[] }
 export interface ManyResult {

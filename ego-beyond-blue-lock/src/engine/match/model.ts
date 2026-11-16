@@ -49,6 +49,7 @@ export interface MPlayer {
   req: number; // requesting the ball (steps)
   focus: number; // user defensive stance for the current possession
   mk: number; // marked man: extra attention earned by this season's scoring rate
+  mka: number; // the same for a creator: extra attention earned by this season's assist rate
 }
 
 export interface MTeam {
@@ -169,6 +170,7 @@ export interface MatchState {
   arr: number; // 0 settled, 1 ground pass, 2 lofted, 3 cross, 4 through, 5 rebound, 6 loose
   bh: number; // ball height 0 ground, 1 mid, 2 high
   from: number; // passer idx for assist tracking
+  fromT: number; // play-clock second the pass was received (assist window)
   seq: number; seqPasses: number; seqStart: number;
   restart: { k: number; t: 0 | 1; x: number; y: number } | null;
   stage: number;

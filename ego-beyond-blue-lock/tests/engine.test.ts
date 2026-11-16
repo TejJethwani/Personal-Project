@@ -454,7 +454,10 @@ describe('later additions', () => {
     const started = ms.pl.filter((p) => p.t === 0 && p.started).map((p) => p.id).sort();
     expect(started).toEqual([...swapped.xi].sort());
     expect((ms.replays ?? []).length).toBeGreaterThan(0);
+    const fit0 = g.world.players[a.xi[1]].fit, ss0 = JSON.stringify(g.world.players[a.xi[1]].ss);
     const many = q.playMany(g, 'eng1_ars', 'IND', [a, b], 12);
+    // each simulation starts fresh: no fatigue, cards or stats carried over from the previous one
+    expect(g.world.players[a.xi[1]].fit).toBe(fit0); expect(JSON.stringify(g.world.players[a.xi[1]].ss)).toBe(ss0);
     expect(many.h + many.d + many.a).toBe(12); expect(many.h).toBeGreaterThan(many.a);
     expect(many.notable.length).toBeGreaterThan(0);
     for (const x of many.notable) { expect(x.ms.done).toBe(true); expect(x.sum.score).toEqual([x.ms.score[0], x.ms.score[1]]); }
@@ -551,3 +554,14 @@ describe('banter and rivalries', () => {
   });
 });
 const d2k = (ms: MatchState) => ms.pl.every((p) => p.s.every((v) => Number.isFinite(v) && v >= 0));
+
+describe('xG range', () => {
+  it('an unmarked tap-in is near certain, a pressured box shot is not, and long shots stay low', () => {
+    const tap = logistic(xgLogit(shotGeo(98, 50), { pressure: 0 }));
+    expect(tap).toBeGreaterThan(0.85);
+    expect(logistic(xgLogit(shotGeo(98, 50), { pressure: 0.9 }))).toBeLessThan(tap);
+    const spot = logistic(xgLogit(shotGeo(89.5, 50), { pressure: 0.5 }));
+    expect(spot).toBeGreaterThan(0.12); expect(spot).toBeLessThan(0.45);
+    expect(logistic(xgLogit(shotGeo(70, 50), { pressure: 0.3 }))).toBeLessThan(0.2);
+  });
+});

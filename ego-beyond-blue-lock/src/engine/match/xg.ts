@@ -37,6 +37,7 @@ const HALF_GOAL = 3.66;
 export interface ShotGeo { d: number; theta: number }
 
 /** ax: attack-frame x (100 = goal line being attacked), y: 0..100 across the pitch. */
+const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 export function shotGeo(ax: number, y: number): ShotGeo {
   const dx = Math.max(0.5, (100 - ax) * (PITCH_L / 100));
   const dy = (y - 50) * (PITCH_W / 100);
@@ -64,10 +65,12 @@ export function xgLogit(g: ShotGeo, o: { header?: boolean; volley?: boolean; pre
   if (o.rebound) l += 0.45;
   if (o.cutback) l += 0.35;
   if (g.d < 5.5 && !o.header) l += 0.35;
-  // inside the box a shot on a sensible angle is never worth less than a long shot
-  // open-play chances inside the box are compressed into roughly 0.2–0.65: nothing in the box is hopeless, nothing is automatic
-  const x = 1 / (1 + Math.exp(-l));
-  return logit(o.header ? 0.07 + 0.48 * x : 0.13 + 0.5 * x);
+  if (g.d < 3.5 && !o.header) l += 0.9 * (1 - o.pressure); // a tap-in into a gaping net
+  const x = 1 / (1 + Math.exp(-l)), top = 1 / (1 + Math.exp(0.6 - l));
+  // nothing in the box is hopeless (a floor keeps it above a long shot), but the very best chances, an unmarked
+  // tap-in or a free header from two yards, are now close to certain, as they are in real football
+  const floor = o.header ? 0.07 + 0.48 * x : 0.13 + 0.5 * x;
+  return logit(clamp(Math.max(floor, o.header ? top * 0.92 : top), 0.02, 0.97));
 }
 export const PENALTY_XG = 0.76;
 export const logistic = (l: number) => 1 / (1 + Math.exp(-l));

@@ -104,6 +104,12 @@ function markedMan(p: Player): number {
   if (ap < 4) return 0;
   return clamp((g / ap - 0.5) * 2.2, 0, 1.6);
 }
+function markedCreator(p: Player): number {
+  let a = 0, ap = 0;
+  for (const k in p.ss) { a += p.ss[k][S.A]; ap += p.ss[k][S.APP]; }
+  if (ap < 4) return 0;
+  return clamp((a / ap - 0.3) * 3, 0, 1.6);
+}
 function mkPlayer(w: World, p: Player, t: 0 | 1, slot: { pos: Pos; x: number; y: number } | null, mult: number, scale: number): MPlayer {
   const cond = mult * (0.9 + 0.1 * (p.fit / 100)) * (1 + (p.form - 6.6) * 0.006 + (p.morale - 60) * 0.0004) * (0.97 + 0.03 * (p.sharp / 100));
   const a = new Array(N_ATTR);
@@ -122,7 +128,7 @@ function mkPlayer(w: World, p: Player, t: 0 | 1, slot: { pos: Pos; x: number; y:
     boost: line === 3 ? [A.FIN, A.POS, A.DRI, A.COM] : line === 2 ? [A.VIS, A.SPA, A.DEC, A.BCO] : line === 1 ? [A.TAC, A.INT, A.DAW] : [A.GKR, A.GKP],
     run: 0, runT: 0, open: false, beat: 0, yc: 0, rc: false, inj: 0,
     ab: p.ab.map((r) => ({ id: r.id, lv: r.lv, evo: r.evo })), abN: {}, ego: p.pers.ego, agg: 40 + p.pers.temper * 0.4,
-    user: false, star: false, chem: 50, trust: 50, rival: false, mk: markedMan(p), foot: p.foot === 'L' ? 0 : p.foot === 'R' ? 1 : 2,
+    user: false, star: false, chem: 50, trust: 50, rival: false, mk: markedMan(p), mka: markedCreator(p), foot: p.foot === 'L' ? 0 : p.foot === 'R' ? 1 : 2,
     streak: 0, lostTo: -1, ultN: 0, req: 0, focus: 0,
   };
 }
@@ -250,7 +256,7 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
   const ms: MatchState = {
     v: 1, fid: fx.id, comp: fx.comp, compName: comp?.name ?? '', rules, rng: seedState(seed), crng: seedState(seed ^ 0x5bd1e995),
     clock: 0, play: 0, period: 1, phase: 'PRE', periodEnd: 0, lost: 0, score: [0, 0], pens: null, agg, ko: !!fx.ko,
-    teams: teams as [MTeam, MTeam], pl, bx: 50, by: 50, car: -1, poss: 0, arr: 0, bh: 0, from: -1, seq: 0, seqPasses: 0, seqStart: 0,
+    teams: teams as [MTeam, MTeam], pl, bx: 50, by: 50, car: -1, poss: 0, arr: 0, bh: 0, from: -1, fromT: 0, seq: 0, seqPasses: 0, seqStart: 0,
     restart: null, stage: 0, pending: null, choice: null, ev: [], goals: [], done: false, winner: -1, uc, imp, verb: uc && mode !== 'sim' ? 2 : uc ? 1 : 0,
     steps: 0, esc: 0, inj: [], subsLog: [], hold: 0, note: '', press: 0, nd: -1, home0: true, neutral: !!fx.neutral,
   };

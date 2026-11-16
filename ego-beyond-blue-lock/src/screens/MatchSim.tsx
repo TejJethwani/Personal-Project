@@ -72,9 +72,11 @@ function ManyReport({ g, many, H, A, name, onOpen }: { g: Game; many: ManyResult
   const players = many.players;
   const top = (f: (p: ManyResult['players'][number]) => number, minApps = 1) => [...players].filter((p) => p.apps >= minApps && f(p) > 0).sort((a, b) => f(b) - f(a)).slice(0, 5);
   const T = many.team;
+  // totals cover every simulation (100 matches is about two and a half league seasons), so also show the rate
+  const per = (x: number, apps: number) => `${(x / Math.max(1, apps)).toFixed(2)} a game · ≈${Math.round((x / Math.max(1, apps)) * 38)} per 38`;
   const row = (label: string, a: string | number, b: string | number) => <tr key={label}><td className="n num">{a}</td><td className="center muted small">{label}</td><td className="num">{b}</td></tr>;
-  const Board = ({ title, list, val }: { title: string; list: ManyResult['players']; val: (p: ManyResult['players'][number]) => string }) => (
-    <Card title={title}>{list.length ? list.map((p, i) => { const wp = g.world.players[p.id]; return <div key={p.id} className="row" style={{ padding: '3px 0', gap: 8 }}><span className="num dim" style={{ width: 16 }}>{i + 1}</span>{wp && <PlayerAvatar g={g} p={wp} size={28} />}<span className="grow"><b>{p.name}</b> <span className="tiny muted">{name(p.t === 0 ? H : A)}</span></span><b className="num">{val(p)}</b></div>; }) : <p className="small muted">—</p>}</Card>
+  const Board = ({ title, list, val, sub }: { title: string; list: ManyResult['players']; val: (p: ManyResult['players'][number]) => string; sub?: (p: ManyResult['players'][number]) => string }) => (
+    <Card title={title}>{list.length ? list.map((p, i) => { const wp = g.world.players[p.id]; return <div key={p.id} className="row" style={{ padding: '3px 0', gap: 8 }}><span className="num dim" style={{ width: 16 }}>{i + 1}</span>{wp && <PlayerAvatar g={g} p={wp} size={28} />}<span className="grow"><b>{p.name}</b> <span className="tiny muted">{name(p.t === 0 ? H : A)}</span></span><span style={{ textAlign: 'right' }}><b className="num">{val(p)}</b>{sub && <span className="tiny muted" style={{ display: 'block' }}>{sub(p)}</span>}</span></div>; }) : <p className="small muted">—</p>}</Card>
   );
   return (
     <div className="mb">
@@ -96,8 +98,8 @@ function ManyReport({ g, many, H, A, name, onOpen }: { g: Game; many: ManyResult
           </tbody></table>
         </Card>
         <div className="grid g2" style={{ gap: 10 }}>
-          <Board title="Top scorers" list={top((p) => p.g)} val={(p) => `${p.g}`} />
-          <Board title="Most assists" list={top((p) => p.a)} val={(p) => `${p.a}`} />
+          <Board title={`Top scorers (${many.n} matches)`} list={top((p) => p.g)} val={(p) => `${p.g}`} sub={(p) => per(p.g, p.apps)} />
+          <Board title={`Most assists (${many.n} matches)`} list={top((p) => p.a)} val={(p) => `${p.a}`} sub={(p) => per(p.a, p.apps)} />
           <Board title="Best average rating" list={top((p) => p.rat, Math.ceil(many.n * 0.3))} val={(p) => p.rat.toFixed(2)} />
           <Board title="Player of the Match" list={top((p) => p.potm * 10 + p.hat)} val={(p) => `${p.potm}${p.hat ? ` · ${p.hat} hat-trick${p.hat > 1 ? 's' : ''}` : ''}`} />
         </div>
