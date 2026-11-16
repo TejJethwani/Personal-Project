@@ -160,7 +160,7 @@ describe('full career simulation', () => {
     for (const c of Object.values(w.clubs)) for (const id of c.squad) expect(w.players[id].club).toBe(c.id);
   });
 
-  it('a second professional season completes and the world keeps evolving without the user', () => {
+  it('a second professional season completes and the world keeps evolving without the user', async () => {
     const w = g.world;
     const meBefore = w.players[g.career.pid];
     const id = meBefore.id, hist = meBefore.hist.length;
@@ -175,6 +175,16 @@ describe('full career simulation', () => {
     expect(bdo.noms!.reduce((x, n) => x + n.score, 0)).toBeLessThanOrEqual(100 * 67);
     for (const t of ['kopa', 'yashin', 'muller', 'bdo_club', 'cruyff']) expect(w.awards[`${t}:bdo:2025`], t).toBeTruthy();
     expect(g.career.flags.gala).toBe(2025); expect(w.bdoPending?.s).toBe(2026);
+    // team sheets: archive, the Team of the Season Cup and the best XI in history
+    expect(Object.keys(w.sheetArchive?.[2025] ?? {}).length).toBeGreaterThan(100);
+    const cup = w.totsCup!.find((x) => x.s === 2025)!;
+    expect(cup.teams.length).toBeGreaterThanOrEqual(5); expect(cup.matches.length).toBe(cup.teams.length * (cup.teams.length - 1) / 2);
+    expect(cup.table[0].lg).toBe(cup.winner); expect(cup.allStars.xi.length).toBe(11); expect(['allstars', cup.winner]).toContain(cup.champion);
+    for (const t of cup.teams) expect(cup.allStars.xi.some((id) => t.lg === cup.winner && t.xi.includes(id))).toBe(false);
+    expect(Object.keys(w.clubs).some((id) => id.startsWith('tots_'))).toBe(false);
+    const hx = (await import('../src/engine/teamsheets')).historyXI(g, 'all')!;
+    expect(hx.xi.length).toBe(11); expect(hx.ovr).toBeGreaterThan(70); for (const x of hx.xi) expect(x.ovr).toBeGreaterThan(0);
+    expect(new Set(hx.xi.map((x) => x.pid + ':' + x.s)).size).toBe(11);
     const me = w.players[id];
     expect(me).toBe(meBefore); expect(me.hist.length).toBeGreaterThanOrEqual(hist);
     expect(g.career.matches.length).toBeGreaterThan(40);

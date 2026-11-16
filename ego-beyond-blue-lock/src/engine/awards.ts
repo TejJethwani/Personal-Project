@@ -5,7 +5,7 @@
  */
 import { ordinal } from './util';
 import type { Award, AwardNom, AwardType, AwardXI, Competition, Game, Player, Pos } from './types';
-import { POS_LINE } from './attributes';
+import { POS_LINE, ovr } from './attributes';
 import { clamp } from './rng';
 import { S, NSTAT, newLine, addLine } from './match/model';
 import { teamName } from './match/setup';
@@ -58,14 +58,14 @@ export function bestXI(g: Game, cands: Cand[]): { form: string; xi: AwardXI[] } 
       if (!c) continue;
       used.add(c.p.id);
       total += c.score - (c.p.pos === slot ? 0 : 0.6);
-      xi.push({ pid: c.p.id, name: c.p.name, pos: slot as Pos, club: c.club, clubName: teamName(g.world, c.club), rat: Math.round(c.rat * 100) / 100 });
+      xi.push({ pid: c.p.id, name: c.p.name, pos: slot as Pos, club: c.club, clubName: teamName(g.world, c.club), rat: Math.round(c.rat * 100) / 100, ovr: ovr(c.p), s: g.world.season });
     }
     if (xi.length === 11 && (!best || total > best.total)) best = { form, xi, total };
   }
   return best ?? { form: '4-3-3', xi: [] };
 }
 
-const REP_GAIN: Partial<Record<AwardType, number>> = { potr: 2, potw: 1, potm: 3, gotm: 1.5, pots: 8, ypots: 5, boot: 5, playmaker: 4, glove: 4, nel_mvp: 10, nel_boot: 6, nel_playmaker: 5, nel_glove: 4, nel_goal: 3, world_player: 14, world_young: 8, world_gk: 8, world_goal: 4, tourn_best: 8, tourn_boot: 5, def_s: 4, mid_s: 4, fwd_s: 4, signing_s: 3, golden_shoe: 8, world_def: 7, world_mid: 7, world_fwd: 7, world_scorer: 6, world_playmaker: 5, tourn_young: 4, tourn_glove: 4, potm_king: 3, dribbler: 3, ballwinner: 3, ironman: 2, breakout: 4, veteran: 3, world_dribbler: 5, world_ballwinner: 5, world_veteran: 4, world_breakout: 6, world_potm: 5 };
+const REP_GAIN: Partial<Record<AwardType, number>> = { potr: 2, potw: 1, potm: 3, gotm: 1.5, pots: 8, ypots: 5, boot: 5, playmaker: 4, glove: 4, nel_mvp: 10, nel_boot: 6, nel_playmaker: 5, nel_glove: 4, nel_goal: 3, world_player: 14, super_bdo: 10, world_young: 8, world_gk: 8, world_goal: 4, tourn_best: 8, tourn_boot: 5, def_s: 4, mid_s: 4, fwd_s: 4, signing_s: 3, golden_shoe: 8, world_def: 7, world_mid: 7, world_fwd: 7, world_scorer: 6, world_playmaker: 5, tourn_young: 4, tourn_glove: 4, potm_king: 3, dribbler: 3, ballwinner: 3, ironman: 2, breakout: 4, veteran: 3, world_dribbler: 5, world_ballwinner: 5, world_veteran: 4, world_breakout: 6, world_potm: 5 };
 /** Routine recognitions: recorded and reported, but never treated as career honours (no timeline entry, no pop-up). */
 export const MINOR_AWARDS: AwardType[] = ['potw', 'totw', 'potr', 'totr', 'gotm', 'totm'];
 export const isMinorAward = (t: AwardType) => MINOR_AWARDS.includes(t);
@@ -157,7 +157,7 @@ export function monthlyAwards(g: Game, month: number): void {
     if (!comp) continue;
     const cands = candsFrom(g, acc, curClub, 2);
     if (cands.length >= 40) { const xi = bestXI(g, cands); if (xi.xi.length === 11) giveAward(g, { id: `totm:${id}:${w.season}:${month}`, type: 'totm', title: 'Team of the Month', comp: id, compName: comp.name, period: mName, xi: xi.xi, form: xi.form, why: `The best eleven of ${mName} by performance score, in a ${xi.form}.` }); }
-    if (cands.length >= 20) giveAward(g, { id: `potm:${id}:${w.season}:${month}`, type: 'potm', title: 'Player of the Month', comp: id, compName: comp.name, period: mName, winner: nom(g, cands[0]), noms: cands.slice(0, 4).map((c) => nom(g, c)), why: `Best sustained form in ${mName} among players with at least two rated appearances.` }, id === g.world.players[g.career.pid]?.con?.club);
+    if (cands.length >= 20) giveAward(g, { id: `potm:${id}:${w.season}:${month}`, type: 'potm', title: 'Player of the Month', comp: id, compName: comp.name, period: mName, winner: nom(g, cands[0]), noms: cands.slice(0, 4).map((c) => nom(g, c)), why: `Best sustained form in ${mName} among players with at least two rated appearances.` }, comp.tier === 1 || id === g.world.players[g.career.pid]?.con?.club);
   }
   for (const id in w.acc.goals) {
     if (id === 'nel' || id === '__season') continue;

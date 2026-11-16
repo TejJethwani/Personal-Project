@@ -23,6 +23,11 @@ export const SPECIAL_XIS: { id: string; name: string; abbr: string; col: [string
   { id: 'sim_world', name: 'World XI', abbr: 'WXI', col: ['#f4f4f4', '#d4af37'], form: '4-3-3', desc: 'The best players on the planet.', pick: (ps) => ps },
   { id: 'sim_masters', name: 'NEL Masters XI', abbr: 'MAS', col: ['#3a0b2e', '#ffd166'], form: '4-3-3', desc: 'The master strikers and the best of the NEL clubs.', pick: (ps) => ps.filter((p) => p.origin === 'master' || p.origin === 'nelyouth' || !!p.nelTeam) },
 ];
+/** A temporary club for an exhibition side: borrows players from their real clubs for one match. */
+export function tempClub(g: Game, id: string, name: string, abbr: string, col: [string, string], form: string, squad: string[], desc: string): Club {
+  const base = Object.values(g.world.clubs).find((c) => c.league === 'eng1' && !c.id.startsWith('sim_'))!;
+  return { ...base, id, name, sn: name, abbr, nat: 'JPN', league: null, tier: 0, rep: 95, col, tac: { ...base.tac, form }, squad, nel: false, parent: undefined, master: undefined, identity: desc, hist: [], trophies: [], rec: {}, goalsAll: {}, dormant: false };
+}
 /** Build the special sides as temporary clubs (26-man squads: the best per position). */
 function addSpecialXIs(g: Game): void {
   const w = g.world;
@@ -35,8 +40,7 @@ function addSpecialXIs(g: Game): void {
     for (const p of pool) { if (squad.length >= 26) break; if ((need[p.pos] ?? 0) > 0) { need[p.pos]--; squad.push(p.id); } }
     for (const p of pool) { if (squad.length >= 26) break; if (!squad.includes(p.id) && p.pos !== 'GK') squad.push(p.id); }
     if (squad.filter((id) => w.players[id].pos === 'GK').length === 0) { const gk = all.filter((p) => p.pos === 'GK').sort((a, b) => ovr(b) - ovr(a))[0]; if (gk) squad.push(gk.id); }
-    const c: Club = { ...base, id: x.id, name: x.name, sn: x.name, abbr: x.abbr, nat: 'JPN', league: null, tier: 0, rep: 95, col: x.col, tac: { ...base.tac, form: x.form }, squad, nel: false, parent: undefined, master: undefined, identity: x.desc, hist: [], trophies: [], rec: {}, goalsAll: {}, dormant: false };
-    w.clubs[x.id] = c;
+    w.clubs[x.id] = tempClub(g, x.id, x.name, x.abbr, x.col, x.form, squad, x.desc);
   }
 }
 
@@ -65,7 +69,7 @@ export function autoSheet(g: Game, id: string): SimSheet {
 }
 export function squadOf(g: Game, id: string): string[] { ensureSquad(g, id); return teamInfo(g.world, id).squad; }
 
-export interface SimOpts { nel?: boolean; knockout?: boolean; neutral?: boolean; record?: boolean }
+export interface SimOpts { nel?: boolean; knockout?: boolean; neutral?: boolean; record?: boolean; comp?: string }
 /** Play one match with the given sheets. */
 export function playSim(g: Game, home: string, away: string, sheets0: [SimSheet, SimSheet], o: SimOpts = {}): MatchState {
   let sheets = sheets0;
@@ -88,7 +92,7 @@ export function playSim(g: Game, home: string, away: string, sheets0: [SimSheet,
   try {
     const nat = !w.clubs[home] || !w.clubs[away];
     if (o.nel && !w.comps.simnel) mkComp(w, { id: 'simnel', name: 'First to three', sn: 'NEL', kind: 'nel', rules: 'nel' });
-    const fx = addFixture(w, { comp: o.nel ? 'simnel' : nat ? 'simnat' : 'simreg', rd: 1, day: 0, h: home, a: away, ko: o.knockout, neutral: o.neutral });
+    const fx = addFixture(w, { comp: o.comp ?? (o.nel ? 'simnel' : nat ? 'simnat' : 'simreg'), rd: 1, day: 0, h: home, a: away, ko: o.knockout, neutral: o.neutral });
     const ms = createMatch(g, fx, 'sim');
     if (o.record) recordReplays(ms);
     advance(ms);

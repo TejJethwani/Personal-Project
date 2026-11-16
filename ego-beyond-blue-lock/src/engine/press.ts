@@ -5,6 +5,7 @@
 import { ordinal } from './util';
 import type { Game } from './types';
 import { S } from './match/model';
+import { LEAGUES } from './data/clubs';
 import { hashStr } from './rng';
 import { tableOf, compFixtures } from './competitions';
 import { teamName } from './match/setup';
@@ -62,6 +63,22 @@ export function weeklyPress(g: Game, week: number): void {
     const quote = rp ? smartLine(rp, 'press', { lead: 0, myGoals: 0, h2hDiff: diff }, me.sn, rp.club ? teamName(w, rp.club) : '', w.season, seed) : '';
     if (rp && !rp.retired) rivalQuoteReply(g, rid, quote, diff >= 1);
     if (rp && !rp.retired) addNews(g, 'paper', `${rp.sn} on ${me.sn}: "${quote}"`, `${rp.name} was asked about his rivalry with ${me.name} this week. Head to head so far: ${h2h(g, rid).w} wins for ${me.sn}, ${h2h(g, rid).l} for ${rp.sn}, ${h2h(g, rid).d} drawn.`, { imp: 2, me: true, pids: [rid] });
+  }
+  // 5. around the other leagues: who leads, who is scoring, who was the player of the week — the world does not revolve around one player
+  {
+    const others = LEAGUES.filter((L) => L.tier === 1 && L.id !== lg && w.comps[L.id] && !w.comps[L.id].done);
+    const L = others[(week + w.season) % Math.max(1, others.length)];
+    if (L) {
+      const t2 = tableOf(w, L.id);
+      if (t2.length && t2[0].p >= 3) {
+        const top = seasonLines(g, L.id).filter((c) => c.line[S.G] > 0).sort((a, b) => b.line[S.G] - a.line[S.G])[0];
+        const potw = Object.values(w.awards).filter((a) => a.type === 'potw' && a.comp === L.id && a.s === w.season).sort((a, b) => b.day - a.day)[0];
+        addNews(g, 'world', `Around Europe — ${L.name}: ${t2[0].name} ${t2[0].pts - (t2[1]?.pts ?? 0) >= 6 ? 'pulling clear' : 'lead the way'}`, `${t2[0].name} top the ${L.name} on ${t2[0].pts} points, ${t2[0].pts - (t2[1]?.pts ?? 0)} ahead of ${t2[1]?.name}.${top ? ` ${top.p.name} (${teamName(w, top.club)}) leads the scoring charts with ${top.line[S.G]}.` : ''}${potw?.winner ? ` Player of the Week: ${potw.winner.name} — ${potw.winner.line}.` : ''}`, { imp: 2, pids: [top?.p.id, potw?.winner?.pid].filter((x): x is string => !!x), clubs: [t2[0].id] });
+      }
+    }
+    // the best performer in the user's own league this week, whoever he is
+    const pw = Object.values(w.awards).filter((a) => a.type === 'potw' && a.comp === lg && a.s === w.season).sort((a, b) => b.day - a.day)[0];
+    if (pw?.winner && pw.winner.pid !== me.id && pw.day >= w.day - 7) addNews(g, 'paper', `${pw.winner.name} is the ${comp.name}'s Player of the Week`, `${pw.winner.clubName}: ${pw.winner.line}.`, { imp: 2, pids: [pw.winner.pid], clubs: [pw.winner.club] });
   }
   // 4. Ballon d'Or watch: each paper has its own panel, its own taste and its own favourite, so nobody knows who leads
   if (week % 2 === 0 && week >= 8) {

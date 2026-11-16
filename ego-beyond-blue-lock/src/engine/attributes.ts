@@ -119,9 +119,11 @@ export function fitAt(p: { a: number[]; pos: Pos; pos2: Pos[] }, pos: Pos): numb
   const raw = ovrAt(p.a, pos);
   if (p.pos === pos) return raw;
   if (pos === 'GK' || p.pos === 'GK') return raw * 0.5;
-  if (p.pos2.includes(pos)) return raw * 0.985;
-  if (FAMILY[p.pos].includes(pos)) return raw * 0.955;
-  return raw * 0.9;
+  // coaches judge by what they see: a player whose attributes suit another role can be used there,
+  // with only a small cost for unfamiliarity (less within the same family of positions)
+  if (p.pos2.includes(pos)) return raw * 0.99;
+  if (FAMILY[p.pos].includes(pos)) return raw * 0.975;
+  return raw * 0.95;
 }
 
 /** Playing-style emphasis profiles used when distributing attributes. */

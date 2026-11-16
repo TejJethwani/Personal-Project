@@ -13,6 +13,7 @@ import { winnerId } from './match/setup';
 import { addNews, milestone, ordinal, log } from './util';
 import { compSeasonAwards, worldAwards, tournamentAwards, pruneAwards, seasonLines } from './awards';
 import { rememberSeasonClubs, bdoSnapshot } from './ballondor';
+import { archiveSheets, totsCup } from './teamsheets';
 import { archiveStats, contractYearEnd, managerChanges, ensureSquads, aiLoans, buildOffer, levelOf } from './transfers';
 import { yearlyDevelopment, pruneRetired } from './development';
 import { scheduleBreakFriendlies, finishTournament } from './international';
@@ -182,6 +183,8 @@ export function endSeason(g: Game): void {
   if (w.comps.ucl) w.comps.ucl.qual = qual;
   awardIds.push(...worldAwards(g));
   rememberSeasonClubs(g);
+  archiveSheets(g);
+  totsCup(g);
   g.career.flags.ceremony = w.season; // the UI presents the season's awards as a ceremony
   w.rec.seasons = { v: (w.rec.seasons?.v ?? 0) + 1, pid: '', name: '', s: w.season };
   managerChanges(g, positions);

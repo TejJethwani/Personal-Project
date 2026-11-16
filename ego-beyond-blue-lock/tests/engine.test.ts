@@ -549,7 +549,7 @@ describe('banter and rivalries', () => {
     }
     expect(formed).toBe(true); expect(asked).toBe(true);
     const rid = g.career.rivals[0];
-    expect(g.career.rel[rid].rival).toBeGreaterThanOrEqual(24);
+    expect(g.career.rel[rid].rival).toBeGreaterThanOrEqual(20);
     expect(g.career.rivals.length).toBeLessThanOrEqual(12);
     for (const x of g.career.rivalLog ?? []) { expect(g.career.rivals.includes(x.rid) || g.career.rel[x.rid].rival >= 25).toBe(true); expect(x.sc.length).toBe(2); }
     const hist = rv.rivalHistory(g, rid); expect(hist.length).toBeGreaterThan(0); for (const x of hist) expect(['W', 'D', 'L']).toContain(x.res);
@@ -606,5 +606,25 @@ describe('banter in context', () => {
     expect(b.countBanter2()).toBeGreaterThan(350);
     for (const sit of Object.values(b.EXT)) for (const list of Object.values(sit)) expect(list.length).toBeGreaterThanOrEqual(8);
     expect(b.comeback(2, 'cold', 'Rin', 3)).not.toMatch(/\{r\}/);
+  });
+});
+
+describe("Super Ballon d'Or", () => {
+  it('is awarded once a decade to the player with the best ten years of Ballon d\'Ors', async () => {
+    const q = await import('../src/engine/quickmatch');
+    const b = await import('../src/engine/ballondor');
+    const g = q.simWorld(8);
+    const w = g.world;
+    const ids = Object.keys(w.players).filter((id) => w.players[id].club).slice(0, 40);
+    const nom = (id: string, sc: number) => ({ pid: id, name: w.players[id].name, club: w.players[id].club!, clubName: 'X', line: '', score: sc });
+    for (let s = 2020; s < 2029; s++) { const order = s % 3 === 0 ? [ids[1], ids[0], ...ids.slice(2, 30)] : [ids[0], ids[1], ...ids.slice(2, 30)]; w.awards[`world_player:bdo:${s}`] = { id: `world_player:bdo:${s}`, type: 'world_player', title: "Ballon d'Or", comp: 'bdo', compName: 'G', s, period: '', day: 0, winner: nom(order[0], 1000), noms: order.map((id, i) => nom(id, 1000 - i * 30)), why: '', votes: [] }; }
+    const row = (pid: string, gl: number) => ({ pid, name: w.players[pid].name, nat: w.players[pid].nat, pos: 'ST', club: w.players[pid].club!, clubName: 'X', age: 25, g: gl, a: 5, apps: 50, rat: 8, cs: 0, sv: 0, gW: gl, aW: 5, trophies: [], tPts: 0, intl: '', sGoals: gl * 3, sTroph: 0, sForm: 60 });
+    w.bdoPending = { s: 2029, rows: ids.slice(0, 30).map((id, i) => row(id, 60 - i)) };
+    b.ballonDorGala(g);
+    const sb = w.awards['super_bdo:bdo:2029'];
+    expect(sb).toBeTruthy(); expect(sb.winner!.pid).toBe(ids[0]); expect(sb.noms!.length).toBeGreaterThanOrEqual(3);
+    w.bdoPending = { s: 2030, rows: ids.slice(0, 30).map((id, i) => row(id, 60 - i)) };
+    b.ballonDorGala(g);
+    expect(w.awards['super_bdo:bdo:2030']).toBeFalsy();
   });
 });

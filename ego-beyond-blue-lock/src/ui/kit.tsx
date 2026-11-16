@@ -125,7 +125,7 @@ export const LOOK_OPTIONS: [keyof Appearance, string, number | string[], string]
   ['skin', 'Skin tone', 10, 'Head'], ['face', 'Face shape', ['Oval', 'Broad', 'Narrow', 'Square jaw', 'Sharp chin'], 'Head'], ['ears', 'Ears', ['Regular', 'Small', 'Large'], 'Head'], ['nose', 'Nose', ['Soft', 'Straight', 'Wide', 'Pointed'], 'Head'],
   ['eyes', 'Eye shape', ['Round', 'Narrow', 'Wide', 'Almond', 'Sharp', 'Sleepy', 'Fierce'], 'Eyes & mouth'], ['eyeSize', 'Eye size', ['Normal', 'Small', 'Large'], 'Eyes & mouth'], ['eyeCol', 'Eye colour', 12, 'Eyes & mouth'],
   ['brows', 'Eyebrows', ['Flat', 'Angry', 'Raised', 'Thick', 'Thin arched'], 'Eyes & mouth'], ['mouth', 'Mouth', ['Smile', 'Neutral', 'Frown', 'Grin', 'Smirk', 'Open'], 'Eyes & mouth'], ['cheek', 'Cheeks', ['Plain', 'Blush', 'Cheekbones', 'Dimples'], 'Eyes & mouth'],
-  ['mark', 'Face detail', ['None', 'Scar', 'Freckles', 'Nose strip', 'Eye black', 'Beauty mark'], 'Extras'], ['acc', 'Accessory', ['None', 'White headband', 'Glasses', 'Team headband', 'Earring', 'Bandana', 'Two earrings', 'Eye patch', 'Face mask'], 'Extras'],
+  ['mark', 'Face detail', ['None', 'Scar', 'Freckles', 'Nose strip', 'Eye black', 'Beauty mark'], 'Extras'], ['acc', 'Accessory', ['None', 'White headband', 'Glasses', 'Team headband', 'Earring', 'Bandana', 'Two earrings', 'Eye patch', 'Face mask', 'Simple glasses'], 'Extras'],
   ['collar', 'Shirt', ['V-neck', 'Crew neck', 'Collar', 'Stripes', 'Sash', 'Hoops'], 'Extras'], ['bg', 'Portrait background', 10, 'Extras'],
 ];
 const STREAK = ['', '#f1f1f1', '#ffd166', '#e63946', '#3da9fc', '#2ee59d', '#ff70a6', '#111111'];
@@ -295,6 +295,7 @@ export function Avatar({ look, size = 64, kit = '#1ea7ff', hair, kitObj }: { loo
       </>}
       {acc === 1 && <path d={`M${50 - fw - 1} 34h${2 * fw + 2}v5H${50 - fw - 1}z`} fill="#fff" opacity=".92" />}
       {acc === 2 && <g fill="none" stroke="#dfe7ff" strokeWidth="1.8"><circle cx="39" cy="49" r="8.5" /><circle cx="61" cy="49" r="8.5" /><path d="M47.500 49h5" /></g>}
+      {acc === 9 && <g fill="rgba(200,225,255,.12)" stroke="#1b1b1f" strokeWidth="1.6" strokeLinejoin="round"><rect x="31" y="44" width="15" height="10" rx="3" /><rect x="54" y="44" width="15" height="10" rx="3" /><path d="M46 48.5q4 -2.5 8 0M31 47l-5 -1.5M69 47l5 -1.5" fill="none" /></g>}
       {acc === 3 && <path d={`M${50 - fw - 1} 34h${2 * fw + 2}v5H${50 - fw - 1}z`} fill={kit} stroke="#fff" strokeWidth=".6" />}
       {(acc === 4 || acc === 6) && <circle cx={50 + fw + 1} cy={57} r="2.2" fill="#ffd166" stroke="#fff" strokeWidth=".5" />}
       {acc === 6 && <circle cx={50 - fw - 1} cy={57} r="2.2" fill="#ffd166" stroke="#fff" strokeWidth=".5" />}

@@ -21,7 +21,7 @@ export function kindForComp(id: string): TKind {
   return 'cup';
 }
 export function kindForAward(t: AwardType | string): TKind {
-  if (t === 'world_player') return 'ballon'; if (t === 'kopa') return 'kopa';
+  if (t === 'world_player' || t === 'super_bdo') return 'ballon'; if (t === 'kopa') return 'kopa';
   if (/glove|_gk|yashin/.test(t)) return 'glove';
   if (/boot|shoe|scorer|muller/.test(t)) return 'boot';
   if (/xi|tots|totw|totm|totr/.test(t)) return 'xi';

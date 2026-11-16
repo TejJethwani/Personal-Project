@@ -50,8 +50,8 @@ export function afterMatchRivalry(g: Game, ms: MatchState): string[] {
     if (q.line === 0 && me.s[S.G] > 0) heat += 3;
     if (!declared && !c.rel[q.id] && heat < 4) continue;
     const r = relOf(g, q.id);
-    if (heat) adjust(g, q.id, { rival: Math.max(1, Math.round(heat * 0.75)) });
-    if (!declared && r.rival >= 24 && c.rivals.length < MAX_RIVALS && p.rep >= w.players[c.pid].rep - 25 && (heat >= 8 || r.rival >= 38)) {
+    if (heat) adjust(g, q.id, { rival: Math.max(1, Math.round(heat)) });
+    if (!declared && r.rival >= 20 && c.rivals.length < MAX_RIVALS && p.rep >= w.players[c.pid].rep - 25 && (heat >= 7 || r.rival >= 32)) {
       c.rivals.push(q.id);
       remember(g, q.id, 'rival_declared', `A rivalry with ${p.sn} grew out of your matches.`, 1);
       milestone(g, 'rival', `A rivalry is born: ${p.name}.`);

@@ -173,6 +173,21 @@ export function ballonDorGala(g: Game): string[] {
       addNews(g, 'paper', `${top.name} wins the Ballon d'Or`, `${top.name} (${top.clubName}) collects ${pts[top.pid]} points, ${pts[top.pid] - (pts[ranked[1]?.pid] ?? 0)} ahead of ${ranked[1]?.name ?? 'the field'}. ${bdoLine(top)}.`, { imp: 3, pids: [top.pid] });
     }
   }
+  // once a decade: the Super Ballon d'Or for the best player of the last ten years
+  if (s % 10 === 9) {
+    const tally: Record<string, { name: string; club: string; clubName: string; wins: number; pod: number; top10: number; pts: number; n: number }> = {};
+    for (const a of Object.values(w.awards)) {
+      if (a.type !== 'world_player' || a.s < s - 9 || a.s > s) continue;
+      (a.noms ?? []).forEach((n, i) => { const e = (tally[n.pid] ??= { name: n.name, club: n.club, clubName: n.clubName, wins: 0, pod: 0, top10: 0, pts: 0, n: 0 }); if (i === 0) e.wins++; if (i < 3) e.pod++; if (i < 10) e.top10++; e.pts += a.votes ? n.score : Math.max(0, 30 - i) * 30; e.n++; e.club = n.club; e.clubName = n.clubName; });
+    }
+    const sc = (e: (typeof tally)[string]) => e.wins * 900 + e.pod * 300 + e.top10 * 60 + e.pts * 0.4;
+    const list = Object.entries(tally).sort((a, b) => sc(b[1]) - sc(a[1])).slice(0, 5);
+    if (list.length >= 3) {
+      const nomS = ([pid, e]: (typeof list)[number]): AwardNom => ({ pid, name: e.name, club: e.club, clubName: e.clubName, line: `${e.wins} Ballon d'Or${e.wins === 1 ? '' : 's'}, ${e.pod} podium${e.pod === 1 ? '' : 's'}, ${e.top10} top-ten finishes in ten years`, score: Math.round(sc(e)) });
+      give({ id: `super_bdo:bdo:${s}`, type: 'super_bdo', title: "Super Ballon d'Or", winner: nomS(list[0]), noms: list.map(nomS), why: `Awarded once a decade to the best player of the last ten Ballon d'Ors (${seasonLabel(s - 9)} to ${seasonLabel(s)}): wins first, then podiums, top-ten finishes and points.`, mode: 'vote' });
+      addNews(g, 'paper', `${list[0][1].name} wins the Super Ballon d'Or`, `The best player of the decade: ${nomS(list[0]).line}.`, { imp: 3, pids: [list[0][0]] });
+    }
+  }
   g.career.flags.gala = s;
   return ids;
 }

@@ -28,10 +28,11 @@ import { Awards } from './screens/Awards';
 import { Transfers } from './screens/Transfers';
 import { NewsScreen, History } from './screens/News';
 import { Settings } from './screens/Settings';
+import { TeamSheets } from './screens/TeamSheets';
 
 const NAV: [string, string, string][] = [
   ['hub', 'Career Hub', 'hub'], ['player', 'Profile', 'player'], ['weapons', 'Weapons', 'weapon'], ['training', 'Training', 'training'], ['squad', 'Squad & Tactics', 'squad'],
-  ['relationships', 'Relationships', 'people'], ['match', 'Match Centre', 'match'], ['bids', 'NEL Bids', 'bids'], ['competitions', 'Tables & Fixtures', 'table'], ['stats', 'Statistics', 'stats'],
+  ['relationships', 'Relationships', 'people'], ['match', 'Match Centre', 'match'], ['bids', 'NEL Bids', 'bids'], ['competitions', 'Tables & Fixtures', 'table'], ['sheets', 'Team Sheets', 'squad'], ['stats', 'Statistics', 'stats'],
   ['awards', 'Awards', 'award'], ['transfers', 'Transfers', 'transfer'], ['news', 'News', 'news'], ['history', 'Career History', 'history'], ['hof', 'Hall of Fame', 'award'], ['settings', 'Settings', 'settings'],
 ];
 
@@ -68,6 +69,7 @@ export function App() {
       case 'competitions': return <Competitions g={g} id={r.id} />;
       case 'stats': return <Stats g={g} />;
       case 'awards': return <Awards g={g} />;
+      case 'sheets': return <TeamSheets g={g} />;
       case 'transfers': return <Transfers g={g} />;
       case 'news': return <NewsScreen g={g} />;
       case 'history': return <History g={g} />;

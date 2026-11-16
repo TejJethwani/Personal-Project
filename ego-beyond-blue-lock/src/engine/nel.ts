@@ -53,13 +53,14 @@ function roundLines(g: Game, p: Player): { rd: number; line: number[] }[] {
   return out;
 }
 
-export interface Valuation { value: number; why: string[]; played: number; avg: number }
+export interface Valuation { value: number; why: string[]; played: number; avg: number; seen?: number }
 /** Scouting valuation of an NEL player after the rounds played so far. */
 export function valuation(g: Game, p: Player, b: BidState | undefined): Valuation {
   const w = g.world;
-  const o = ovr(p), ag = w.season - p.born;
+  // clubs cannot see an "overall": they value only what happens on the pitch (and how young the player is)
+  const ag = w.season - p.born;
   const rl = roundLines(g, p).filter((x) => x.line[S.RATN] > 0);
-  const base = 6e6 * Math.pow(1.13, o - 62) * (1 + Math.max(0, p.pot - o) * 0.035) * (ag <= 17 ? 1.12 : ag >= 20 ? 0.9 : 1);
+  const base = 16e6 * (ag <= 17 ? 1.15 : ag >= 20 ? 0.9 : 1);
   const why: string[] = [];
   if (!rl.length) return { value: base * 0.35, why: ['Not yet seen in a match'], played: 0, avg: 0 };
   // performance over multiple games: recency-weighted, but every match counts
@@ -67,7 +68,7 @@ export function valuation(g: Game, p: Player, b: BidState | undefined): Valuatio
   rl.forEach((x, i) => { const wt = 1 + i * 0.15; sw += wt; sp += wt * (x.line[S.RAT] - 6.5); sum += x.line[S.RAT]; });
   const avg = sum / rl.length;
   // form is worth as much as raw ability: a 7.8 average roughly doubles a valuation, a 5.8 average halves it
-  const perfMul = clamp(Math.pow(2, (sp / sw) * 0.85), 0.3, 3.4);
+  const perfMul = clamp(Math.pow(2, (sp / sw) * 1.15), 0.2, 5);
   let cons = 1;
   if (rl.length >= 2) {
     const sd = Math.sqrt(rl.reduce((s, x) => s + (x.line[S.RAT] - avg) ** 2, 0) / rl.length);
@@ -80,7 +81,7 @@ export function valuation(g: Game, p: Player, b: BidState | undefined): Valuatio
   const line = POS_LINE[p.pos];
   // diminishing returns: the fifth goal adds far less than the first
   const prod = gl * 1.0 + as * 0.7 + kp * 0.12 + def * 0.06 * (line <= 1 ? 1.7 : line === 2 ? 1.2 : 0.6);
-  const prodMul = 1 + 0.9 * (1 - Math.exp(-prod / 4));
+  const prodMul = 1 + 1.4 * (1 - Math.exp(-prod / 4));
   const rar = rarityOf(p);
   const unique = 1 + rar * 0.03;
   const moments = b?.moments ?? 0;
@@ -89,12 +90,14 @@ export function valuation(g: Game, p: Player, b: BidState | undefined): Valuatio
   if (line <= 2 && def >= 6) why.push(`${def} defensive actions won`);
   if (kp >= 4) why.push(`${kp} chances created`);
   if (avg >= 7.6) why.push(`Average rating ${avg.toFixed(1)}`); else if (avg < 6.3) why.push(`Average rating only ${avg.toFixed(1)}`);
-  if (p.pot - o >= 8 && ag <= 18) why.push(`Age ${ag} with ${p.pot} potential`);
+  if (ag <= 17 && avg >= 7) why.push(`Only ${ag} and already producing`);
   const mw = mainWeapon(p);
   if (mw && rar >= 4) why.push(`Rare weapon: ${mw.name}`);
   if (moments > 0) why.push('High-profile moment on a big stage');
   if (!why.length) why.push(`Average rating ${avg.toFixed(1)} over ${rl.length} match${rl.length > 1 ? 'es' : ''}`);
-  return { value: base * perfMul * cons * prodMul * unique * momentMul, why, played: rl.length, avg };
+  // a few matches is a small sample: confidence grows with every game seen
+  const sample = 0.75 + 0.25 * Math.min(1, rl.length / 4);
+  return { value: base * perfMul * cons * prodMul * unique * momentMul * sample, why, played: rl.length, avg, seen: clamp(58 + (avg - 6.5) * 9 + Math.min(10, prod * 1.2), 45, 95) };
 }
 
 /** Recompute every club's bid after a round. Bids are sticky: they move toward the new valuation, up or down. */
@@ -115,12 +118,12 @@ export function updateBids(g: Game, rd: number): void {
     }
     const v = valuation(g, p, b);
     if (!v.played) { b.bids = []; b.top = 0; b.topClub = ''; continue; }
-    const o = ovr(p);
+    const o = v.seen ?? 60; // the level he has shown, not his hidden overall
     const parent = p.nelTeam ? w.clubs[p.nelTeam]?.parent : undefined;
     const cand: Bid[] = [];
     for (const c of clubs) {
       const lvl = levelOf(c.rep);
-      if (o < lvl - 13 || p.pot < lvl - 3) continue;
+      if (o < lvl - 14) continue;
       const fit = 1 + tacticalFit(p, c.style) * 0.035;
       let better = 0;
       for (const id of c.squad) { const q = w.players[id]; if (q && q.pos === p.pos && ovr(q) >= o) better++; }

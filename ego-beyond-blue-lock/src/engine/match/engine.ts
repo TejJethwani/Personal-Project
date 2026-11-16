@@ -108,7 +108,11 @@ function shape(ms: MatchState): void {
         if (p.run) {
           if (p.run === RUN.BEHIND || p.run === RUN.PRED) x += p.user ? 13 : 9;
           else if (p.run === RUN.BLIND) { x += p.user ? 7 : 9; if (p.user) y += y < 50 ? 9 : -9; }
-          else if (p.run === RUN.SHORT) { x -= p.user ? 10 : 7; if (p.user) y += (by - y) * 0.45; }
+          else if (p.run === RUN.SHORT) { // come short: towards the man on the ball, from wherever you are, stopping a few metres off him
+            const gx = bAx - x, gy = by - y, k = p.user ? 0.55 : 0.4;
+            x += Math.max(-14, Math.min(14, gx * k)); y += gy * (p.user ? 0.55 : 0.3);
+            if (Math.abs(bAx - x) < 5 && Math.abs(by - y) < 5) x = bAx - 5; // a passing angle, not on top of him
+          }
           else if (p.run === RUN.NEAR) { x += 8; y += (by - y) * 0.5; }
           else if (p.run === RUN.FAR) { x += 8; y += (100 - by - y) * 0.4; }
           else if (p.run === RUN.OVERLAP) { x += 12; if (p.user) y += y < 50 ? -8 : 8; }
@@ -1122,6 +1126,8 @@ function goal(ms: MatchState, rng: Rng, c: MPlayer, v: string, xg: number, d: nu
 
 /** Matches whose shots are recorded for the 3D view even though nobody is playing them (match simulator). */
 const REC = new WeakSet<MatchState>();
+/** Ultimates that are one man's work: the replay never shows a pass leading into them. */
+const SOLO_ULT = new Set(['zero', 'dag', 'trance', 'sprint', 'charge', 'comet', 'fk']);
 export function recordReplays(ms: MatchState): void { REC.add(ms); }
 function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id: string; sta: number; fx: { k: number; v: number }[] } | null, ult: string, pForce = -1): void {
   if ((!ms.uc || ms.uc.mode === 'sim') && !REC.has(ms)) return resolveShot0(ms, rng, c, v, act, ult, pForce);
@@ -1133,8 +1139,8 @@ function resolveShot(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id:
   const h = (ms.steps * 2654435761) >>> 0;
   const s = shotCalc(ms, c, v.startsWith('dag') ? 'placed' : v, act, ult);
   const rp: Replay = {
-    id: (ms.replays?.length ? ms.replays[ms.replays.length - 1].id : 0) + 1, min: goalMinute(ms), t: c.t, sh: ci, as: from, gk: gk ? ms.pl.indexOf(gk) : -1, v, d: s.d, xg: s.xg, p: pForce >= 0 ? pForce : s.p, res: 'save',
-    bx: ms.bx, by: ms.by, fx: from >= 0 ? ms.pl[from].x : -1, fy: from >= 0 ? ms.pl[from].y : -1, high: ms.bh >= 1 || v === 'header' || v === 'volley',
+    id: (ms.replays?.length ? ms.replays[ms.replays.length - 1].id : 0) + 1, min: goalMinute(ms), t: c.t, sh: ci, as: SOLO_ULT.has(ult) ? -1 : from, gk: gk ? ms.pl.indexOf(gk) : -1, v, d: s.d, xg: s.xg, p: pForce >= 0 ? pForce : s.p, res: 'save',
+    bx: ms.bx, by: ms.by, fx: from >= 0 && !SOLO_ULT.has(ult) ? ms.pl[from].x : -1, fy: from >= 0 && !SOLO_ULT.has(ult) ? ms.pl[from].y : -1, high: ms.bh >= 1 || v === 'header' || v === 'volley',
     gy: ((h % 1000) / 500 - 1) * 0.86, gz: (((h >>> 10) % 1000) / 1000) * 0.8 + 0.06,
     pl: [], sc: [0, 0], ult: ult || (v.startsWith('dag') ? 'dag' : undefined), ab: act ? abilityDef(act.id)?.name : undefined, clock: ms.clock,
   };
@@ -1614,8 +1620,14 @@ function ultStrike(ms: MatchState, rng: Rng, sh: MPlayer, key: string, from: num
   let v = v0;
   const t = sh.t;
   ms.car = ms.pl.indexOf(sh); ms.poss = t as 0 | 1; ms.from = from; ms.fromT = ms.play;
-  const tight = key === 'dag', far = key === 'comet';
-  ms.bx = t === 0 ? (tight ? 96 : far ? 77 : 88.5) : (tight ? 4 : far ? 23 : 11.5); ms.by = tight ? (rng.chance(0.5) ? 9 + rng.next() * 7 : 84 + rng.next() * 7) : 43 + rng.next() * 14; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
+  // the strike happens where the move actually is: a shooter wide on the left stays on the left
+  const tight = key === 'dag', far = key === 'comet', run = key === 'trance' || key === 'sprint' || key === 'charge';
+  const carrier = ms.car >= 0 && ms.pl[ms.car] === sh;
+  const cx = ax(t, carrier ? ms.bx : sh.x), cy = carrier ? ms.by : sh.y;
+  const j1 = rng.next(), j2 = rng.next();
+  const nax = tight ? 94 + j1 * 3 : far ? clamp(cx, 70, 81) : run ? clamp(Math.max(cx + 10, 84), 84, 90) : clamp(cx, 80, 92);
+  const ny = tight ? (cy < 50 ? 9 + j2 * 7 : 84 + j2 * 7) : run ? clamp(cy + (50 - cy) * 0.3 + (j2 - 0.5) * 6, 28, 72) : clamp(cy + (j2 - 0.5) * 4, 22, 78);
+  ms.bx = t === 0 ? nax : 100 - nax; ms.by = ny; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
   if (tight) v = 'dag:outside';
   sh.x = ms.bx; sh.y = ms.by;
   resolveShot(ms, rng, sh, v, null, key, ULT_GOAL);

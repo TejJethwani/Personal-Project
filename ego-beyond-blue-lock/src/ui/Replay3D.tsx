@@ -185,6 +185,7 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, c: Cam, X: number, Z: 
       else if (f.mouth === 2) { ctx.moveTo(43, 68); ctx.quadraticCurveTo(50, 65, 57, 68); ctx.stroke(); }
       else { ctx.moveTo(43, 66); ctx.quadraticCurveTo(50, f.mouth === 1 ? 66 : 70, 57, 66); ctx.stroke(); }
       if (f.acc === 2) { ctx.strokeStyle = '#dfe7ff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(39, 49, 8.5, 0, 6.3); ctx.moveTo(69.5, 49); ctx.arc(61, 49, 8.5, 0, 6.3); ctx.moveTo(47.5, 49); ctx.lineTo(52.5, 49); ctx.stroke(); }
+      if (f.acc === 9) { ctx.strokeStyle = '#1b1b1f'; ctx.lineWidth = 1.6; ctx.fillStyle = 'rgba(200,225,255,.12)'; for (const x0 of [31, 54]) { ctx.beginPath(); ctx.roundRect(x0, 44, 15, 10, 3); ctx.fill(); ctx.stroke(); } ctx.beginPath(); ctx.moveTo(46, 48.5); ctx.quadraticCurveTo(50, 46, 54, 48.5); ctx.moveTo(31, 47); ctx.lineTo(26, 45.5); ctx.moveTo(69, 47); ctx.lineTo(74, 45.5); ctx.stroke(); }
       if (f.acc === 7) { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(61, 49, 8, 6.5, 0, 0, 6.3); ctx.fill(); }
       if (f.acc === 8) { ctx.fillStyle = '#e8edf5'; ctx.beginPath(); ctx.ellipse(50, 62, f.fw - 4, 13, 0, 0, Math.PI); ctx.fill(); }
     } else { ctx.fillStyle = o.glow ?? '#16181d'; ctx.fillRect(36, 46, 7, 6); ctx.fillRect(57, 46, 7, 6); }
@@ -219,7 +220,7 @@ const RES_LABEL: Record<Replay['res'], string> = { goal: 'GOAL', save: 'SAVED', 
 
 // ── finish types: each has its own trajectory, body shape, keeper reaction and camera ──
 type PoseK = 'std' | 'bicycle' | 'scissor' | 'dive' | 'slide' | 'heel' | 'leap' | 'chip';
-interface Flair { top?: boolean; name: string; arc: number; curl: number; wob: number; speed: number; pose: PoseK; gk: 'dive' | 'rush' | 'early' | 'stand'; cam: 'side' | 'net' | 'low' | 'chase' | 'orbit'; postIn?: boolean; fire?: boolean; chipH?: number }
+interface Flair { top?: boolean; name: string; arc: number; curl: number; wob: number; speed: number; pose: PoseK; gk: 'dive' | 'rush' | 'early' | 'stand'; cam: 'side' | 'net' | 'low' | 'chase' | 'orbit'; postIn?: boolean; fire?: boolean; chipH?: number; curlOut?: boolean }
 const FL = (name: string, o: Partial<Flair> = {}): Flair => ({ name, arc: 0.35, curl: 0.5, wob: 0, speed: 1, pose: 'std', gk: 'dive', cam: 'side', ...o });
 export function pickFlair(rp: Replay): Flair {
   const f = pickFlair0(rp);
@@ -236,12 +237,13 @@ function pickFlair0(rp: Replay): Flair {
   const d = rp.d, ag = Math.abs(rp.gy), goal = rp.res === 'goal';
   if (rp.v === 'pen') return ag < 0.3 && rp.gz > 0.45 && goal ? FL('Panenka', { arc: 2.4, speed: 0.5, gk: 'early', cam: 'net', chipH: 1.3 }) : FL('Penalty', { cam: 'net', speed: 1.2 });
   if (rp.v.startsWith('dag')) return FL('Dead Angle Genesis', { pose: 'bicycle', cam: 'orbit', curl: 1.6, arc: 0.9 });
-  if (rp.v === 'fk') return FL('Free-kick curler', { curl: d * 0.1, arc: d * 0.09, cam: 'chase' });
+  if (rp.v === 'fk') return r % 2 ? FL('Free-kick curler', { curl: d * 0.1, arc: d * 0.09, cam: 'chase' }) : FL('Free kick round the wall', { curl: d * 0.13, arc: d * 0.08, cam: 'chase', curlOut: true });
   if (rp.v === 'header') return d < 8 && r < 55 ? FL('Diving header', { pose: 'dive', cam: 'low', arc: 0.1 }) : FL('Towering header', { pose: 'leap', arc: 0.2, cam: r < 50 ? 'side' : 'net' });
   if (rp.v === 'volley') return r < 36 && d < 17 ? FL('Bicycle kick', { pose: 'bicycle', cam: 'orbit', arc: 0.8 }) : r < 68 ? FL('Scissor volley', { pose: 'scissor', cam: 'low', arc: 0.5 }) : FL('Volley', { arc: 0.6, speed: 1.2 });
-  if (d > 18 && r < 20) return FL('Banana shot', { curl: d * 0.26, arc: d * 0.085, cam: 'chase', top: true, speed: 0.9 });
+  if (d > 18 && r < 20) return FL('Banana shot', { curl: d * 0.26, arc: d * 0.085, cam: 'chase', top: true, speed: 0.9, curlOut: r % 2 === 0 });
   if (d > 18) return r < 36 ? FL('Knuckleball', { wob: 1, arc: d * 0.03, curl: 0, cam: 'chase' }) : r < 56 ? FL('Rocket', { speed: 1.5, arc: 0.3, curl: 0.2, fire: true, cam: 'chase' }) : r < 82 ? FL('Curler', { curl: d * 0.15, arc: d * 0.07, cam: 'chase', top: true }) : FL('Dipping strike', { arc: d * 0.13, curl: d * 0.03, cam: 'chase' });
-  if (rp.gz > 0.68 && ag > 0.58) return FL('Top bins', { cam: 'net', curl: 0.9, arc: 0.5 });
+  if (d > 9 && ag > 0.45 && goal && r >= 54 && r < 70) return FL('Wrapped round the post', { curlOut: true, curl: 2.4 + d * 0.13, arc: 0.6, cam: r % 2 ? 'net' : 'side', speed: 0.92 });
+  if (rp.gz > 0.68 && ag > 0.58) return FL('Top bins', { cam: 'net', curl: 0.9, arc: 0.5, curlOut: r % 3 === 0 });
   if (ag > 0.8 && goal && r < 65) return FL('In off the post', { postIn: true, cam: 'net', curl: 1.1 });
   if (ag < 0.24 && rp.gz < 0.32 && d < 15) return FL('Through the keeper\'s legs', { gk: 'stand', cam: 'low', arc: 0.02, curl: 0 });
   if (d > 8 && d < 17 && r < 24) return FL('Chip over the keeper', { arc: 2.6, speed: 0.62, gk: 'rush', pose: 'chip', chipH: 1.7 });
@@ -274,7 +276,7 @@ const CELE = ['Knee slide', 'Arms-wide run', 'Backflip', 'Point to the sky', 'Ju
 
 interface Scene {
   rp: Replay; long: boolean; dir: number; goalX: number; shot: V3; passFrom: V3 | null; end: V3; after: V3; h0: number; fl: Flair;
-  tP0: number; tPass: number; tStrike: number; tFlight: number; tCele: number; tEnd: number; side: number; cele: number; celeDir: V3; quick: boolean; tIntro: number; tDrib: number; blk: number; drib: number[]; dribL: number; dribA: number;
+  tP0: number; tPass: number; tStrike: number; tFlight: number; tCele: number; tEnd: number; side: number; cele: number; celeDir: V3; quick: boolean; tIntro: number; tDrib: number; blk: number; drib: number[]; dribL: number; dribA: number; carry?: boolean; trick?: boolean;
 }
 function buildScene(rp: Replay, quick = false, ms?: MatchState): Scene {
   const foe = (i: number) => (ms?.pl[i] ? ms.pl[i].t !== rp.t : (i < 11) !== (rp.sh < 11));
@@ -303,20 +305,28 @@ function buildScene(rp: Replay, quick = false, ms?: MatchState): Scene {
     const m: V3 = [lerp(sx, goalX, tp), 0.75, lerp(sz, 34, tp)]; end = m; after = [m[0] - dir * 2.5, 0.11, m[2] + sg * 6];
   }
   else { const over = rp.gz > 0.55; end = over ? [goalX, 2.44 + 0.5 + rp.gz * 1.6, 34 + rp.gy * 3] : [goalX, gz, 34 + sg * (3.66 + 0.7 + Math.abs(rp.gy) * 2.6)]; after = add(end, [dir * 7, over ? 0.6 : -gz * 0.8, sg * 1]); }
-  const passFrom: V3 | null = rp.fx >= 0 ? [rp.fx * 1.05, 0.11, rp.fy * 0.68] : null;
+  // a header always comes from a delivery: if nobody is recorded, the cross comes in from the nearest wing
+  const passFrom: V3 | null = rp.fx >= 0 ? [rp.fx * 1.05, 0.11, rp.fy * 0.68] : (rp.v === 'header' || rp.ult === 'sky') && rp.v !== 'pen' ? [goalX - dir * 17, 0.11, sz < 34 ? 64 : 4] : null;
   const tPass = passFrom ? (quick ? 0.7 : 0.95) : 0;
   const tP0 = quick ? 0.25 : 0.45;
   const tStrike = tP0 + tPass + 0.2 + (rp.ult ? 0.85 : 0);
+  // with an ultimate, the delivery is timed to arrive as he strikes: nothing hangs in the air waiting for him
+  const tP0x = rp.ult && passFrom ? tStrike - tPass - 0.04 : tP0;
   const tFlight = (Math.max(0.42, Math.min(1.5, rp.d / 24)) * (long ? 2.1 : 1.45) * (rp.ult === 'zero' ? 0.4 : quick && !long ? 0.85 : 1)) / fl.speed;
   const hasCele = rp.res === 'goal' && !quick;
   const tCele = tStrike + tFlight + 1.0;
   const side = sz < 34 ? -1 : 1;
   const celeDir = norm([dir * 0.25, 0, side * 1]);
-  return { rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, fl, tP0, tPass, tStrike, tFlight, tCele, tEnd: hasCele ? tCele + 3.0 : tStrike + tFlight + (quick ? 1.0 : 1.7), side, tIntro: quick ? 0 : rp.ult ? 1.9 : long || fl.cam === 'chase' ? 1.1 : 0, blk, ...dribSetup(rp, quick, sx, sz, foe), cele: ((((rp.id + 1) * 2654435761 + rp.min * 40503 + rp.sh * 97) >>> 9) >>> 0) % CELE.length, celeDir, quick };
+  return { rp, long, dir, goalX, shot: [sx, h0, sz], passFrom, end, after, h0, fl, tP0: tP0x, tPass, tStrike, tFlight, tCele, tEnd: hasCele ? tCele + 3.0 : tStrike + tFlight + (quick ? 1.0 : 1.7), side, tIntro: quick ? 0 : rp.ult ? 1.9 : long || fl.cam === 'chase' ? 1.1 : 0, blk, ...dribSetup(rp, quick, sx, sz, foe, !!passFrom), cele: ((((rp.id + 1) * 2654435761 + rp.min * 40503 + rp.sh * 97) >>> 9) >>> 0) % CELE.length, celeDir, quick };
 }
 /** Dribbling ultimates open with the run itself: who gets beaten, how far the run is, how wide the weave. */
-function dribSetup(rp: Replay, quick: boolean, sx: number, sz: number, foe: (i: number) => boolean): { tDrib: number; drib: number[]; dribL: number; dribA: number } {
+function dribSetup(rp: Replay, quick: boolean, sx: number, sz: number, foe: (i: number) => boolean, passed = false): { tDrib: number; drib: number[]; dribL: number; dribA: number; carry?: boolean; trick?: boolean } {
   if (rp.skill && !rp.ult && rp.beat != null && rp.beat >= 0 && rp.pl.some((x) => x[0] === rp.beat)) return { tDrib: quick ? 1.0 : 1.5, drib: [rp.beat], dribL: 8, dribA: rp.skill === 2 ? 1.3 : 0.9 };
+  if (!quick && !passed && rp.v !== 'fk' && rp.v !== 'pen' && rp.v !== 'header' && rp.v !== 'volley' && (!rp.ult || rp.ult === 'zero' || rp.ult === 'comet' || rp.ult === 'dag')) {
+    // no pass: he carries it into the shot, sometimes with a trick, instead of running up to a ball that sits still
+    const h = (rp.id * 2654435761 + Math.round(rp.d * 31)) >>> 0;
+    return { tDrib: rp.ult ? 1.1 : 0.85, drib: [], dribL: rp.ult === 'comet' ? 7 : 5, dribA: h % 3 === 0 ? 0.9 : 0.3, carry: true, trick: h % 3 === 0 };
+  }
   if (quick || (rp.ult !== 'trance' && rp.ult !== 'sprint' && rp.ult !== 'chain' && rp.ult !== 'charge')) return { tDrib: 0, drib: [], dribL: 0, dribA: 0 };
   const opp = rp.pl.filter((x) => x[0] !== rp.gk && x[0] !== rp.sh && foe(x[0])).map((x) => ({ i: x[0], d: Math.hypot(x[1] * 1.05 - sx, x[2] * 0.68 - sz) })).sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.i);
   return rp.ult === 'charge' ? { tDrib: 2.2, drib: opp.slice(0, 2), dribL: 16, dribA: 0.35 } : rp.ult === 'sprint' ? { tDrib: 2.0, drib: opp, dribL: 30, dribA: 0.7 } : rp.ult === 'chain' ? { tDrib: 2.2, drib: opp, dribL: 20, dribA: 1.6 } : { tDrib: 3.0, drib: opp, dribL: 21, dribA: 2.3 };
@@ -330,6 +340,7 @@ function ballAt(sc: Scene, t: number): { p: V3; u: number; phase: 0 | 1 | 2 | 3 
       p[1] = lerp(0.11, sc.h0, u) + (rp.high ? 3.2 : 0.05) * 4 * u * (1 - u);
       return { p, u, phase: 1 };
     }
+    if (sc.carry && !sc.passFrom) { const u = c01(t / Math.max(0.2, sc.tStrike - 0.05)); const dv = norm(sub([sc.goalX, 0, 34], [sc.shot[0], 0, sc.shot[2]])); return { p: [sc.shot[0] - dv[0] * 3.0 * (1 - u), 0.11, sc.shot[2] - dv[2] * 3.0 * (1 - u)], u: 0, phase: 0 }; }
     return { p: sc.passFrom ? sc.passFrom : sc.shot, u: 0, phase: 0 };
   }
   const u = (t - sc.tStrike) / sc.tFlight;
@@ -338,7 +349,7 @@ function ballAt(sc: Scene, t: number): { p: V3; u: number; phase: 0 | 1 | 2 | 3 
     p[1] = lerp(sc.h0, sc.end[1], u) + fl.arc * 4 * u * (1 - u);
     const dv = norm(sub([sc.end[0], 0, sc.end[2]], [sc.shot[0], 0, sc.shot[2]]));
     const perp: V3 = [-dv[2], 0, dv[0]];
-    const k = Math.sin(Math.PI * u) * fl.curl * (rp.gy >= 0 ? -1 : 1) + Math.sin(u * 19) * fl.wob * 0.3 * (1 - u * 0.4);
+    const k = Math.sin(Math.PI * u) * fl.curl * (rp.gy >= 0 ? -1 : 1) * (fl.curlOut ? -1 : 1) + Math.sin(u * 19) * fl.wob * 0.3 * (1 - u * 0.4);
     p[1] = Math.max(0.11, p[1] + Math.sin(u * 27) * fl.wob * 0.14);
     return { p: add(p, mul(perp, k)), u, phase: 2 };
   }
@@ -363,6 +374,46 @@ function celeState(sc: Scene, tc: number): { pos: V3; pose: Pose } {
     case 6: return { pos: add(at(e), [0, 0, Math.sin(tc * 2.4) * 2.2 * e]), pose: { arms: 2, rot: Math.sin(tc * 2.4) * 0.3, kick: Math.sin(tc * 16) * 0.5 } };
     default: return { pos: at(e), pose: { arms: 2, kick: Math.sin(tc * 16) * 0.5 } };
   }
+}
+
+/** The monster of Monster Trance: a hunched, horned shadow-beast with burning eyes, clawing after the dribbler. */
+function drawMonster(ctx: CanvasRenderingContext2D, cam: Cam, base: V3, fwd: V3, t: number, st: { col: string; col2: string }): void {
+  const q0 = proj(cam, base), q1 = proj(cam, [base[0], 3.8, base[2]]);
+  if (q0.z < NEAR || q1.z < NEAR) return;
+  const H = q0.y - q1.y, Wd = H * 0.62, cx = q0.x, top = q1.y;
+  const qf = proj(cam, add(base, mul(fwd, 1.5))), face = Math.sign(qf.x - q0.x) || 1; // which way he lunges on screen
+  const br = Math.sin(t * 5) * 0.03, lunge = Math.sin(t * 7) * 0.08;
+  ctx.save();
+  // smoke aura
+  const g = ctx.createRadialGradient(cx, top + H * 0.5, H * 0.05, cx, top + H * 0.5, H * 0.75);
+  g.addColorStop(0, st.col + '66'); g.addColorStop(1, st.col + '00');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, top + H * 0.55, Wd * 1.1, H * 0.7, 0, 0, 6.3); ctx.fill();
+  // body: a hunched mass leaning towards the dribbler
+  ctx.fillStyle = 'rgba(14,6,22,0.92)';
+  ctx.beginPath();
+  ctx.moveTo(cx - Wd * 0.5, q0.y);
+  ctx.quadraticCurveTo(cx - Wd * 0.7, top + H * (0.35 + br), cx - Wd * 0.1 * face, top + H * 0.12);
+  ctx.quadraticCurveTo(cx + Wd * 0.45 * face, top + H * (0.02 - br), cx + Wd * (0.62 + lunge) * face, top + H * 0.3);
+  ctx.quadraticCurveTo(cx + Wd * 0.4 * face, top + H * 0.75, cx + Wd * 0.45, q0.y);
+  ctx.closePath(); ctx.fill();
+  // spikes along the spine
+  ctx.fillStyle = st.col;
+  for (let i = 0; i < 6; i++) { const u = i / 5, x = lerp(cx - Wd * 0.55, cx + Wd * 0.3 * face, u), y = top + H * (0.3 - Math.sin(u * Math.PI) * 0.22); ctx.beginPath(); ctx.moveTo(x - Wd * 0.05, y + H * 0.04); ctx.lineTo(x - Wd * 0.03 * face, y - H * (0.1 + 0.03 * Math.sin(t * 9 + i))); ctx.lineTo(x + Wd * 0.05, y + H * 0.04); ctx.fill(); }
+  // horns
+  const hx = cx + Wd * 0.42 * face, hy = top + H * 0.2;
+  ctx.strokeStyle = st.col2; ctx.lineWidth = Math.max(2, H * 0.025); ctx.lineCap = 'round';
+  for (const s2 of [-1, 1]) { ctx.beginPath(); ctx.moveTo(hx + s2 * Wd * 0.08, hy); ctx.quadraticCurveTo(hx + s2 * Wd * 0.25, hy - H * 0.18, hx + s2 * Wd * 0.05 + face * Wd * 0.12, hy - H * 0.27); ctx.stroke(); }
+  // burning eyes
+  for (const s2 of [-1, 1]) { const ex = hx + s2 * Wd * 0.09 + face * Wd * 0.06, ey = hy + H * 0.05; const eg = ctx.createRadialGradient(ex, ey, 0, ex, ey, H * 0.06); eg.addColorStop(0, '#ffffff'); eg.addColorStop(0.3, st.col2); eg.addColorStop(1, st.col2 + '00'); ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ex, ey, H * 0.06, 0, 6.3); ctx.fill(); }
+  // open maw with teeth
+  const mx = hx + face * Wd * 0.1, my = hy + H * 0.14, open = 0.04 + Math.abs(Math.sin(t * 6)) * 0.05;
+  ctx.fillStyle = '#2a0010'; ctx.beginPath(); ctx.ellipse(mx, my, Wd * 0.14, H * open, 0, 0, 6.3); ctx.fill();
+  ctx.fillStyle = '#f4f1ea'; for (let i = 0; i < 5; i++) { const tx = mx - Wd * 0.12 + i * Wd * 0.06; ctx.beginPath(); ctx.moveTo(tx, my - H * open); ctx.lineTo(tx + Wd * 0.025, my - H * open + H * 0.04); ctx.lineTo(tx + Wd * 0.05, my - H * open); ctx.fill(); }
+  // clawed arms reaching for him
+  ctx.strokeStyle = 'rgba(14,6,22,0.95)'; ctx.lineWidth = Math.max(3, H * 0.07);
+  for (const s2 of [0, 1]) { const ax0 = cx + Wd * 0.2 * face, ay0 = top + H * (0.45 + s2 * 0.12), ax1 = cx + Wd * (0.95 + lunge * 2 + s2 * 0.1) * face, ay1 = top + H * (0.55 + s2 * 0.15); ctx.beginPath(); ctx.moveTo(ax0, ay0); ctx.quadraticCurveTo((ax0 + ax1) / 2, ay0 - H * 0.08, ax1, ay1); ctx.stroke();
+    ctx.strokeStyle = st.col2; ctx.lineWidth = Math.max(1.5, H * 0.015); for (let c = -1; c <= 1; c++) { ctx.beginPath(); ctx.moveTo(ax1, ay1); ctx.lineTo(ax1 + face * Wd * 0.12, ay1 + c * H * 0.04 + H * 0.03); ctx.stroke(); } ctx.strokeStyle = 'rgba(14,6,22,0.95)'; ctx.lineWidth = Math.max(3, H * 0.07); }
+  ctx.restore();
 }
 
 /** World-space effects that are specific to each ultimate. `over` = drawn above the actors. */
@@ -399,6 +450,11 @@ function ultFx(ctx: CanvasRenderingContext2D, cam: Cam, sc: Scene, ms: MatchStat
       const up = t < sc.tStrike ? k : Math.max(0, 1 - (t - sc.tStrike) * 2.2);
       const x = sp[0] - sc.dir * 5;
       for (let i = 0; i < 15; i++) { const z = sp[2] - 14 + i * 2; poly(ctx, cam, [[x, 0, z - 0.35], [x, 0, z + 0.35], [x, 4.2 * up, z + 0.35], [x, 4.2 * up, z - 0.35]], i % 2 ? '#8892a6' : '#aab6cc'); }
+    } else if (key === 'charge' && sc.tDrib > 0) { // dust clouds where he hit them
+      for (let i = 0; i < 2; i++) { const back = mul(norm(sub([sc.goalX, 0, 34], sp)), -1); const c0 = add(sp, mul(back, 3.65 + sc.dribL * (1 - (i * 2 + 1) / 4))); const q = proj(cam, c0); if (q.z < NEAR) continue; const s2 = cam.fl / q.z; for (let j = 0; j < 7; j++) { ctx.fillStyle = 'rgba(190,170,120,0.35)'; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.arc(q.x + Math.cos(j * 0.9) * s2 * (0.6 + j * 0.12), q.y - s2 * (0.2 + (j % 3) * 0.2), s2 * (0.35 + (j % 2) * 0.2), 0, 6.3); ctx.fill(); } }
+      const back = mul(norm(sub([sc.goalX, 0, 34], sp)), -1), perp: V3 = [-back[2], 0, back[0]];
+      ctx.strokeStyle = us.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.85 * Math.min(1, k * 2);
+      for (let i = 0; i < 7; i++) { let p0: V3 = add(sp, mul(back, i * 2.2)); for (let j = 1; j < 4; j++) { const p1: V3 = add(add(p0, mul(perp, ((i + j) % 2 ? 1 : -1) * 0.7)), mul(back, 0.6)); L([p0[0], 0.04, p0[2]], [p1[0], 0.04, p1[2]]); p0 = p1; } }
     } else if (key === 'charge') { // cracks in the turf along his path and a shockwave where he arrives
       const back = mul(norm(sub([sc.goalX, 0, 34], sp)), -1), perp: V3 = [-back[2], 0, back[0]];
       ctx.strokeStyle = us.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.85 * Math.min(1, k * 2);
@@ -414,6 +470,14 @@ function ultFx(ctx: CanvasRenderingContext2D, cam: Cam, sc: Scene, ms: MatchStat
     }
     ctx.globalAlpha = 1;
     return;
+  }
+  { // every ultimate: rising motes of its colour while he charges, a shockwave at the moment of the strike, a glowing ball trail
+    const sq = proj(cam, [sp[0], 0, sp[2]]);
+    if (sq.z > NEAR && k > 0 && fl === 0) { const s2 = cam.fl / sq.z; for (let i = 0; i < 26; i++) { const a = i * 2.39 + t * 2.2, rr = (0.5 + (i % 5) * 0.18) * s2, yy = ((t * 0.9 + i * 0.137) % 1) * 2.6 * s2; ctx.fillStyle = i % 2 ? us.col : us.col2; ctx.globalAlpha = 0.85 * k * (1 - yy / (2.6 * s2)); ctx.beginPath(); ctx.arc(sq.x + Math.cos(a) * rr, sq.y - yy, Math.max(1.5, s2 * 0.045), 0, 6.3); ctx.fill(); } }
+    const kk = t - sc.tStrike;
+    if (sq.z > NEAR && kk > 0 && kk < 0.45) { const s2 = cam.fl / sq.z, rr = kk / 0.45; ctx.strokeStyle = us.col2; ctx.lineWidth = Math.max(2, s2 * 0.12 * (1 - rr)); ctx.globalAlpha = 1 - rr; ctx.beginPath(); ctx.ellipse(sq.x, sq.y, rr * 4.5 * s2, rr * 1.4 * s2, 0, 0, 6.3); ctx.stroke(); }
+    if (fl > 0 && fl < 1 && key !== 'comet' && key !== 'zero') for (let i = 1; i <= 8; i++) { const u = fl - i * 0.03; if (u <= 0) break; const q = proj(cam, ballAt(sc, sc.tStrike + u * sc.tFlight).p); if (q.z < NEAR) continue; ctx.fillStyle = us.col; ctx.globalAlpha = 0.6 * (1 - i / 9); ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1.5, 0.12 * (cam.fl / q.z) * (1 - i / 10)), 0, 6.3); ctx.fill(); }
+    ctx.globalAlpha = 1;
   }
   if (key === 'puppet') { // golden strings from above to every attacker
     ctx.strokeStyle = us.col; ctx.lineWidth = 1.4;
@@ -576,7 +640,8 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
       else if (pre) {
         X = dPos[0]; Z = dPos[2]; fdx = sdir[0]; fdz = sdir[2];
         if (usC) pose.glow = usC.col;
-        if (dribU >= 0 && rp.skill === 2 && Math.abs(dribU - 0.42) < 0.12) { pose.strike = 0.25 + Math.sin(tRaw * 24) * 0.2; pose.lean = { dx: perpD[0], dz: perpD[2], a: Math.sin(tRaw * 12) * 0.3 }; pose.arms = 2; } // step-over
+        if (dribU >= 0 && (rp.skill === 2 || sc.trick) && Math.abs(dribU - 0.42) < 0.12) { pose.strike = 0.25 + Math.sin(tRaw * 24) * 0.2; pose.lean = { dx: perpD[0], dz: perpD[2], a: Math.sin(tRaw * 12) * 0.3 }; pose.arms = 2; } // step-over
+        else if (dribU >= 0 && rp.ult === 'charge') { pose.runPh = tRaw * 15; pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.5 }; pose.arms = 2; pose.crouch = 0.15; pose.glow = usC?.col; }
         else if (dribU >= 0) { pose.runPh = tRaw * 17; const lean = Math.cos(dribU * waves * Math.PI); pose.lean = { dx: perpD[0] * Math.sign(lean || 1), dz: perpD[2] * Math.sign(lean || 1), a: Math.abs(lean) * (rp.ult === 'sprint' ? 0.12 : 0.34) + (rp.ult === 'sprint' ? 0 : 0) }; if (rp.ult === 'sprint') pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; }
       }
       else {
@@ -640,7 +705,12 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
       const side = Math.sign(Math.sin(dd.u * waves * Math.PI)) || 1; // the side the dribbler goes past on
       fdx = -sdir[0]; fdz = -sdir[2];
       const rel = u - dd.u;
-      if (rp.ult === 'sprint') { if (rel > -0.06) { fdx = sdir[0]; fdz = sdir[2]; pose.runPh = tRaw * 12 + k; pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; const ch = Math.min(1, Math.max(0, rel) * 1.2); X += sdir[0] * ch * 4; Z += sdir[2] * ch * 4; pose.arms = 4; } else { pose.crouch = 0.3; pose.arms = 2; } }
+      if (rp.ult === 'charge' && rel >= 0) { // shoulder-charged: thrown back and up, spinning, then flat on the turf
+        const w = c01(rel / 0.35), fly = Math.sin(Math.min(1, w) * Math.PI);
+        X += perpD[0] * -side * w * 3.2 + sdir[0] * w * 1.4; Z += perpD[2] * -side * w * 3.2 + sdir[2] * w * 1.4;
+        pose.lift = fly * 1.3; pose.lean = { dx: perpD[0] * -side, dz: perpD[2] * -side, a: lerp(0.3, 1.55, w) }; pose.arms = 2; pose.rot = w * 2.4;
+      } else if (rp.ult === 'charge') { pose.crouch = 0.25; pose.arms = 2; pose.strike = c01((rel + 0.12) / 0.12) * 0.5; }
+      else if (rp.ult === 'sprint') { if (rel > -0.06) { fdx = sdir[0]; fdz = sdir[2]; pose.runPh = tRaw * 12 + k; pose.lean = { dx: sdir[0], dz: sdir[2], a: 0.3 }; const ch = Math.min(1, Math.max(0, rel) * 1.2); X += sdir[0] * ch * 4; Z += sdir[2] * ch * 4; pose.arms = 4; } else { pose.crouch = 0.3; pose.arms = 2; } }
       else if (rel < -0.09) { pose.crouch = 0.32; pose.arms = 2; }
       else if (rel < 0.03) { const w = c01((rel + 0.09) / 0.12); pose.strike = w * 0.8; pose.lean = { dx: perpD[0] * -side, dz: perpD[2] * -side, a: w * 0.55 }; pose.arms = 2; X += perpD[0] * -side * w * 0.9; Z += perpD[2] * -side * w * 0.9; }
       else { const w = c01((rel - 0.03) / 0.1); X += perpD[0] * -side * 0.9; Z += perpD[2] * -side * 0.9; pose.lean = { dx: perpD[0] * -side, dz: perpD[2] * -side, a: lerp(0.55, 1.45, w) }; pose.arms = 2; }
@@ -691,6 +761,24 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
     if (intro >= 0 && !isSh) pose.alpha = 0.55;
     if (dribU >= 0 && !isSh && !sc.drib.includes(idx) && q.z < 5) continue;
     items.push({ z: q.z, draw: () => drawPlayer(ctx, cam, X, Z, col, col2, face, pose) });
+  }
+  // the free-kick wall: four defenders 9.15 m from the ball, jumping as he strikes
+  if (rp.v === 'fk' && !cele) {
+    const opp = 1 - rp.t, kit = msKits(ms)[opp], col2 = (kit.pat === 'plain' || kit.pat === 'sleeves' ? kit.c2 : ms.teams[opp].col2) || '#111827';
+    const near = Math.sign(34 - sc.shot[2]) || 1;
+    const c0: V3 = add([sc.shot[0], 0, sc.shot[2]], mul(sdir, 9.15));
+    const jump = Math.sin(c01((t - sc.tStrike + 0.12) / 0.55) * Math.PI);
+    for (let i = 0; i < 4; i++) {
+      const off = (i - 1.5) * 0.62 + near * 0.9, wp = add(c0, mul(perpD, off));
+      const pose: Pose = { fx: -sdir[0], fz: -sdir[2], arms: 0, lift: jump * 0.55, kit, num: 2 + i * 3 };
+      pose.front = frontOf(-sdir[0], -sdir[2]);
+      items.push({ z: proj(cam, wp).z, draw: () => drawPlayer(ctx, cam, wp[0], wp[2], kit.c1, col2, FALLBACK_FACE, pose) });
+    }
+  }
+  // Monster Trance: the monster itself hunts behind him
+  if (rp.ult === 'trance' && !cele && (pre || t < sc.tStrike + 0.3)) {
+    const mp = pre ? dribAt(Math.max(0, dribU - 0.09)) : add([sc.shot[0], 0, sc.shot[2]], mul(sdir, -2.6));
+    items.push({ z: proj(cam, mp).z + 0.05, draw: () => drawMonster(ctx, cam, mp, sdir, tRaw, ULT_STYLE.trance) });
   }
   items.push({ z: proj(cam, [goalX, 1.2, 34]).z + 0.2, draw: () => {
     ctx.strokeStyle = '#f4f6fb'; ctx.lineWidth = Math.max(2, (cam.fl / Math.max(2, proj(cam, [goalX, 1.2, 34]).z)) * 0.12); ctx.lineCap = 'round';

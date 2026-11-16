@@ -238,10 +238,10 @@ export type AwardType =
   | 'tourn_xi' | 'tourn_young' | 'tourn_glove'
   | 'potm_king' | 'dribbler' | 'ballwinner' | 'ironman' | 'manager_s' | 'breakout' | 'veteran'
   | 'world_manager' | 'world_club' | 'world_dribbler' | 'world_ballwinner' | 'world_veteran' | 'world_breakout' | 'world_potm'
-  | 'kopa' | 'yashin' | 'muller' | 'cruyff' | 'bdo_club' | 'bdo_xi';
+  | 'kopa' | 'yashin' | 'muller' | 'cruyff' | 'bdo_club' | 'bdo_xi' | 'super_bdo';
 
 export interface AwardNom { pid: string; name: string; club: string; clubName: string; line: string; score: number }
-export interface AwardXI { pid: string; name: string; pos: Pos; club: string; clubName: string; rat: number }
+export interface AwardXI { pid: string; name: string; pos: Pos; club: string; clubName: string; rat: number; ovr?: number; s?: number }
 export interface Award {
   id: string;
   type: AwardType;
@@ -574,6 +574,10 @@ export interface World {
   formLog?: Record<string, number[]>;
   /** last season's Ballon d'Or cases, waiting for the gala in late October */
   bdoPending?: { s: number; rows: import('./ballondor').BdoRow[] };
+  /** every club's end-of-season team sheet, by season: club -> formation and [pid, pos, ovr, name] */
+  sheetArchive?: Record<number, Record<string, { form: string; xi: [string, string, number, string][] }>>;
+  /** the Team of the Season Cup, one per season */
+  totsCup?: import('./teamsheets').TotsCup[];
 }
 
 export interface Game {

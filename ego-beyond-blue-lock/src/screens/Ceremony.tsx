@@ -19,7 +19,7 @@ import { Trophy, kindForAward } from '../ui/Trophy';
 
 const LEAGUE = ['signing_s', 'ironman', 'potm_king', 'boot', 'veteran', 'breakout', 'ballwinner', 'dribbler', 'glove', 'def_s', 'mid_s', 'fwd_s', 'playmaker', 'manager_s', 'ypots', 'tots', 'pots'];
 const WORLD = ['world_potm', 'world_scorer', 'golden_shoe', 'world_goal', 'world_veteran', 'world_breakout', 'world_ballwinner', 'world_dribbler', 'world_playmaker', 'world_gk', 'world_def', 'world_mid', 'world_fwd', 'world_club', 'world_manager', 'world_xi', 'world_young'];
-const GALA = ['kopa', 'yashin', 'muller', 'cruyff', 'bdo_club', 'bdo_xi', 'world_player'];
+const GALA = ['kopa', 'yashin', 'muller', 'cruyff', 'bdo_club', 'bdo_xi', 'world_player', 'super_bdo'];
 
 export function ceremonyAwards(g: Game, s: number): Award[] {
   const w = g.world, me = w.players[g.career.pid];
@@ -178,7 +178,7 @@ export function Ceremony({ g }: { g: Game }) {
               {a.winner.pid === me && <div className="you">That is you. Walk up and take it.</div>}
             </div>
           ) : null}
-        {!big && (stage === 2 || a.mode === 'rank') && !(a.xi && stage < 2) && <><p className="cer-why">{a.why}</p>{mine && a.xi && <div className="cer-you">You are in the eleven.</div>}{mine && a.mode === 'rank' && <div className="cer-you">Top of the table: you.</div>}<button className="btn pri big" onClick={next}>{last ? 'End of the ceremony' : i + 1 === firstWorld ? 'On to the World Football Gala ▶' : list[i + 1]?.type === 'world_player' ? "The Ballon d'Or ▶" : 'Next award ▶'}</button></>}
+        {!big && (stage === 2 || a.mode === 'rank') && !(a.xi && stage < 2) && <><p className="cer-why">{a.why}</p>{mine && a.xi && <div className="cer-you">You are in the eleven.</div>}{mine && a.mode === 'rank' && <div className="cer-you">Top of the table: you.</div>}<button className="btn pri big" onClick={next}>{last ? 'End of the ceremony' : i + 1 === firstWorld ? 'On to the World Football Gala ▶' : list[i + 1]?.type === 'world_player' ? "The Ballon d'Or ▶" : list[i + 1]?.type === 'super_bdo' ? "The Super Ballon d'Or ▶" : 'Next award ▶'}</button></>}
         {/* skipping: one award, a section, or straight to the headline award */}
         <div className="cer-skips">
           {!last && !big && <button className="btn ghost sm" onClick={next}>Skip this award</button>}
