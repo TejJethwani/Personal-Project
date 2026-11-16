@@ -63,6 +63,7 @@ const CREST_ICON: Record<CrestIcon, string> = {
   leaf: 'M50 68C36 58 32 42 50 24C68 42 64 58 50 68ZM50 66V34',
   sun: 'M50 36A10 10 0 1 1 49.9 36ZM48 22H52V30H48ZM48 62H52V70H48ZM28 44H36V48H28ZM64 44H72V48H64ZM33 29L36 26L42 32L39 35ZM58 32L64 26L67 29L61 35ZM33 63L39 57L42 60L36 66ZM58 60L61 57L67 63L64 66Z',
   eye: 'M24 46C34 32 66 32 76 46C66 60 34 60 24 46ZM50 38A8 8 0 1 0 50.1 38Z',
+  lock: 'M36 46V38A14 14 0 0 1 64 38V46H58V38A8 8 0 0 0 42 38V46ZM32 46H68V70H32ZM48 52V62H52V52Z',
 };
 function lumOf(hex: string): number { const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return 0.4; const v = parseInt(m[1], 16); return (0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255; }
 /** An original crest drawn from a club's (or nation's) colours and identity. */

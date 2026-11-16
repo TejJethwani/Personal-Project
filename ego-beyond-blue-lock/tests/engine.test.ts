@@ -456,6 +456,19 @@ describe('later additions', () => {
     expect((ms.replays ?? []).length).toBeGreaterThan(0);
     const many = q.playMany(g, 'eng1_ars', 'IND', [a, b], 12);
     expect(many.h + many.d + many.a).toBe(12); expect(many.h).toBeGreaterThan(many.a);
+    expect(many.notable.length).toBeGreaterThan(0);
+    for (const x of many.notable) { expect(x.ms.done).toBe(true); expect(x.sum.score).toEqual([x.ms.score[0], x.ms.score[1]]); }
+    expect(many.notable.filter((x) => x.key === 'bigHome').every((x) => x.sum.score[0] > x.sum.score[1])).toBe(true);
+    expect(many.players.reduce((n, p) => n + p.g, 0)).toBeGreaterThan(0);
+    expect(many.team[0].poss + many.team[1].poss).toBeCloseTo(100, 0);
+    // the Blue Lock XI: Blue Lock players only, and nobody plays for both sides against a club that has some of them
+    const bl = q.autoSheet(g, 'sim_bluelock');
+    expect(bl.xi.length).toBe(11);
+    expect(bl.xi.every((id) => g.world.players[id].origin === 'bluelock')).toBe(true);
+    const vs = q.playSim(g, 'sim_bluelock', 'nel_bastard', [bl, q.autoSheet(g, 'nel_bastard')]);
+    const ids = vs.pl.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const x of q.SPECIAL_XIS) expect(q.autoSheet(g, x.id).xi.length, x.id).toBe(11);
     const nel = q.playSim(g, 'nel_bastard', 'nel_pxg', [q.autoSheet(g, 'nel_bastard'), q.autoSheet(g, 'nel_pxg')], { nel: true });
     expect(Math.max(nel.score[0], nel.score[1])).toBe(3);
   });

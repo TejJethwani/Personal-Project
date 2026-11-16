@@ -27,6 +27,7 @@ const CLUB_PAT: Record<string, KitPat | [KitPat, string?, string?]> = {
   // Netherlands
   aja: 'band', psv: 'stripes', fey: 'halves', az: 'plain', twe: 'plain', utr: 'plain', gae: 'halves', nec: 'thirds', hee: 'sash', spa: 'plain', gro: 'plain', pec: 'plain', her: 'stripes', nac: 'plain', vit: 'stripes', ado: 'plain', exc: 'stripes',
   // Portugal
+  bluelock: ['plain', '#0c1a33', '#1ea7ff'], japanu20: ['plain', '#f4f4f4', '#1d3c8f'], newgen: ['sash', '#111111', '#ffd166'], world: ['band', '#f4f4f4', '#d4af37'], masters: ['chestband', '#3a0b2e', '#ffd166'],
   ben: 'plain', fcp: ['stripes', '#0057b8', '#ffffff'], scp: ['hoops', '#00843d', '#ffffff'], bra: 'sleeves', vsc: 'plain', boa: 'checks', mrt: 'stripes', rio: 'stripes', aro: 'stripes', gil: 'halves',
 };
 
@@ -67,13 +68,14 @@ export function clubKit(id: string, col: [string, string] | string[]): Kit {
 
 export type CrestShape = 'shield' | 'round' | 'pointed' | 'hex' | 'diamond' | 'banner';
 export type CrestField = 'plain' | 'stripes' | 'halves' | 'quarters' | 'chevron' | 'sash' | 'ring' | 'cross';
-export type CrestIcon = 'star' | 'ball' | 'crown' | 'wings' | 'tower' | 'flame' | 'wave' | 'bolt' | 'anchor' | 'leaf' | 'sun' | 'eye';
+export type CrestIcon = 'star' | 'ball' | 'crown' | 'wings' | 'tower' | 'flame' | 'wave' | 'bolt' | 'anchor' | 'leaf' | 'sun' | 'eye' | 'lock';
 export interface Crest { shape: CrestShape; field: CrestField; icon: CrestIcon; stars: number; c1: string; c2: string; c3: string; text: string }
 const SHAPES: CrestShape[] = ['shield', 'round', 'pointed', 'shield', 'hex', 'diamond', 'banner', 'round'];
 const FIELDS: CrestField[] = ['plain', 'stripes', 'halves', 'quarters', 'chevron', 'sash', 'ring', 'cross', 'plain', 'stripes'];
 const ICONS: CrestIcon[] = ['star', 'ball', 'crown', 'wings', 'tower', 'flame', 'wave', 'bolt', 'anchor', 'leaf', 'sun', 'eye'];
 /** Hand-picked identities for the Blue Lock clubs and a few classic clubs (still original designs). */
 const CREST_OVR: Record<string, Partial<Crest>> = {
+  bluelock: { shape: 'pointed', field: 'plain', icon: 'lock' }, world: { shape: 'round', field: 'ring', icon: 'star', stars: 3 }, newgen: { shape: 'banner', field: 'sash', icon: 'bolt' }, japanu20: { shape: 'shield', field: 'plain', icon: 'sun' }, masters: { shape: 'diamond', field: 'plain', icon: 'crown' },
   bastard: { shape: 'round', field: 'ring', icon: 'eye', stars: 0 }, barcha: { shape: 'pointed', field: 'quarters', icon: 'ball' }, manshine: { shape: 'round', field: 'ring', icon: 'sun' },
   ubers: { shape: 'shield', field: 'stripes', icon: 'bolt' }, pxg: { shape: 'round', field: 'ring', icon: 'tower' }, rma: { shape: 'round', field: 'ring', icon: 'crown' },
   liv: { shape: 'shield', field: 'plain', icon: 'flame' }, mun: { shape: 'round', field: 'ring', icon: 'flame' }, ars: { shape: 'shield', field: 'plain', icon: 'bolt' }, che: { shape: 'round', field: 'ring', icon: 'crown' },
