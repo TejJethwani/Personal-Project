@@ -308,6 +308,13 @@ export function applyResult(g: Game, fx: Fixture, ms: MatchState): boolean {
     const share = Math.min(1.3, (ms.rules.kind === 'nel' ? line[S.PLAY] : line[S.SEC]) / total);
     p.fit = clamp(p.fit - share * (27 - p.a[A.STA] * 0.11) * (comp?.kind === 'friendly' ? 0.6 : 1), 25, 100);
     p.sharp = clamp(p.sharp + share * 12, 0, 100);
+    // every rated club or senior international match feeds the Ballon d'Or consistency record (good games, poor games, big games)
+    if (line[S.RATN] && comp && comp.kind !== 'friendly' && comp.kind !== 'nel' && !comp.u20) {
+      const f = ((w.formLog ??= {})[p.id] ??= [0, 0, 0, 0, 0, 0]);
+      const big = (!!fx.stg && fx.stg !== 'Group' && comp.kind !== 'league') ? (fx.stg === 'Final' ? 2 : 1) : 0;
+      f[0]++; if (line[S.RAT] >= 7.2) f[1]++; if (line[S.RAT] < 6.3) f[2]++;
+      if (big) { f[3] += big; f[4] += (line[S.G] + line[S.A]) * big; f[5] += line[S.RAT] * big; }
+    }
     if (line[S.RATN]) { p.form = p.form * 0.7 + line[S.RAT] * 0.3; p.morale = clamp(p.morale + (line[S.RAT] - 6.5) * 1.6 + (ms.winner === mp.t ? 1.5 : ms.winner === -1 ? 0 : -1.5), 5, 100); }
     if (comp && !comp.natTeams && comp.kind !== 'friendly') {
       if (line[S.YC] && !line[S.RC]) { p.yel += line[S.YC]; if (p.yel >= 5) { p.yel -= 5; p.susp += 1; } }

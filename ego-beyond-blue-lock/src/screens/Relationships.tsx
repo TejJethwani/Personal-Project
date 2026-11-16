@@ -40,7 +40,7 @@ export function Relationships({ g, tab: initial }: { g: Game; tab?: string }) {
   const natIds = new Set<string>([...(nat?.squad?.includes(me.id) ? nat.squad : []), ...(nat?.u20squad?.includes(me.id) ? nat.u20squad : [])]);
   const isNat = (x: { id: string; r: (typeof people)[number]['r']; p: (typeof people)[number]['p'] }) => natIds.has(x.id) || (!!x.r.flags?.nat && x.p.nat === me.nat);
   const natList = people.filter(isNat);
-  const list = people.filter((x) => (filter === 'nat' ? isNat(x) : filter === 'mates' ? x.p.club === me.club : filter === 'rivals' ? c.rivals.includes(x.id) : filter === 'friends' ? x.r.friend >= 45 : x.p.club !== me.club))
+  const list = people.filter((x) => (filter === 'nat' ? isNat(x) : filter === 'mates' ? x.p.club === me.club : filter === 'rivals' ? c.rivals.includes(x.id) || x.r.rival >= 50 : filter === 'friends' ? x.r.friend >= 45 : x.p.club !== me.club))
     .sort((a, b) => (filter === 'rivals' ? b.r.rival - a.r.rival : b.r.friend + b.r.chem + b.r.resp - (a.r.friend + a.r.chem + a.r.resp))).slice(0, 80);
   const staff = Object.entries(c.rel).filter(([id]) => !w.players[id]).map(([id, r]) => ({ id, r, name: personName(g, id) })).filter((x) => x.name !== 'Unknown');
   const tp = target ? w.players[target] : null;
@@ -52,7 +52,7 @@ export function Relationships({ g, tab: initial }: { g: Game; tab?: string }) {
       {tab === 'log' && <div className="col">{c.inbox.filter((x) => x.done).reverse().slice(0, 30).map((it) => <InteractionCard key={it.id} g={g} it={it} />)}{!c.inbox.some((x) => x.done) && <Empty>No past conversations yet.</Empty>}</div>}
       {tab === 'people' && <>
         <div className="row wrap mb">{([['mates', 'Club team-mates'], ['nat', `${NATIONS[me.nat]?.name ?? 'National'} team${natList.length ? ` (${natList.length})` : ''}`], ['friends', 'Friends'], ['rivals', 'Rivals'], ['others', 'Elsewhere']] as const).map(([k, l]) => <button key={k} className={`btn sm ${filter === k ? 'pri' : ''}`} onClick={() => setFilter(k)}>{l}</button>)}</div>
-        {filter === 'rivals' && <><p className="small muted">You can have at most {MAX_RIVALS} declared rivals. Rivalries grow from matches where you both decide the game, or you can declare one yourself.</p>{c.rivals.filter((id) => w.players[id]).map((id) => <RivalCard key={id} g={g} id={id} />)}</>}
+        {filter === 'rivals' && <><p className="small muted">Declared rivals first (at most {MAX_RIVALS}), then everyone you have a rivalry of 50+ with. Rivalries grow from matches where you both decide the game, or you can declare one yourself.</p>{[...new Set([...c.rivals, ...list.map((x) => x.id)])].filter((id) => w.players[id]).sort((a, b) => Number(c.rivals.includes(b)) - Number(c.rivals.includes(a)) || (c.rel[b]?.rival ?? 0) - (c.rel[a]?.rival ?? 0)).map((id) => <RivalCard key={id} g={g} id={id} />)}</>}
         {filter !== 'rivals' && <div className="grid gauto">{list.map(({ id, r, p }) => (
           <div key={id} className="card" style={{ padding: 12 }}>
             <div className="row"><PlayerAvatar g={g} p={p} size={44} /><div className="grow"><PlayerLink g={g} id={id} full /><div className="tiny muted">{p.pos} · {w.season - p.born} · {p.club ? <ClubLink g={g} id={p.club} badge={false} /> : 'unattached'}</div></div><Ovr v={ovr(p)} size="sm" /></div>

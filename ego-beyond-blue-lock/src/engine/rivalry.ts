@@ -9,7 +9,7 @@ import { clamp, hashStr } from './rng';
 import { adjust, relOf, remember } from './relationships';
 import { addNews, milestone } from './util';
 import { fmtDate, tableOf, compFixtures } from './competitions';
-import { teamInfo, pickSheet } from './match/setup';
+import { teamInfo, pickSheet, teamName } from './match/setup';
 import { smartLine } from './data/banter2';
 import { REPLIES, QUESTIONS, ANSWERS, type IvKind, type Tone } from './data/banter';
 import { POS_LINE } from './attributes';
@@ -58,7 +58,7 @@ export function afterMatchRivalry(g: Game, ms: MatchState): string[] {
       addNews(g, 'rivalry', `${w.players[c.pid].name} v ${p.name}: a rivalry is born`, `Every time they share a pitch something happens. The two will be measured against each other from now on.`, { imp: 2, me: true, pids: [q.id] });
       notes.push(`New rival: ${p.name}.`);
     }
-    if (c.rivals.includes(q.id)) {
+    if (c.rivals.includes(q.id) || r.rival >= 25) {
       const f = r.flags;
       f[res === 'W' ? 'h2hW' : res === 'D' ? 'h2hD' : 'h2hL'] = (f[res === 'W' ? 'h2hW' : res === 'D' ? 'h2hD' : 'h2hL'] ?? 0) + 1;
       f.h2hMG = (f.h2hMG ?? 0) + me.s[S.G]; f.h2hRG = (f.h2hRG ?? 0) + q.s[S.G];
@@ -70,9 +70,11 @@ export function afterMatchRivalry(g: Game, ms: MatchState): string[] {
       (c.rivalLog ??= []).push({ kind: comp?.kind ?? 'friendly', stg: fx?.stg, decider, rid: q.id, fid: ms.fid, s: w.season, date: fmtDate(w, w.day), comp: ms.compName, my: ms.teams[me.t].name, his: ms.teams[q.t].name, sc: [ms.score[me.t], ms.score[q.t]], pens: ms.pens ? [ms.pens[me.t], ms.pens[q.t]] : undefined, res, mg: me.s[S.G], ma: me.s[S.A], hg: q.s[S.G], ha: q.s[S.A], mr: Math.round(myRat * 10) / 10, hr: Math.round(hisRat * 10) / 10, potm: me.s[S.POTM] ? 1 : q.s[S.POTM] ? 2 : 0, home: me.t === 0 });
       if (c.rivalLog.length > 400) c.rivalLog.shift();
       const won = myRat - hisRat >= 0.4, lost = hisRat - myRat >= 0.4;
-      if (won) { f.duelW = (f.duelW ?? 0) + 1; const mp = w.players[c.pid]; mp.rep = clamp(mp.rep + 0.5, 0, 99); c.flags.duelBoost = (Number(c.flags.duelBoost ?? 0)) + 1; notes.push(`You won the duel with ${p.sn} (${myRat.toFixed(1)} v ${hisRat.toFixed(1)}): reputation up, extra development this week.`); }
-      else if (lost) { f.duelL = (f.duelL ?? 0) + 1; notes.push(`${p.sn} won the duel today (${hisRat.toFixed(1)} v ${myRat.toFixed(1)}).`); }
-      if (won || lost) addNews(g, 'rivalry', won ? `${w.players[c.pid].sn} gets the better of ${p.sn}` : `${p.sn} wins the latest duel with ${w.players[c.pid].sn}`, `Ratings ${myRat.toFixed(1)} v ${hisRat.toFixed(1)}. Head to head: ${f.duelW ?? 0}–${f.duelL ?? 0} in duels.`, { imp: 1, me: true, pids: [q.id] });
+      const dec = c.rivals.includes(q.id);
+      if (won && !dec) f.duelW = (f.duelW ?? 0) + 1; else if (lost && !dec) f.duelL = (f.duelL ?? 0) + 1;
+      if (won && dec) { f.duelW = (f.duelW ?? 0) + 1; const mp = w.players[c.pid]; mp.rep = clamp(mp.rep + 0.5, 0, 99); c.flags.duelBoost = (Number(c.flags.duelBoost ?? 0)) + 1; notes.push(`You won the duel with ${p.sn} (${myRat.toFixed(1)} v ${hisRat.toFixed(1)}): reputation up, extra development this week.`); }
+      else if (lost && dec) { f.duelL = (f.duelL ?? 0) + 1; notes.push(`${p.sn} won the duel today (${hisRat.toFixed(1)} v ${myRat.toFixed(1)}).`); }
+      if (dec && (won || lost)) addNews(g, 'rivalry', won ? `${w.players[c.pid].sn} gets the better of ${p.sn}` : `${p.sn} wins the latest duel with ${w.players[c.pid].sn}`, `Ratings ${myRat.toFixed(1)} v ${hisRat.toFixed(1)}. Head to head: ${f.duelW ?? 0}–${f.duelL ?? 0} in duels.`, { imp: 1, me: true, pids: [q.id] });
     }
   }
   delete c.flags.hype; delete c.flags.hypeFid;
@@ -159,4 +161,25 @@ export function applyInterview(g: Game, iv: Interview, tone: 'humble' | 'confide
   if (iv.rival) remember(g, iv.rival.id, 'talked', tone === 'ego' ? `You dismissed ${iv.rival.sn} in front of the press.` : tone === 'humble' ? `You praised ${iv.rival.sn} in front of the press.` : `You spoke about ${iv.rival.sn} to the press.`, tone === 'ego' ? -1 : 0.5);
   void POS_LINE;
   return out;
+}
+
+export type RivalEntry = NonNullable<Game['career']['rivalLog']>[number];
+/**
+ * Every recorded meeting with a player: the rivalry log, plus matches rebuilt from the stat lines the game keeps
+ * for your own fixtures (this season's club matches, the NEL and international tournaments).
+ */
+export function rivalHistory(g: Game, rid: string): RivalEntry[] {
+  const w = g.world, c = g.career, p = w.players[rid];
+  const out = (c.rivalLog ?? []).filter((x) => x.rid === rid);
+  const have = new Set(out.map((x) => x.fid));
+  if (!p) return out;
+  const teamIn = (s: number) => new Set([...p.hist.filter((h) => h.s === s).map((h) => h.club), ...(s === w.season ? [p.club ?? '', p.nelTeam ?? ''] : []), p.nat]);
+  for (const um of c.matches) {
+    if (have.has(um.fid) || !um.line) continue;
+    const fx = w.fixtures[um.fid]; const hl = fx?.lines?.[rid];
+    if (!fx || !hl || !hl[S.RATN] || !teamIn(um.s).has(um.opp)) continue;
+    const comp = w.comps[um.comp];
+    out.push({ kind: comp?.kind ?? 'friendly', stg: fx.stg, decider: false, rid, fid: um.fid, s: um.s, date: um.date, comp: um.compName, my: teamName(w, um.club), his: um.oppName, sc: um.sc, pens: um.pens, res: um.res, mg: um.line[S.G], ma: um.line[S.A], hg: hl[S.G], ha: hl[S.A], mr: Math.round(um.rat * 10) / 10, hr: Math.round((hl[S.RAT] / hl[S.RATN]) * 10) / 10, potm: um.potm ? 1 : fx.potm === rid ? 2 : 0, home: um.home });
+  }
+  return out.sort((a, b) => a.s - b.s || (w.fixtures[a.fid]?.day ?? 0) - (w.fixtures[b.fid]?.day ?? 0));
 }

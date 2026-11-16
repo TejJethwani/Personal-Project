@@ -61,8 +61,8 @@ export function lastMemory(r: Rel, types?: string[]): Memory | undefined {
   for (let i = r.mem.length - 1; i >= 0; i--) if (!types || types.includes(r.mem[i].t)) return r.mem[i];
   return undefined;
 }
-/** At most three declared rivals at a time: a rivalry should mean something. */
-export const MAX_RIVALS = 3;
+/** A cap on declared rivals: a rivalry should mean something, but a long career collects a few. */
+export const MAX_RIVALS = 12;
 export function relLabel(r: Rel, declared = false): string {
   // only a declared rival is called a rival; anyone else is just someone you compete with
   if (declared && r.friend >= 55) return 'Friendly rival';

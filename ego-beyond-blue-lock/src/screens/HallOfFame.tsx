@@ -13,7 +13,7 @@ import { retire } from '../engine/actions';
 import { act, nav, autosave } from '../store/game';
 import { Avatar, ConfirmButton } from '../ui/kit';
 import { fmtEur } from '../engine/util';
-import { Trophy, kindForName, kindForAward } from '../ui/Trophy';
+import { TrophyStack, kindForName, kindForAward } from '../ui/Trophy';
 
 
 interface SeasonAgg { s: number; clubs: string[]; line: number[]; byComp: { comp: string; compName: string; clubName: string; line: number[] }[]; trophies: string[]; awards: string[] }
@@ -113,7 +113,7 @@ export function HallOfFame({ g }: { g: Game }) {
           <div className="hof-strip">{([['Appearances', total[S.APP]], ['Goals', total[S.G]], ['Assists', total[S.A]], ['Shots', total[S.SH]], ['xG', total[S.XG].toFixed(1)], ['Key passes', total[S.KP]], ['Dribbles', total[S.DC]], ['Tackles won', total[S.TKW]], ['Caps', caps]] as [string, number | string][]).map(([l, v]) => <div key={l}><b>{v}</b><span>{l}</span></div>)}</div>
         </section>
         <section className="hof-sec"><div className="hof-kicker">02 — Silverware</div><h2>THE <span className="gold">CABINET</span></h2>
-          {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><Trophy kind={kindForName(t.name)} size={64} title={t.name} /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
+          {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><TrophyStack kind={kindForName(t.name)} n={t.n} size={64} title={t.name} /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
         </section>
         <section className="hof-sec"><div className="hof-kicker">03 — The clubs</div><h2>WHERE IT <span className="red">HAPPENED</span></h2>
           <div className="hof-clubs">{clubs.map((n) => { const l = newLine(); for (const r of rows) if (r.clubName === n && !w.comps[r.comp]?.natTeams) addLine(l, r.line); return <div key={n}><b>{n}</b><span>{l[S.APP]} apps · {l[S.G]} goals · {l[S.A]} assists</span></div>; })}{caps > 0 && <div><b>{NATIONS[me.nat]?.name}</b><span>{caps} caps · {intlG} goals</span></div>}</div>
@@ -121,9 +121,9 @@ export function HallOfFame({ g }: { g: Game }) {
       </>}
 
       {tab === 'cabinet' && <section className="hof-sec"><div className="hof-kicker">Silverware</div><h2>EVERY <span className="gold">HONOUR</span></h2>
-        {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><Trophy kind={kindForName(t.name)} size={64} title={t.name} /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span><span>{t.team}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
+        {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><TrophyStack kind={kindForName(t.name)} n={t.n} size={64} title={t.name} /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span><span>{t.team}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
         <h3 className="hof-h3">Individual awards</h3>
-        {awardCab.size ? <div className="hof-cab small">{[...awardCab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.title} className="hof-trophy"><div className="spot" /><Trophy kind={t.type ? kindForAward(t.type) : 'player'} size={44} title={t.title} /><div className="plaque"><b>{t.title}</b><span>×{t.n} · {t.years.slice(0, 6).join(', ')}{t.years.length > 6 ? '…' : ''}</span></div></div>)}</div> : <p className="hof-empty">No individual awards{retired ? '' : ' yet'}.</p>}
+        {awardCab.size ? <div className="hof-cab small">{[...awardCab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.title} className="hof-trophy"><div className="spot" /><TrophyStack kind={t.type ? kindForAward(t.type) : 'player'} n={t.n} size={44} title={t.title} /><div className="plaque"><b>{t.title}</b><span>×{t.n} · {t.years.slice(0, 6).join(', ')}{t.years.length > 6 ? '…' : ''}</span></div></div>)}</div> : <p className="hof-empty">No individual awards{retired ? '' : ' yet'}.</p>}
         <p className="hof-note">Weekly and monthly awards won: {myAwards.length - major.length}.</p>
       </section>}
 

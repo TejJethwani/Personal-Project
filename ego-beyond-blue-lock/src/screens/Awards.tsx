@@ -37,6 +37,7 @@ export function Awards({ g }: { g: Game }) {
       <div className="pagehead"><div><h1>Awards</h1><div className="sub">Career honours are kept apart from routine weekly and monthly recognition. Awards decided by one number are rankings; judged awards weigh several things.</div></div><div className="row"><Chip k="y">{honours.length} career honour{honours.length === 1 ? '' : 's'}</Chip><select value={season} onChange={(e) => setSeason(+e.target.value)} aria-label="Season">{(seasons.length ? seasons : [w.season]).map((s) => <option key={s} value={s}>{seasonLabel(s)}</option>)}</select></div></div>
       <Tabs tabs={[['honours', 'Your honours'], ['routine', `Your weekly & monthly (${routineMine.length})`], ['week', 'Weekly & monthly'], ['season', 'Season & tournament'], ['world', 'World awards'], ['bdo', "Ballon d'Or"], ['archive', 'Archive']]} value={tab} onChange={setTab} />
       {tab === 'routine' && routineMine.length > 0 && <div className="row wrap gap6 mb">{[...counts.entries()].map(([t, n]) => <Chip key={t} k="b">{t} × {n}</Chip>)}</div>}
+      {tab === 'honours' && <BdoFinishes g={g} />}
       {tab === 'archive' ? <Archive g={g} /> : tab === 'bdo' ? <BdoTab g={g} s={season} list={list} /> : list.length ? <div className="grid g2">{list.slice(0, tab === 'routine' ? 12 : 60).map((a) => <AwardCard key={a.id} g={g} a={a} />)}</div> : <Empty>{tab === 'honours' ? 'No career honours yet. Player of the Month, season awards, tournament awards and world awards appear here.' : tab === 'routine' ? 'No Team of the Week or similar selections yet.' : 'No awards in this category for the selected season yet.'}</Empty>}
     </>
   );
@@ -105,5 +106,18 @@ function Archive({ g }: { g: Game }) {
         {myHist.length > 0 && <Card title="Your Ballon d'Or finishes">{myHist.map((h) => <div key={h.s} className="row gap6 small"><span className="muted" style={{ width: 60 }}>{seasonLabel(h.s)}</span><b>{h.rank ? `${ordinal(h.rank)}` : 'not shortlisted'}</b>{h.pts > 0 && <span className="muted">{h.pts} pts</span>}<span className="muted">· won by {h.winner}</span></div>)}</Card>}
       </div>}
     </>
+  );
+}
+
+/** Every Ballon d'Or you were shortlisted for (top 30), from the awards themselves, so older saves show them too. */
+function BdoFinishes({ g }: { g: Game }) {
+  const me = g.career.pid;
+  const rows = Object.values(g.world.awards).filter((a) => a.type === 'world_player').map((a) => { const i = (a.noms ?? []).findIndex((n) => n.pid === me); return i < 0 ? null : { s: a.s, rank: i + 1, pts: a.noms![i].score, votes: !!a.votes, winner: a.winner?.name ?? '', of: a.noms!.length }; }).filter((x): x is NonNullable<typeof x> => !!x).sort((a, b) => b.s - a.s);
+  if (!rows.length) return null;
+  const best = Math.min(...rows.map((r) => r.rank)), wins = rows.filter((r) => r.rank === 1).length;
+  return (
+    <Card title={<span className="row gap6"><Trophy kind="ballon" size={26} />Your Ballon d'Or finishes</span>} className="mb hot" right={<span className="small muted">{wins ? `${wins} win${wins > 1 ? 's' : ''} · ` : ''}best: {ordinal(best)} · shortlisted {rows.length}×</span>}>
+      <div className="bdo-fin">{rows.map((r) => <div key={r.s} className={`bdo-f ${r.rank === 1 ? 'win' : r.rank <= 3 ? 'pod' : ''}`}><span className="s">{seasonLabel(r.s)}</span><b>{r.rank === 1 ? '🏆 Winner' : ordinal(r.rank)}</b><span className="tiny muted">{r.votes ? `${r.pts} pts` : `score ${r.pts}`}{r.rank > 1 ? ` · won by ${r.winner}` : ''}</span></div>)}</div>
+    </Card>
   );
 }

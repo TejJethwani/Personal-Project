@@ -2,7 +2,7 @@
 import { ordinal } from '../engine/util';
 import { useState } from 'react';
 import type { Game, Player } from '../engine/types';
-import { h2h } from '../engine/rivalry';
+import { h2h, rivalHistory } from '../engine/rivalry';
 import { relLabel } from '../engine/relationships';
 import { ovr } from '../engine/attributes';
 import { S } from '../engine/match/model';
@@ -26,9 +26,12 @@ export function RivalCard({ g, id }: { g: Game; id: string }) {
   const w = g.world, c = g.career, me = w.players[c.pid], p = w.players[id];
   if (!p) return null;
   const [tab, setTab] = useState('overview');
-  const r = c.rel[id];
-  const h = h2h(g, id);
-  const log = (c.rivalLog ?? []).filter((x) => x.rid === id);
+  const r = c.rel[id] ?? { rival: 0, resp: 0, friend: 0, trust: 0, chem: 0, mem: [] } as unknown as NonNullable<typeof c.rel[string]>;
+  const h0 = h2h(g, id);
+  const log = rivalHistory(g, id);
+  // the record from every meeting we can see; the stored tallies only cover matches since the rivalry heated up
+  const h = log.length >= h0.n ? { ...h0, w: log.filter((x) => x.res === 'W').length, d: log.filter((x) => x.res === 'D').length, l: log.filter((x) => x.res === 'L').length, n: log.length, mg: log.reduce((s2, x) => s2 + x.mg, 0), rg: log.reduce((s2, x) => s2 + x.hg, 0), dw: Math.max(h0.dw, log.filter((x) => x.mr - x.hr >= 0.4).length), dl: Math.max(h0.dl, log.filter((x) => x.hr - x.mr >= 0.4).length) } : h0;
+  const declared = c.rivals.includes(id);
   const n = log.length;
   const avg = (f: (x: (typeof log)[number]) => number) => (n ? log.reduce((s, x) => s + f(x), 0) / n : 0);
   const outscored = log.filter((x) => x.mg > x.hg).length, outscoredBy = log.filter((x) => x.hg > x.mg).length;
@@ -47,7 +50,7 @@ export function RivalCard({ g, id }: { g: Game; id: string }) {
           <div className="tiny up muted">Head to head</div>
           <div className="rv-score"><span className="good">{h.w}</span><i>–</i><span>{h.d}</span><i>–</i><span className="bad">{h.l}</span></div>
           <div className="tiny muted">W – D – L in {h.n} meeting{h.n === 1 ? '' : 's'}</div>
-          <div className="row gap4 wrap" style={{ justifyContent: 'center', marginTop: 4 }}><Chip k="e">{relLabel(r, true)}</Chip>{n > 1 && <Chip>{streak} {log[n - 1].res === 'W' ? 'win' : log[n - 1].res === 'D' ? 'draw' : 'defeat'}{streak > 1 ? 's' : ''} in a row</Chip>}</div>
+          <div className="row gap4 wrap" style={{ justifyContent: 'center', marginTop: 4 }}><Chip k="e">{declared ? relLabel(r, true) : relLabel(r)}</Chip><Chip>Rivalry {Math.round(r?.rival ?? 0)}/100</Chip>{n > 1 && <Chip>{streak} {log[n - 1].res === 'W' ? 'win' : log[n - 1].res === 'D' ? 'draw' : 'defeat'}{streak > 1 ? 's' : ''} in a row</Chip>}</div>
         </div>
         <div className="rv-side"><PlayerAvatar g={g} p={p} size={64} /><b><PlayerLink g={g} id={id} /></b><span className="tiny muted">{p.club ? <ClubLink g={g} id={p.club} badge={false} /> : '—'}</span><Ovr v={ovr(p)} size="sm" /></div>
       </div>

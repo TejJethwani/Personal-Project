@@ -4,6 +4,10 @@
  * per footballing nation, each rank their top ten (15-12-10-8-7-5-4-3-2-1 points). Every journalist weighs
  * goals, trophies and consistency slightly differently and has a soft spot for his compatriots, so the
  * vote is close when the season was close and a landslide when one player was in a different world.
+ *
+ * The case has three parts. Output: goals and assists, weighted by the competition they came in (a Champions
+ * League or World Cup goal is worth far more than a cup-tie goal). Trophies. And, weighing most, consistency:
+ * the share of top-level games, few poor ones, the average level, availability, and big knockout nights.
  */
 import { ordinal } from './util';
 import type { Award, AwardNom, Game, Player } from './types';
@@ -25,13 +29,16 @@ export interface BdoRow {
   pid: string; name: string; nat: string; pos: string; club: string; clubName: string; age: number;
   g: number; a: number; apps: number; rat: number; cs: number; sv: number;
   gW: number; aW: number; trophies: string[]; tPts: number; intl: string;
+  /** share of good games (7.2+), percent; goals + assists in knockout ties and finals (finals count double) */
+  good?: number; bigGA?: number;
   /** components of the case, so each journalist can weigh them differently */
   sGoals: number; sTroph: number; sForm: number;
 }
 export interface BdoVote { j: string; out: string; nat: string; picks: string[] }
 
-const COMP_W: Record<string, number> = { ucl: 1.25, uel: 0.9, wc: 1.35, euro: 1.25, copa: 1.2, afcon: 1.05, asian: 1.0, gold: 0.95 };
-const LEAGUE_W: Record<string, number> = { eng1: 1, esp1: 1, ger1: 0.97, ita1: 0.97, fra1: 0.93, ned1: 0.82, por1: 0.84, eng2: 0.65, eng3: 0.5 };
+/** Where it was done: a goal in the Champions League or at a World Cup is worth far more than one in a domestic cup tie. */
+const COMP_W: Record<string, number> = { ucl: 1.5, uel: 1.05, wc: 1.6, euro: 1.4, copa: 1.35, afcon: 1.1, asian: 1.05, gold: 1.0 };
+const LEAGUE_W: Record<string, number> = { eng1: 1, esp1: 1, ger1: 0.96, ita1: 0.96, fra1: 0.9, ned1: 0.72, por1: 0.74, eng2: 0.5, eng3: 0.35 };
 const TOP5 = ['eng1', 'esp1', 'ger1', 'ita1', 'fra1'];
 const CUPS = new Set(LEAGUES.map((l) => l.cup));
 /** What winning each competition adds to a Ballon d'Or case. */
@@ -53,7 +60,7 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     for (const cid in p.ss) {
       const comp = w.comps[cid], l = p.ss[cid];
       if (!l[S.APP] || cid === 'nel' || comp?.u20 || comp?.kind === 'friendly' || cid === 'intlf') continue;
-      const wt = COMP_W[cid] ?? LEAGUE_W[cid] ?? (CUPS.has(cid) ? 0.75 : comp?.kind === 'intl' ? 1 : 0.6);
+      const wt = COMP_W[cid] ?? LEAGUE_W[cid] ?? (CUPS.has(cid) ? 0.6 : comp?.kind === 'intl' ? 1.1 : 0.5);
       gW += l[S.G] * wt; aW += l[S.A] * wt; addLine(line, l); any = true;
       if (comp?.kind === 'intl' && l[S.APP]) intl = comp.name;
     }
@@ -64,16 +71,22 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     const cl = w.clubs[club];
     if (cl) for (const t of cl.trophies) if (t.s === s && (p.ss[t.comp]?.[S.APP] ?? 0) > 0) { const v = trophyPts(t.comp); if (v) { trophies.push(w.comps[t.comp]?.name ?? t.name); tPts += v; } }
     for (const cid in p.ss) { const comp = w.comps[cid]; if (comp?.kind === 'intl' && !comp.u20 && (p.ss[cid][S.APP] ?? 0) > 0 && comp.hist.some((h) => h.s === s && h.champion === p.nat)) { trophies.push(comp.name); tPts += trophyPts(cid) || 14; } }
-    const rat = line[S.RAT] / line[S.RATN], ln = POS_LINE[p.pos];
-    // goals are the loudest argument, but a defender's goal and a keeper's clean sheet count for more
-    const sGoals = gW * (ln === 3 ? 4.4 : ln === 2 ? 4.8 : 6) + aW * 2.4 + (ln <= 1 ? line[S.CS] * (ln === 0 ? 2.6 : 1.4) : 0) + (ln === 0 ? line[S.SV] * 0.12 : 0);
-    const sForm = (rat - 6.6) * 26 * Math.min(1, line[S.RATN] / 35) + line[S.POTM] * 1.5;
-    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, sGoals, sTroph: tPts, sForm });
+    const rat = line[S.RAT] / line[S.RATN], ln = POS_LINE[p.pos], n = line[S.RATN];
+    // output, weighted by where it came: goals and assists both count, a defender's goal and a keeper's clean sheet more
+    const sGoals = gW * (ln === 3 ? 3.2 : ln === 2 ? 3.6 : 4.6) + aW * (ln === 3 ? 2.6 : 3.0) + (ln <= 1 ? line[S.CS] * (ln === 0 ? 2.6 : 1.4) : 0) + (ln === 0 ? line[S.SV] * 0.12 : 0);
+    // consistency, the heaviest part of the case: good games, few bad ones, average level and availability
+    const f = w.formLog?.[id];
+    const good = f && f[0] ? f[1] / f[0] : Math.max(0, Math.min(1, (rat - 6.6) / 1.8)), poor = f && f[0] ? f[2] / f[0] : 0.12;
+    const bigN = f ? f[3] : 0, bigGA = f ? f[4] : 0, bigRat = bigN ? (f![5] / bigN) : 0;
+    const sForm = (rat - 6.6) * 40 * Math.min(1, n / 35) + (good - 0.35) * 200 * Math.min(1, n / 30) - poor * 90 + Math.min(1, line[S.APP] / 50) * 30 + line[S.POTM] * 1.5
+      // and how he played when it mattered most: knockout ties and finals
+      + bigGA * 4 + (bigN ? (bigRat - 6.8) * 6 * Math.min(bigN, 8) : 0);
+    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, good: Math.round(good * 100), bigGA, sGoals, sTroph: tPts * 1.3, sForm });
   }
   return rows.sort((a, b) => base(b) - base(a));
 }
 export const base = (r: BdoRow) => r.sGoals + r.sTroph + r.sForm;
-export const bdoLine = (r: BdoRow) => `${r.g} goals, ${r.a} assists in ${r.apps} games · avg ${r.rat.toFixed(2)}${r.trophies.length ? ` · ${r.trophies.join(', ')}` : ''}`;
+export const bdoLine = (r: BdoRow) => `${r.g} goals, ${r.a} assists in ${r.apps} games · avg ${r.rat.toFixed(2)}${r.good != null ? ` · ${r.good}% top-level games` : ''}${r.bigGA ? ` · ${r.bigGA} in big games` : ''}${r.trophies.length ? ` · ${r.trophies.join(', ')}` : ''}`;
 
 /** Stash the season's cases at the end of the summer, before the stat lines are archived. */
 export function bdoSnapshot(g: Game): void {
@@ -83,6 +96,7 @@ export function bdoSnapshot(g: Game): void {
   const keep = new Set([...rows.slice(0, 80), ...rows.filter((r) => r.pos === 'GK').slice(0, 10), ...rows.filter((r) => r.age <= 21).slice(0, 12)]);
   w.bdoPending = { s: w.season, rows: rows.filter((r) => keep.has(r)) };
   delete w.seasonClub;
+  w.formLog = {};
 }
 /** At the end of the club season remember where everyone played, before the summer window moves them. */
 export function rememberSeasonClubs(g: Game): void {
@@ -100,7 +114,7 @@ export function journalists(): { j: string; out: string; nat: string; wG: number
     const r = Rng.seeded(h);
     const j = `${r.pick(pool.first)} ${r.pick(pool.last)}`;
     // each voter has a style: the stat-counter, the trophy-hunter, the purist who watches every game
-    return { j, out: `${n.name} ${OUTLETS[h % OUTLETS.length]}`, nat: n.id, wG: 0.8 + r.next() * 0.45, wT: 0.6 + r.next() * 0.8, wF: 0.7 + r.next() * 0.6, homer: 0.03 + r.next() * 0.07 };
+    return { j, out: `${n.name} ${OUTLETS[h % OUTLETS.length]}`, nat: n.id, wG: 0.8 + r.next() * 0.4, wT: 0.75 + r.next() * 0.6, wF: 0.95 + r.next() * 0.45, homer: 0.03 + r.next() * 0.07 };
   });
 }
 

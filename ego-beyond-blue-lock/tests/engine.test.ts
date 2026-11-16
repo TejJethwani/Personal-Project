@@ -550,8 +550,9 @@ describe('banter and rivalries', () => {
     expect(formed).toBe(true); expect(asked).toBe(true);
     const rid = g.career.rivals[0];
     expect(g.career.rel[rid].rival).toBeGreaterThanOrEqual(24);
-    expect(g.career.rivals.length).toBeLessThanOrEqual(3);
-    for (const x of g.career.rivalLog ?? []) { expect(g.career.rivals).toContain(x.rid); expect(x.sc.length).toBe(2); }
+    expect(g.career.rivals.length).toBeLessThanOrEqual(12);
+    for (const x of g.career.rivalLog ?? []) { expect(g.career.rivals.includes(x.rid) || g.career.rel[x.rid].rival >= 25).toBe(true); expect(x.sc.length).toBe(2); }
+    const hist = rv.rivalHistory(g, rid); expect(hist.length).toBeGreaterThan(0); for (const x of hist) expect(['W', 'D', 'L']).toContain(x.res);
     void faced;
   });
 });

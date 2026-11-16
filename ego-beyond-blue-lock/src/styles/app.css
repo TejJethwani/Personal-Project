@@ -478,3 +478,10 @@ body.rm .cer-lights i, body.rm .cer-win .burst, body.rm .cer-nom.roll { animatio
 .npaper.euro .mast h1 { font-style: italic; color: #13213a; } .npaper.euro .kick { color: #1b4d8f; font-style: italic; text-transform: none; letter-spacing: .02em; font-family: Georgia, serif; font-size: 12px; }
 .npaper.euro .cols { columns: 2; }
 .votes-ov { position: fixed; inset: 0; z-index: 60; overflow: auto; background: rgba(8,6,4,.97); display: flex; justify-content: center; }
+.tstack { position: relative; display: flex; justify-content: center; align-items: flex-end; min-height: 40px; }
+.tstack > span { display: inline-block; position: relative; }
+.tstack-more { position: absolute; right: 4px; top: 0; font-family: var(--disp); color: #f6d77a; font-size: 18px; text-shadow: 0 2px 6px #000; }
+.bdo-fin { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.bdo-f { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid rgba(246,215,122,.2); border-radius: 6px; }
+.bdo-f .s { font-size: 11px; letter-spacing: .1em; color: var(--muted, #8a93a6); } .bdo-f b { font-family: var(--disp); font-size: 22px; }
+.bdo-f.pod { border-color: rgba(246,215,122,.55); } .bdo-f.win { border-color: #f6d77a; background: rgba(246,215,122,.12); } .bdo-f.win b { color: #f6d77a; }

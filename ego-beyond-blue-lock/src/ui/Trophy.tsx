@@ -111,3 +111,14 @@ export function Trophy({ kind, size = 72, title }: { kind: TKind; size?: number;
     </svg>
   );
 }
+
+/** A row of identical trophies standing shoulder to shoulder: one for every time it was won. */
+export function TrophyStack({ kind, n, size = 64, title }: { kind: TKind; n: number; size?: number; title?: string }) {
+  const shown = Math.min(n, 6), s = n <= 1 ? size : Math.max(size * 0.62, size * (1 - (shown - 1) * 0.07));
+  return (
+    <div className="tstack" aria-label={`${title ?? kind} ×${n}`}>
+      {Array.from({ length: shown }, (_, i) => { const mid = (shown - 1) / 2, d = Math.abs(i - mid); return <span key={i} style={{ marginLeft: i ? -s * 0.42 : 0, zIndex: 10 - Math.round(d), transform: `translateY(${d * 4}px) scale(${1 - d * 0.05})` }}><Trophy kind={kind} size={s} title={title} /></span>; })}
+      {n > shown && <b className="tstack-more">+{n - shown}</b>}
+    </div>
+  );
+}

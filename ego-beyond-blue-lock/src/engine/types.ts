@@ -568,6 +568,8 @@ export interface World {
   events: { key: string; day: number; data?: string }[]; // scheduled world events for the current season
   /** where each player finished the club season (for the Ballon d'Or, before the summer window moves him) */
   seasonClub?: Record<string, string>;
+  /** this season's match-by-match consistency per player: [rated games, good (7.2+), poor (<6.3), big-game weight, big-game goals+assists, big-game rating sum] */
+  formLog?: Record<string, number[]>;
   /** last season's Ballon d'Or cases, waiting for the gala in late October */
   bdoPending?: { s: number; rows: import('./ballondor').BdoRow[] };
 }

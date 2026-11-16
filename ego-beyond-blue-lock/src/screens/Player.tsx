@@ -9,6 +9,8 @@ import { relOf, relLabel } from '../engine/relationships';
 import { S } from '../engine/match/model';
 import { seasonLabel } from '../engine/competitions';
 import { nav } from '../store/game';
+import { rivalHistory } from '../engine/rivalry';
+import { RivalCard } from '../ui/RivalCard';
 import { Bar, Card, Chip, ClubLink, Kpi, Ovr, PlayerAvatar, Tabs, natName, Rating, tier, Empty } from '../ui/kit';
 
 function ambition(p: Player): string {
@@ -54,7 +56,8 @@ export function PlayerScreen({ g, id }: { g: Game; id: string }) {
   const isGk = p.pos === 'GK';
   const rel = !mine && g.career.rel[id] ? relOf(g, id) : null;
   const bid = w.nel.bids[id];
-  const tabs: [string, string][] = [['over', 'Overview'], ['stats', 'Season stats'], ['hist', 'Career'], ...(mine ? [['dev', 'Development'] as [string, string]] : []), ...(rel ? [['rel', 'Relationship'] as [string, string]] : [])];
+  const h2hN = mine ? 0 : rivalHistory(g, id).length || (g.career.rivals.includes(id) || (g.career.rel[id]?.rival ?? 0) >= 30 ? 1 : 0);
+  const tabs: [string, string][] = [['over', 'Overview'], ['stats', 'Season stats'], ['hist', 'Career'], ...(mine ? [['dev', 'Development'] as [string, string]] : []), ...(rel ? [['rel', 'Relationship'] as [string, string]] : []), ...(h2hN ? [['h2h', `Head to head (${h2hN})`] as [string, string]] : [])];
   return (
     <>
       <div className="hero mb"><div className="row wrap">
@@ -106,6 +109,7 @@ export function PlayerScreen({ g, id }: { g: Game; id: string }) {
         <h4 className="mt">Transfers</h4><div className="col gap4 small mt">{w.transfers.filter((t) => t.pid === id).map((t) => <div key={t.id}>{seasonLabel(t.s)} · {t.fromName} → <b>{t.toName}</b> <span className="muted">({t.type}{t.fee ? `, ${fmtEur(t.fee)}` : ''})</span></div>)}{!w.transfers.some((t) => t.pid === id) && <span className="muted">No moves recorded.</span>}</div></Card>}
       {tab === 'dev' && mine && <div className="grid g2"><Card title="OVR over time"><OvrChart g={g} /></Card>
         <Card title="Why your attributes changed"><div style={{ maxHeight: 380, overflowY: 'auto' }}>{g.career.devLog.length ? [...g.career.devLog].reverse().slice(0, 80).map((d, i) => <div key={i} className="small" style={{ padding: '5px 0', borderBottom: '1px solid var(--line)' }}><b className={d.delta > 0 ? 'good' : 'bad'}>{ATTRS[d.attr].name} {d.delta > 0 ? '+1' : '−1'} → {d.to}</b> <span className="dim">· {d.date} {seasonLabel(d.s)}</span><div className="muted">{d.why.join(' · ')}</div></div>) : <Empty>Train and play: every attribute point you gain is listed here with its causes.</Empty>}</div></Card></div>}
+      {tab === 'h2h' && !mine && <RivalCard g={g} id={id} />}
       {tab === 'rel' && rel && <div className="grid g2"><Card title={`You and ${p.sn}`}>
         {([['Respect', rel.resp, ''], ['Trust', rel.trust, 'g'], ['Friendship', rel.friend, 'w'], ['Rivalry', rel.rival, 'e'], ['Tactical chemistry', rel.chem, 'f']] as const).map(([n, v, k]) => <div key={n} style={{ marginBottom: 8 }}><div className="row between small"><span>{n}</span><b>{Math.round(v)}</b></div><Bar v={v} kind={k} /></div>)}
         <p className="small muted">Played together {rel.shared}× · against {rel.vs}×</p><button className="btn sm" onClick={() => nav('relationships', 'people')}>Interact</button></Card>
