@@ -770,6 +770,22 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
           o.ab = zero.id; o.sta = 7; o.hot = true;
           if (full) { o.label = 'Zero-Frame Strike'; o.detail = 'No back-lift, no warning. Cannot be blocked.'; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, s.p * 2.2)); }
         }
+        const comet = ms.note !== 'fk' ? canUlt(ms, c, 'comet') : null;
+        if (comet && g.d > 17 && g.d <= 32 && ms.bh === 0) {
+          const s = shotCalc(ms, c, 'long', null, 'comet');
+          const p = clamp(s.xg * 2.2 + 0.06 + c.m[M.SH_LONG] * 0.1, 0.05, 0.45);
+          const o = opt('shoot', 'ult:comet', p, p * 0.95 * bias, -1, 'long');
+          o.ab = comet.id; o.sta = 8; o.hot = true;
+          if (full) { o.label = 'Comet Drive'; o.detail = `Set it on fire from ${Math.round(g.d)} metres. Rises, then dips under the bar.`; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, p * 2)); }
+        }
+        const fkU = ms.note === 'fk' ? canUlt(ms, c, 'fk') : null;
+        if (fkU && g.d <= 32) {
+          const s = shotCalc(ms, c, 'fk', null, 'fk');
+          const p = clamp(s.p * 2.3 + 0.08, 0.1, 0.5);
+          const o = opt('shoot', 'ult:fk', p, p * bias, -1, 'fk');
+          o.ab = fkU.id; o.sta = 5; o.hot = true;
+          if (full) { o.label = 'Free-Kick Sovereign'; o.detail = 'Over the wall, round the keeper, into the corner nobody can reach.'; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, p * 2)); }
+        }
       }
     }
   }
@@ -913,6 +929,12 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
         const p3 = clamp(sig(base + 0.9) * sig(base + 0.6) * sig(base + 0.3), 0.03, 0.85);
         const o4 = opt('dribble', 'ult:trance', p3, p3 * ev(88, 50) - (1 - p3) * loseCost, ms.nd, 'trance'); o4.ab = tr.id; o4.sta = 10; o4.hot = true;
         if (full) { o4.label = 'Monster Trance'; o4.detail = 'Chain up to three take-ons. One failure ends it.'; o4.intent = 'Go through all of them'; o4.risk = riskLabel(p3); }
+      }
+      const ch = canUlt(ms, c, 'charge');
+      if (ch && cax > 50 && cax < 84) {
+        const pc = clamp(sig((at(ms, c, A.STR) - at(ms, nd, A.STR)) / 10 + (at(ms, c, A.BAL) - 65) / 30 + 0.7) * sig((at(ms, c, A.STR) - 70) / 12 + 0.9), 0.06, 0.85);
+        const o5 = opt('dribble', 'ult:charge', pc, pc * ev(88, 50) - (1 - pc) * loseCost, ms.nd, 'charge'); o5.ab = ch.id; o5.sta = 9; o5.hot = true;
+        if (full) { o5.label = 'Bulldozer Charge'; o5.detail = 'Go through two defenders, not round them. Strength against strength.'; o5.intent = 'Bulldoze through'; o5.risk = riskLabel(pc); }
       }
     } else {
       const adv = 6 + paceSk(ms, c) / 12;
@@ -1166,7 +1188,7 @@ function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id
   }
   const header = v === 'header';
   const sk = shotSk(ms, c, v.startsWith('dag') ? 'volley' : v);
-  const pBlock = ult === 'zero' || v === 'fk' ? 0.02 : header ? 0.04 : clamp(0.05 + ms.press * 0.3 + (s.d > 18 ? 0.08 : 0), 0, 0.5);
+  const pBlock = ult === 'zero' || v === 'fk' || ult === 'comet' ? 0.02 : header ? 0.04 : clamp(0.05 + ms.press * 0.3 + (s.d > 18 ? 0.08 : 0), 0, 0.5);
   const pOff = clamp(0.44 - (sk - 65) / 110 + (s.d - 12) / 80 + ms.press * 0.1 + (v === 'power' ? 0.08 : 0), 0.12, 0.8);
   const r = rng.next();
   if (r < pBlock && nd) {
@@ -1238,7 +1260,7 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       spendUlt(ms, c, ur.id, 7);
       let sh = c, from = -1;
       if (key === 'puppet' || key === 'chain') { let bi = -1, bv = -1; const on = ms.teams[t].on; for (let k = 0; k < on.length; k++) { const q = ms.pl[on[k]]; if (q === c || q.line < 2) continue; const v2 = q.line * 20 + q.ovr; if (v2 > bv) { bv = v2; bi = on[k]; } } if (bi >= 0) { c.s[S.PA]++; c.s[S.PC]++; touch(c); if (key === 'puppet') { sh = ms.pl[bi]; from = ci; } else from = bi; } }
-      ultStrike(ms, rng, sh, key, from, key === 'sky' ? 'header' : key === 'sprint' ? 'power' : from >= 0 ? 'first' : 'placed');
+      ultStrike(ms, rng, sh, key, from, key === 'sky' ? 'header' : key === 'sprint' || key === 'charge' ? 'power' : key === 'comet' ? 'long' : from >= 0 ? 'first' : 'placed');
       return;
     }
   }
@@ -1260,6 +1282,8 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
       if (ult === 'dag') { const u = ultOf(c, 'dag')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, v, null, 'dag', user ? Math.max(o.p, ULT_GOAL) : o.p); break; }
       if (ult === 'sky') { const u = ultOf(c, 'sky')!; spendUlt(ms, c, u.id, 6); ms.note = ''; resolveShot(ms, rng, c, 'header', null, 'sky', user ? ULT_GOAL : Math.max(o.p, 0.5)); break; }
       if (ult === 'zero') { const u = ultOf(c, 'zero')!; spendUlt(ms, c, u.id, 7); }
+      if (ult === 'comet') { const u = ultOf(c, 'comet')!; spendUlt(ms, c, u.id, 8); ms.note = ''; resolveShot(ms, rng, c, 'long', null, 'comet', user ? Math.max(o.p, ULT_GOAL * 0.85) : o.p); break; }
+      if (ult === 'fk') { const u = ultOf(c, 'fk')!; spendUlt(ms, c, u.id, 5); ms.note = ''; resolveShot(ms, rng, c, 'fk', null, 'fk', user ? Math.max(o.p, ULT_GOAL * 0.85) : o.p); break; }
       const wasPen = ms.note === 'pen';
       ms.note = '';
       const dom = !!user && !!ms.uc && ms.uc.dominion > ms.play && !wasPen && !ult;
@@ -1355,6 +1379,20 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
     case 'dribble': {
       if (!nd) { ms.bx = clamp(ms.bx + (t === 0 ? 6 : -6), 2, 98); break; }
       const ni = ms.nd;
+      if (ult === 'charge') {
+        const u = ultOf(c, 'charge')!; spendUlt(ms, c, u.id, 9);
+        c.s[S.DA]++; touch(c); M2.time(ms, 6, 0, 0);
+        if (user || rng.next() < o.p) {
+          c.s[S.DC]++; c.s[S.DA]++; c.s[S.DC]++;
+          nd.beat = 3;
+          const D = ms.teams[1 - t].on; let n = 0;
+          for (let k = 0; k < D.length && n < 1; k++) { const q = ms.pl[D[k]]; if (q.line === 1 && q !== nd) { q.beat = 2; n++; } }
+          ms.bx = t === 0 ? 86 : 14; ms.by = 40 + rng.next() * 20; ms.arr = ARR.SET; ms.from = -1;
+          flowGain(ms, c, 12, 'dribble', nd);
+          if (user) ultStrike(ms, rng, c, 'charge', -1, 'power');
+        } else { c.s[S.LOST]++; nd.s[S.TKA]++; nd.s[S.TKW]++; emit(ms, 'dribble', 1 - t, ni, ci, 0, say(ms, 'dribble_fail', c.nm, nd.nm), 1); turnoverTo(ms, ni, ms.bx, ms.by); }
+        break;
+      }
       if (ult === 'trance') {
         const u = ultOf(c, 'trance')!; spendUlt(ms, c, u.id, 10);
         c.s[S.DA]++; touch(c); M2.time(ms, 7, 0, 0);
@@ -1569,15 +1607,15 @@ const ULT_GOAL = 0.9;
 /** The user's ultimate finishes the move itself: the ball is put on a plate and struck. */
 /** The user's ultimate if it can be used now (any kind). */
 function anyUlt(ms: MatchState, p: MPlayer): { id: string; lv: number } | null {
-  for (let i = 0; i < p.ab.length; i++) { const d = abilityDef(p.ab[i].id); if (d?.kind === 'ultimate' && d.ult && d.ult !== 'curtain' && d.ult !== 'dominion') return canUlt(ms, p, d.ult); }
+  for (let i = 0; i < p.ab.length; i++) { const d = abilityDef(p.ab[i].id); if (d?.kind === 'ultimate' && d.ult && d.ult !== 'curtain' && d.ult !== 'dominion' && d.ult !== 'fk') return canUlt(ms, p, d.ult); }
   return null;
 }
 function ultStrike(ms: MatchState, rng: Rng, sh: MPlayer, key: string, from: number, v0 = 'placed'): void {
   let v = v0;
   const t = sh.t;
   ms.car = ms.pl.indexOf(sh); ms.poss = t as 0 | 1; ms.from = from; ms.fromT = ms.play;
-  const tight = key === 'dag';
-  ms.bx = t === 0 ? (tight ? 96 : 88.5) : (tight ? 4 : 11.5); ms.by = tight ? (rng.chance(0.5) ? 9 + rng.next() * 7 : 84 + rng.next() * 7) : 43 + rng.next() * 14; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
+  const tight = key === 'dag', far = key === 'comet';
+  ms.bx = t === 0 ? (tight ? 96 : far ? 77 : 88.5) : (tight ? 4 : far ? 23 : 11.5); ms.by = tight ? (rng.chance(0.5) ? 9 + rng.next() * 7 : 84 + rng.next() * 7) : 43 + rng.next() * 14; ms.arr = from >= 0 ? ARR.GROUND : ARR.SET; ms.bh = v === 'header' ? 2 : 0; ms.note = '';
   if (tight) v = 'dag:outside';
   sh.x = ms.bx; sh.y = ms.by;
   resolveShot(ms, rng, sh, v, null, key, ULT_GOAL);

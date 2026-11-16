@@ -3,6 +3,7 @@
  * is position-aware, stores nominees with the statistics behind the decision, and affects
  * reputation only — never attributes.
  */
+import { ordinal } from './util';
 import type { Award, AwardNom, AwardType, AwardXI, Competition, Game, Player, Pos } from './types';
 import { POS_LINE } from './attributes';
 import { clamp } from './rng';
@@ -222,7 +223,7 @@ export function compSeasonAwards(g: Game, comp: Competition, nel = false): strin
     { // Manager of the Season: finishing position against what the squad should achieve
       const tab = tableOf(w, comp.id);
       const ms = tab.map((r, i) => ({ cl: w.clubs[r.id], pos: i + 1, pts: r.pts })).filter((x) => x.cl?.mgr).map((x) => ({ ...x, sc: (x.cl.expect - x.pos) * 1.4 + (x.pos === 1 ? 6 : x.pos <= 4 ? 2.5 : 0) + x.pts * 0.03 })).sort((a, b) => b.sc - a.sc);
-      if (ms.length) { const mk = (x: (typeof ms)[number]): AwardNom => ({ pid: '', name: x.cl.mgr.name, club: x.cl.id, clubName: x.cl.name, line: `finished ${x.pos}${['st', 'nd', 'rd'][x.pos - 1] ?? 'th'} with ${x.pts} points (expected ${x.cl.expect}${['st', 'nd', 'rd'][x.cl.expect - 1] ?? 'th'})`, score: Math.round(x.sc * 10) / 10 }); const a = giveAward(g, { id: `manager_s:${comp.id}:${w.season}`, type: 'manager_s', title: 'Manager of the Season', comp: comp.id, compName: comp.name, period, winner: mk(ms[0]), noms: ms.slice(0, 4).map(mk), why: 'Judged on the final position against expectations, with credit for winning the title or a top-four place.', mode: 'vote' }); if (a) ids.push(a.id); }
+      if (ms.length) { const mk = (x: (typeof ms)[number]): AwardNom => ({ pid: '', name: x.cl.mgr.name, club: x.cl.id, clubName: x.cl.name, line: `finished ${ordinal(x.pos)} with ${x.pts} points (expected ${ordinal(x.cl.expect)})`, score: Math.round(x.sc * 10) / 10 }); const a = giveAward(g, { id: `manager_s:${comp.id}:${w.season}`, type: 'manager_s', title: 'Manager of the Season', comp: comp.id, compName: comp.name, period, winner: mk(ms[0]), noms: ms.slice(0, 4).map(mk), why: 'Judged on the final position against expectations, with credit for winning the title or a top-four place.', mode: 'vote' }); if (a) ids.push(a.id); }
     }
     give('signing_s', 'Signing of the Season', elig.filter((c) => c.p.con && c.p.con.from === w.season && c.p.con.club === c.p.club), 'Best season by a player who joined his club this season.');
   }
@@ -290,7 +291,7 @@ export function worldAwards(g: Game): string[] {
     const a = giveAward(g, { id: `${type}:world:${w.season}`, type, title, comp: 'world', compName: 'World Football', period, winner: nom(g, list[0]), noms: list.slice(0, type === 'world_player' ? 30 : 5).map((c) => nom(g, c)), why, mode: 'vote' }, true);
     if (a) ids.push(a.id);
   };
-  give('world_player', "Ballon d'Or", cands, 'All competitions, weighted by the strength of each league and competition, with a bonus for trophies won.');
+  // the Ballon d'Or has its own gala in late October (see ballondor.ts), once the summer tournament is over
   give('world_young', 'Golden Boy', cands.filter((c) => w.season - c.p.born <= 21), 'Best player in world football aged 21 or under.');
   give('world_gk', 'World Goalkeeper of the Year', cands.filter((c) => c.p.pos === 'GK'), 'Best goalkeeper across all competitions.');
   give('world_fwd', 'World Forward of the Year', cands.filter((c) => POS_LINE[c.p.pos] === 3), 'Best forward across all competitions.');

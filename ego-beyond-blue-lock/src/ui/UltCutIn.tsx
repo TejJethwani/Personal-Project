@@ -16,8 +16,11 @@ export const ULT_STYLE: Record<string, { col: string; col2: string; tag: string 
   curtain: { col: '#aab6cc', col2: '#ff4d6d', tag: 'Nothing gets through' },
   dominion: { col: '#3df2ff', col2: '#1ea7ff', tag: 'The whole pitch, read in advance' },
   predator: { col: '#ff4d4d', col2: '#ffd166', tag: 'Locked on' },
+  comet: { col: '#ff7a1a', col2: '#ffe14d', tag: 'A trail of fire from thirty metres' },
+  charge: { col: '#c9a227', col2: '#ff4d4d', tag: 'Through them. Not round them.' },
+  fk: { col: '#f6d77a', col2: '#ffffff', tag: 'The dead ball obeys one man' },
 };
-export const ULT_NAME: Record<string, string> = { dag: 'Dead Angle Genesis', zero: 'Zero-Frame Strike', trance: 'Monster Trance', puppet: 'Puppet-Master Pass', sky: 'Sky Tyrant', chain: 'Chain Reaction', sprint: 'God Sprint', curtain: 'Iron Curtain', dominion: 'Field Dominion', predator: "Predator's Eye" };
+export const ULT_NAME: Record<string, string> = { comet: 'Comet Drive', charge: 'Bulldozer Charge', fk: 'Free-Kick Sovereign', dag: 'Dead Angle Genesis', zero: 'Zero-Frame Strike', trance: 'Monster Trance', puppet: 'Puppet-Master Pass', sky: 'Sky Tyrant', chain: 'Chain Reaction', sprint: 'God Sprint', curtain: 'Iron Curtain', dominion: 'Field Dominion', predator: "Predator's Eye" };
 const DUR = 2300;
 const e3 = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -133,6 +136,38 @@ function motif(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, k
       ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.3); ctx.stroke();
       for (let i = 0; i < 4; i++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.moveTo(r * 0.8, 0); ctx.lineTo(r * 1.25, 0); ctx.stroke(); }
       ctx.restore();
+      break;
+    }
+    case 'comet': { // a fireball streaking corner to corner, sparks peeling off its tail, then an impact flash
+      const k = e3(t * 1.6 - 0.1), x0 = -W * 0.1, y0 = H * 0.92, x1 = W * 0.86, y1 = H * 0.2;
+      const hx = x0 + (x1 - x0) * k, hy = y0 + (y1 - y0) * k - Math.sin(k * Math.PI) * H * 0.12;
+      for (let i = 0; i < 28; i++) { const u = Math.max(0, k - i * 0.018); const tx = x0 + (x1 - x0) * u, ty = y0 + (y1 - y0) * u - Math.sin(u * Math.PI) * H * 0.12; ctx.globalAlpha = (1 - i / 28) * 0.8; ctx.fillStyle = i % 3 ? col : col2; ctx.beginPath(); ctx.arc(tx + (rnd(i) - 0.5) * 14, ty + (rnd(i + 3) - 0.5) * 14, m * (0.05 - i * 0.0014), 0, 6.3); ctx.fill(); }
+      ctx.globalAlpha = 1; const gr = ctx.createRadialGradient(hx, hy, 2, hx, hy, m * 0.09); gr.addColorStop(0, '#fff'); gr.addColorStop(0.4, col2); gr.addColorStop(1, col + '00'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(hx, hy, m * 0.09, 0, 6.3); ctx.fill();
+      for (let i = 0; i < 18; i++) { const a = rnd(i + 30) * 6.3, r = m * 0.05 + ((t * 3 + rnd(i)) % 1) * m * 0.12; ctx.strokeStyle = col2; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(hx + Math.cos(a) * r * 0.6, hy + Math.sin(a) * r * 0.6); ctx.lineTo(hx + Math.cos(a) * r, hy + Math.sin(a) * r); ctx.stroke(); }
+      const f = t > 0.72 ? Math.max(0, 1 - (t - 0.72) * 4) : 0; if (f > 0) { ctx.globalAlpha = f; ctx.fillStyle = '#fff4d6'; ctx.fillRect(0, 0, W, H); }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'charge': { // the ground cracks, two shields shatter, a shockwave rolls outwards
+      ctx.strokeStyle = col; ctx.lineWidth = 3;
+      const k = e3(t * 2);
+      for (let i = 0; i < 9; i++) { const a = -Math.PI * 0.05 - rnd(i) * Math.PI * 0.9; let x = cx, y = H * 0.8; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.moveTo(x, y); for (let j = 1; j <= 5 * k; j++) { x += Math.cos(a + (rnd(i * 7 + j) - 0.5) * 0.9) * m * 0.07; y += Math.sin(a + (rnd(i * 5 + j) - 0.5) * 0.9) * m * 0.05; ctx.lineTo(x, y); } ctx.stroke(); }
+      for (const s2 of [-1, 1]) { const sx = cx + s2 * m * 0.24, sy = H * 0.45, br = e3(t * 2.6 - 0.6); ctx.globalAlpha = 1; for (let i = 0; i < 6; i++) { const a = (i / 6) * 6.3; ctx.fillStyle = i % 2 ? '#8892a6' : '#aab6cc'; ctx.save(); ctx.translate(sx + Math.cos(a) * br * m * 0.22 * s2, sy + Math.sin(a) * br * m * 0.18); ctx.rotate(a + br * 3); ctx.fillRect(-m * 0.035, -m * 0.05, m * 0.07, m * 0.1); ctx.restore(); } }
+      for (let r = 0; r < 3; r++) { const kk = (t * 1.4 + r / 3) % 1; ctx.strokeStyle = col2; ctx.globalAlpha = 1 - kk; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(cx, H * 0.8, kk * W * 0.6, kk * H * 0.16, 0, 0, 6.3); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'fk': { // a wall of four, a golden curl over it into the top corner, a crown above the goal
+      const gx = W * 0.62, gy = H * 0.24, gw = W * 0.3, gh = H * 0.2;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.9; ctx.strokeRect(gx, gy, gw, gh);
+      for (let i = 0; i < 4; i++) { const x = W * (0.36 + i * 0.045), y = H * 0.56, j = Math.sin(t * 14) * (t > 0.4 && t < 0.6 ? 4 : 0); ctx.fillStyle = '#d0d6e0'; ctx.beginPath(); ctx.arc(x, y - m * 0.07 - j, m * 0.018, 0, 6.3); ctx.fill(); ctx.fillRect(x - m * 0.014, y - m * 0.055 - j, m * 0.028, m * 0.08); }
+      const k = e3(t * 1.7 - 0.25); ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.setLineDash([2, 10]); ctx.globalAlpha = 1; ctx.beginPath();
+      const P = (u: number) => [W * 0.12 + (gx + gw * 0.9 - W * 0.12) * u, H * 0.78 - Math.sin(u * Math.PI) * H * 0.55 + (gy + gh * 0.15 - H * 0.78) * u] as const;
+      for (let i = 0; i <= 40 * k; i++) { const [x, y] = P(i / 40); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke(); ctx.setLineDash([]);
+      const [bx, by] = P(k); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, m * 0.02, 0, 6.3); ctx.fill();
+      if (t > 0.7) { const c2 = e3((t - 0.7) * 4); ctx.fillStyle = col; ctx.globalAlpha = c2; const cx2 = gx + gw / 2, cy2 = gy - m * 0.08; ctx.beginPath(); ctx.moveTo(cx2 - m * 0.08, cy2 + m * 0.04); ctx.lineTo(cx2 - m * 0.08, cy2 - m * 0.03); ctx.lineTo(cx2 - m * 0.04, cy2); ctx.lineTo(cx2, cy2 - m * 0.05); ctx.lineTo(cx2 + m * 0.04, cy2); ctx.lineTo(cx2 + m * 0.08, cy2 - m * 0.03); ctx.lineTo(cx2 + m * 0.08, cy2 + m * 0.04); ctx.closePath(); ctx.fill(); }
+      ctx.globalAlpha = 1;
       break;
     }
     default: {

@@ -68,7 +68,7 @@ export function PlayerScreen({ g, id }: { g: Game; id: string }) {
             {p.con && <Chip k="y">{ROLE_NAME[p.con.role]}</Chip>}{p.inj > 0 && <Chip k="r">{p.injName ?? 'Injured'} ({p.inj}d)</Chip>}
             {p.origin === 'bluelock' && <Chip k="b">Blue Lock</Chip>}{p.origin === 'master' && <Chip k="e">Master Striker</Chip>}{p.origin === 'regen' && <Chip>Academy graduate</Chip>}{p.origin === 'pool' && <Chip>Plays outside simulated leagues</Chip>}
             {p.canon && <Chip k={p.canon === 'canon' ? 'b' : 'w'} title="How confident the roster data file is about this character's placement. 'original' = fictional player created for this game.">{p.canon}</Chip>}
-            {g.career.rivals.includes(id) && <Chip k="e">Your rival</Chip>}{rel && <Chip k="g">{relLabel(rel)}</Chip>}
+            {g.career.rivals.includes(id) && <Chip k="e">Your rival</Chip>}{rel && <Chip k="g">{relLabel(rel, g.career.rivals.includes(id))}</Chip>}
           </div>
         </div>
         <div className="row"><div className="center"><Ovr v={o} size="lg" /><div className="tiny up muted">Overall</div></div><div className="center"><span className={`ovr lg ${tier(p.pot)}`} style={{ opacity: 0.75 }}>{p.pot}</span><div className="tiny up muted">Potential</div></div></div>

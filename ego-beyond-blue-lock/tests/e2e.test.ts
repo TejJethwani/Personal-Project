@@ -111,7 +111,10 @@ describe('full career simulation', () => {
     for (const t of ['pots', 'ypots', 'tots', 'boot', 'playmaker', 'glove']) expect(w.awards[`${t}:eng1:2025`], t).toBeTruthy();
     const yp = w.awards['ypots:eng1:2025'].winner!; expect(2025 - w.players[yp.pid].born).toBeLessThanOrEqual(21);
     const boot = w.awards['boot:eng1:2025'].winner!; expect(h('eng1').topScorer!.pid).toBe(boot.pid);
-    expect(w.awards['world_player:world:2025']).toBeTruthy(); expect(w.awards['world_xi:world:2025'].xi!.length).toBe(11);
+    expect(w.awards['world_xi:world:2025'].xi!.length).toBe(11);
+    // the Ballon d'Or waits for its own gala in October, with the summer World Cup counted
+    expect(w.awards['world_player:world:2025']).toBeFalsy(); expect(w.bdoPending?.s).toBe(2025);
+    expect(w.bdoPending!.rows.length).toBeGreaterThan(30); expect(w.bdoPending!.rows.some((r) => /World Cup/.test(r.intl))).toBe(true);
     // realistic scale: no absurd totals
     for (const L of LEAGUES) expect(h(L.id).topScorer!.v, L.id + ' top scorer').toBeLessThan(55);
     // European league phase: 36 / 24 clubs, eight matches each, then a play-off round and a round of 16
@@ -123,11 +126,9 @@ describe('full career simulation', () => {
     // new awards and the ceremony hook
     for (const t of ['def_s', 'mid_s', 'fwd_s']) expect(w.awards[`${t}:eng1:2025`], t).toBeTruthy();
     for (const t of ['world_fwd', 'world_mid', 'world_def', 'golden_shoe', 'world_scorer', 'world_young']) expect(w.awards[`${t}:world:2025`], t).toBeTruthy();
-    expect(w.awards['world_player:world:2025'].title).toBe("Ballon d'Or");
     expect(Object.keys(w.awards).some((k) => k.startsWith('tourn_xi:wc'))).toBe(true);
     expect(g.career.flags.ceremony).toBe(2025);
     // the Ballon d'Or keeps its top thirty; rankings and judged awards are told apart; weekly teams never reach the timeline
-    expect(w.awards['world_player:world:2025'].noms!.length).toBe(30);
     expect(w.awards['boot:eng1:2025'].mode).toBe('rank'); expect(w.awards['glove:eng1:2025'].mode).toBe('vote');
     for (const t of ['manager_s', 'potm_king', 'ironman', 'ballwinner']) expect(w.awards[`${t}:eng1:2025`], t).toBeTruthy();
     for (const t of ['world_manager', 'world_club', 'world_potm']) expect(w.awards[`${t}:world:2025`], t).toBeTruthy();
@@ -165,6 +166,15 @@ describe('full career simulation', () => {
     const id = meBefore.id, hist = meBefore.hist.length;
     autoPilot(g, (x) => x.world.season === 2027);
     expect(w.season).toBe(2027); expect(w.archive.length).toBe(2);
+    // the 2025/26 Ballon d'Or gala took place in late October 2026: 100 ballots of ten, a top thirty, and the other trophies of the night
+    const bdo = w.awards['world_player:bdo:2025'];
+    expect(bdo.title).toBe("Ballon d'Or"); expect(bdo.noms!.length).toBe(30); expect(bdo.votes!.length).toBe(100);
+    for (const v of bdo.votes!) expect(new Set(v.picks).size).toBe(10);
+    const tot = bdo.votes!.reduce((x, v) => x + v.picks.length, 0); expect(tot).toBe(1000);
+    expect(bdo.noms![0].score).toBeGreaterThanOrEqual(bdo.noms![1].score);
+    expect(bdo.noms!.reduce((x, n) => x + n.score, 0)).toBeLessThanOrEqual(100 * 67);
+    for (const t of ['kopa', 'yashin', 'muller', 'bdo_club', 'cruyff']) expect(w.awards[`${t}:bdo:2025`], t).toBeTruthy();
+    expect(g.career.flags.gala).toBe(2025); expect(w.bdoPending?.s).toBe(2026);
     const me = w.players[id];
     expect(me).toBe(meBefore); expect(me.hist.length).toBeGreaterThanOrEqual(hist);
     expect(g.career.matches.length).toBeGreaterThan(40);

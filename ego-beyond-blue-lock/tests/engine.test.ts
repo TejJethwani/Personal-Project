@@ -531,7 +531,7 @@ describe('banter and rivalries', () => {
     const cfg = dc2(552); cfg.name = 'Rival Test'; cfg.attrs = balancedAttrs('ST', 90, 'poacher', 3);
     const g = ng2(cfg);
     let formed = false, faced = false, asked = false;
-    for (let m = 0; m < 10; m++) {
+    for (let m = 0; m < 30; m++) {
       ap2(g, (x) => !!uft2(x) && x.world.stage === 1, 80);
       const fx = uft2(g); if (!fx) break;
       const side = fx.h === g.world.players[g.career.pid].club ? fx.h : fx.a;
@@ -549,7 +549,9 @@ describe('banter and rivalries', () => {
     }
     expect(formed).toBe(true); expect(asked).toBe(true);
     const rid = g.career.rivals[0];
-    expect(g.career.rel[rid].rival).toBeGreaterThanOrEqual(14);
+    expect(g.career.rel[rid].rival).toBeGreaterThanOrEqual(24);
+    expect(g.career.rivals.length).toBeLessThanOrEqual(3);
+    for (const x of g.career.rivalLog ?? []) { expect(g.career.rivals).toContain(x.rid); expect(x.sc.length).toBe(2); }
     void faced;
   });
 });
@@ -563,5 +565,45 @@ describe('xG range', () => {
     const spot = logistic(xgLogit(shotGeo(89.5, 50), { pressure: 0.5 }));
     expect(spot).toBeGreaterThan(0.12); expect(spot).toBeLessThan(0.45);
     expect(logistic(xgLogit(shotGeo(70, 50), { pressure: 0.3 }))).toBeLessThan(0.2);
+  });
+});
+
+describe("Ballon d'Or", () => {
+  it('an 80-goal season beats 30 goals and 30 assists with trophies; 100 ballots of ten', async () => {
+    const q = await import('../src/engine/quickmatch');
+    const b = await import('../src/engine/ballondor');
+    const g = q.simWorld(5);
+    const w = g.world;
+    const ids = Object.keys(w.players).filter((id) => w.players[id].club).slice(0, 40);
+    const row = (pid: string, gl: number, as: number, trophies: [string, number][], rat = 7.4): import('../src/engine/ballondor').BdoRow => {
+      const p = w.players[pid], gW = gl, aW = as, tPts = trophies.reduce((x, t) => x + t[1], 0);
+      return { pid, name: p.name, nat: p.nat, pos: 'ST', club: p.club!, clubName: 'X', age: 25, g: gl, a: as, apps: 50, rat, cs: 0, sv: 0, gW, aW, trophies: trophies.map((t) => t[0]), tPts, intl: '', sGoals: gW * 4.4 + aW * 2.4, sTroph: tPts, sForm: (rat - 6.6) * 26 };
+    };
+    const rows = [row(ids[0], 80, 8, [], 8.3), row(ids[1], 30, 30, [['Champions League', 42], ['Premier League', 24]], 7.9), ...ids.slice(2).map((id, i) => row(id, 20 - (i % 15), 8, i % 7 ? [] : [['Cup', 8]], 7.2))];
+    w.bdoPending = { s: w.season, rows };
+    b.ballonDorGala(g);
+    const a = w.awards[`world_player:bdo:${w.season}`];
+    expect(a.winner!.pid).toBe(ids[0]);
+    expect(a.votes!.length).toBe(100); expect(a.noms!.length).toBe(30);
+    expect(a.noms!.reduce((x, n) => x + n.score, 0)).toBe(100 * 67);
+    expect(w.awards[`muller:bdo:${w.season}`].winner!.pid).toBe(ids[0]);
+  });
+});
+
+describe('banter in context', () => {
+  it('nobody mocks a miss from a winning player; lines follow the score and the rivalry', async () => {
+    const b = await import('../src/engine/data/banter2');
+    expect(b.contextSit('youMiss', { lead: 2, myGoals: 1 })).toBe('youMissAhead');
+    expect(b.contextSit('youMiss', { lead: 1, myGoals: 0 })).toBe('youMissAhead');
+    expect(b.contextSit('youMiss', { lead: -1, myGoals: 0 })).toBe('youMiss');
+    expect(b.contextSit('youScore', { lead: 3, myGoals: 2 })).toBe('youScoreRout');
+    expect(b.contextSit('youScore', { lead: -1, myGoals: 1 })).toBe('youScoreBehind');
+    expect(b.contextSit('theyScore', { lead: 1, myGoals: 0 })).toBe('theyScoreBehind');
+    expect(b.contextSit('theyScore', { lead: 0, myGoals: 0 })).toBe('theyScoreLevel');
+    expect(b.contextSit('press', { lead: 0, myGoals: 0, h2hDiff: 2 })).toBe('pressUnderdog');
+    expect(b.contextSit('pre', { lead: 0, myGoals: 0, h2hDiff: 3 })).toBe('preUnderdog');
+    expect(b.countBanter2()).toBeGreaterThan(350);
+    for (const sit of Object.values(b.EXT)) for (const list of Object.values(sit)) expect(list.length).toBeGreaterThanOrEqual(8);
+    expect(b.comeback(2, 'cold', 'Rin', 3)).not.toMatch(/\{r\}/);
   });
 });

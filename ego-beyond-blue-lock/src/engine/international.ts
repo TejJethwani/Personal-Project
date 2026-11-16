@@ -4,6 +4,7 @@
  * and friendlies in international breaks.
  * Qualifying campaigns are not simulated: tournament fields are chosen from nation strength.
  */
+import { ordinal } from './util';
 import type { Competition, Game, Player, Pos } from './types';
 import { ovr, POS_LINE } from './attributes';
 import { clamp, hashStr } from './rng';
@@ -102,7 +103,7 @@ function wcqBreak(g: Game, userPlays: boolean): [string, string] | null {
     }
   }
   const mine = q.groups.find((x) => x.teams.includes(me.nat));
-  if (mine) { const t = wcqTable(mine); const pos = t.findIndex((x) => x.id === me.nat) + 1; addNews(g, 'paper', `World Cup qualifying: ${NATIONS[t[0].id].name} lead ${mine.name}`, `${t.slice(0, 5).map((x, i) => `${i + 1}. ${NATIONS[x.id].name} ${x.r[6]} pts (${x.r[0]} played)`).join(' · ')}. ${NATIONS[me.nat].name} are ${pos}${['st', 'nd', 'rd'][pos - 1] ?? 'th'}; ${mine.slots === 1 ? 'only the winners go to the finals' : `the top ${mine.slots} go to the finals`}.`, { imp: 1, me: true }); }
+  if (mine) { const t = wcqTable(mine); const pos = t.findIndex((x) => x.id === me.nat) + 1; addNews(g, 'paper', `World Cup qualifying: ${NATIONS[t[0].id].name} lead ${mine.name}`, `${t.slice(0, 5).map((x, i) => `${i + 1}. ${NATIONS[x.id].name} ${x.r[6]} pts (${x.r[0]} played)`).join(' · ')}. ${NATIONS[me.nat].name} are ${ordinal(pos)}; ${mine.slots === 1 ? 'only the winners go to the finals' : `the top ${mine.slots} go to the finals`}.`, { imp: 1, me: true }); }
   return real;
 }
 /** Decide who goes to the World Cup. */

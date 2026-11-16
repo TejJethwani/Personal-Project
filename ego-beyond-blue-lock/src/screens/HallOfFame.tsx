@@ -13,21 +13,8 @@ import { retire } from '../engine/actions';
 import { act, nav, autosave } from '../store/game';
 import { Avatar, ConfirmButton } from '../ui/kit';
 import { fmtEur } from '../engine/util';
+import { Trophy, kindForName, kindForAward } from '../ui/Trophy';
 
-function Trophy({ size = 74, tone = 'gold' }: { size?: number; tone?: 'gold' | 'silver' }) {
-  const a = tone === 'gold' ? '#f6d77a' : '#e7ecf3', b = tone === 'gold' ? '#b8891f' : '#8d98a8';
-  const id = `tg-${tone}`;
-  return (
-    <svg width={size} height={size * 1.25} viewBox="0 0 80 100" aria-hidden="true">
-      <defs><linearGradient id={id} x1="0" x2="1"><stop offset="0" stopColor={b} /><stop offset=".45" stopColor={a} /><stop offset="1" stopColor={b} /></linearGradient></defs>
-      <path d="M22 8h36v22c0 14-8 24-18 24S22 44 22 30z" fill={`url(#${id})`} />
-      <path d="M22 14H9c0 14 6 22 15 23M58 14h13c0 14-6 22-15 23" fill="none" stroke={`url(#${id})`} strokeWidth="5" strokeLinecap="round" />
-      <rect x="36" y="53" width="8" height="18" fill={`url(#${id})`} /><rect x="24" y="71" width="32" height="7" rx="2" fill={`url(#${id})`} />
-      <rect x="18" y="78" width="44" height="14" rx="2" fill="#16130c" stroke={b} />
-      <path d="M30 14c0 12 2 22 6 30" stroke="#fff" strokeOpacity=".45" strokeWidth="3" fill="none" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 interface SeasonAgg { s: number; clubs: string[]; line: number[]; byComp: { comp: string; compName: string; clubName: string; line: number[] }[]; trophies: string[]; awards: string[] }
 
@@ -69,8 +56,8 @@ export function HallOfFame({ g }: { g: Game }) {
   // grouped cabinet
   const cab = new Map<string, { name: string; n: number; years: string[]; team: string }>();
   for (const t of trophies) { const base = t.name.replace(/ \d{4}$/, ''); const e = cab.get(base) ?? { name: base, n: 0, years: [], team: t.team }; e.n++; e.years.push(seasonLabel(t.s)); cab.set(base, e); }
-  const awardCab = new Map<string, { title: string; n: number; years: string[] }>();
-  for (const a of major) { const e = awardCab.get(a.title) ?? { title: a.title, n: 0, years: [] }; e.n++; e.years.push(seasonLabel(a.s)); awardCab.set(a.title, e); }
+  const awardCab = new Map<string, { title: string; n: number; years: string[]; type?: string }>();
+  for (const a of major) { const e = awardCab.get(a.title) ?? { title: a.title, n: 0, years: [], type: a.type }; e.n++; e.years.push(seasonLabel(a.s)); awardCab.set(a.title, e); }
   // records
   const best = (f: (m: (typeof played)[number]) => number) => played.reduce<(typeof played)[number] | null>((b, m) => (!b || f(m) > f(b) ? m : b), null);
   const bestRat = best((m) => m.rat), mostG = best((m) => m.line![S.G]), bigWin = best((m) => (m.res === 'W' ? m.sc[0] - m.sc[1] : -9));
@@ -126,7 +113,7 @@ export function HallOfFame({ g }: { g: Game }) {
           <div className="hof-strip">{([['Appearances', total[S.APP]], ['Goals', total[S.G]], ['Assists', total[S.A]], ['Shots', total[S.SH]], ['xG', total[S.XG].toFixed(1)], ['Key passes', total[S.KP]], ['Dribbles', total[S.DC]], ['Tackles won', total[S.TKW]], ['Caps', caps]] as [string, number | string][]).map(([l, v]) => <div key={l}><b>{v}</b><span>{l}</span></div>)}</div>
         </section>
         <section className="hof-sec"><div className="hof-kicker">02 — Silverware</div><h2>THE <span className="gold">CABINET</span></h2>
-          {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><Trophy /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
+          {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><Trophy kind={kindForName(t.name)} size={64} title={t.name} /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
         </section>
         <section className="hof-sec"><div className="hof-kicker">03 — The clubs</div><h2>WHERE IT <span className="red">HAPPENED</span></h2>
           <div className="hof-clubs">{clubs.map((n) => { const l = newLine(); for (const r of rows) if (r.clubName === n && !w.comps[r.comp]?.natTeams) addLine(l, r.line); return <div key={n}><b>{n}</b><span>{l[S.APP]} apps · {l[S.G]} goals · {l[S.A]} assists</span></div>; })}{caps > 0 && <div><b>{NATIONS[me.nat]?.name}</b><span>{caps} caps · {intlG} goals</span></div>}</div>
@@ -134,9 +121,9 @@ export function HallOfFame({ g }: { g: Game }) {
       </>}
 
       {tab === 'cabinet' && <section className="hof-sec"><div className="hof-kicker">Silverware</div><h2>EVERY <span className="gold">HONOUR</span></h2>
-        {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><Trophy /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span><span>{t.team}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
+        {cab.size ? <div className="hof-cab">{[...cab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.name} className="hof-trophy"><div className="spot" /><Trophy kind={kindForName(t.name)} size={64} title={t.name} /><div className="plaque"><b>{t.name}</b><span>×{t.n} · {t.years.join(', ')}</span><span>{t.team}</span></div></div>)}</div> : <p className="hof-empty">No team trophies{retired ? '' : ' yet'}.</p>}
         <h3 className="hof-h3">Individual awards</h3>
-        {awardCab.size ? <div className="hof-cab small">{[...awardCab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.title} className="hof-trophy"><div className="spot" /><Trophy size={48} tone="silver" /><div className="plaque"><b>{t.title}</b><span>×{t.n} · {t.years.slice(0, 6).join(', ')}{t.years.length > 6 ? '…' : ''}</span></div></div>)}</div> : <p className="hof-empty">No individual awards{retired ? '' : ' yet'}.</p>}
+        {awardCab.size ? <div className="hof-cab small">{[...awardCab.values()].sort((a, b) => b.n - a.n).map((t) => <div key={t.title} className="hof-trophy"><div className="spot" /><Trophy kind={t.type ? kindForAward(t.type) : 'player'} size={44} title={t.title} /><div className="plaque"><b>{t.title}</b><span>×{t.n} · {t.years.slice(0, 6).join(', ')}{t.years.length > 6 ? '…' : ''}</span></div></div>)}</div> : <p className="hof-empty">No individual awards{retired ? '' : ' yet'}.</p>}
         <p className="hof-note">Weekly and monthly awards won: {myAwards.length - major.length}.</p>
       </section>}
 

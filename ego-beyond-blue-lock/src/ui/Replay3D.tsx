@@ -264,6 +264,9 @@ const ULT_LINES: Record<string, [string, string, string]> = {
   sprint: ['Catch me.', 'Blink and he is gone! Nobody on this pitch can live with that pace!', 'You were chasing my shadow.'],
   curtain: ['Nothing gets past me.', 'The door is shut — nobody is getting through that!', 'My goal stays shut.'],
   dominion: ['I can see all of it.', 'He knew where everyone would be before they did!', 'The whole pitch moves the way I read it.'],
+  comet: ['Thirty metres? Close enough.', 'He has set the ball on fire! The keeper never had a chance!', 'Distance is just a number.'],
+  charge: ['Get out of my way.', 'He went straight THROUGH them! Two defenders on the floor!', 'I do not go round. I go through.'],
+  fk: ['Build your wall. It will not matter.', 'Over the wall, into the top corner — the keeper did not even move!', 'Dead balls are mine.'],
   predator: ['Found it. The kill spot.', 'He smelled that chance before anyone else in the stadium!', 'I only need one opening.'],
 };
 const LONG_LINES = ['{n} looks up… {d} metres out. Surely not?', 'There is space in front of {n} — {d} metres. He is thinking about it!', '{n}, {d} metres from goal. He is going to hit this!', 'Nobody closes {n} down. {d} metres. Have a go!'];
@@ -314,9 +317,9 @@ function buildScene(rp: Replay, quick = false, ms?: MatchState): Scene {
 /** Dribbling ultimates open with the run itself: who gets beaten, how far the run is, how wide the weave. */
 function dribSetup(rp: Replay, quick: boolean, sx: number, sz: number, foe: (i: number) => boolean): { tDrib: number; drib: number[]; dribL: number; dribA: number } {
   if (rp.skill && !rp.ult && rp.beat != null && rp.beat >= 0 && rp.pl.some((x) => x[0] === rp.beat)) return { tDrib: quick ? 1.0 : 1.5, drib: [rp.beat], dribL: 8, dribA: rp.skill === 2 ? 1.3 : 0.9 };
-  if (quick || (rp.ult !== 'trance' && rp.ult !== 'sprint' && rp.ult !== 'chain')) return { tDrib: 0, drib: [], dribL: 0, dribA: 0 };
+  if (quick || (rp.ult !== 'trance' && rp.ult !== 'sprint' && rp.ult !== 'chain' && rp.ult !== 'charge')) return { tDrib: 0, drib: [], dribL: 0, dribA: 0 };
   const opp = rp.pl.filter((x) => x[0] !== rp.gk && x[0] !== rp.sh && foe(x[0])).map((x) => ({ i: x[0], d: Math.hypot(x[1] * 1.05 - sx, x[2] * 0.68 - sz) })).sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.i);
-  return rp.ult === 'sprint' ? { tDrib: 2.0, drib: opp, dribL: 30, dribA: 0.7 } : rp.ult === 'chain' ? { tDrib: 2.2, drib: opp, dribL: 20, dribA: 1.6 } : { tDrib: 3.0, drib: opp, dribL: 21, dribA: 2.3 };
+  return rp.ult === 'charge' ? { tDrib: 2.2, drib: opp.slice(0, 2), dribL: 16, dribA: 0.35 } : rp.ult === 'sprint' ? { tDrib: 2.0, drib: opp, dribL: 30, dribA: 0.7 } : rp.ult === 'chain' ? { tDrib: 2.2, drib: opp, dribL: 20, dribA: 1.6 } : { tDrib: 3.0, drib: opp, dribL: 21, dribA: 2.3 };
 }
 function ballAt(sc: Scene, t: number): { p: V3; u: number; phase: 0 | 1 | 2 | 3 } {
   const { rp, fl } = sc;
@@ -396,6 +399,14 @@ function ultFx(ctx: CanvasRenderingContext2D, cam: Cam, sc: Scene, ms: MatchStat
       const up = t < sc.tStrike ? k : Math.max(0, 1 - (t - sc.tStrike) * 2.2);
       const x = sp[0] - sc.dir * 5;
       for (let i = 0; i < 15; i++) { const z = sp[2] - 14 + i * 2; poly(ctx, cam, [[x, 0, z - 0.35], [x, 0, z + 0.35], [x, 4.2 * up, z + 0.35], [x, 4.2 * up, z - 0.35]], i % 2 ? '#8892a6' : '#aab6cc'); }
+    } else if (key === 'charge') { // cracks in the turf along his path and a shockwave where he arrives
+      const back = mul(norm(sub([sc.goalX, 0, 34], sp)), -1), perp: V3 = [-back[2], 0, back[0]];
+      ctx.strokeStyle = us.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.85 * Math.min(1, k * 2);
+      for (let i = 0; i < 7; i++) { let p0: V3 = add(sp, mul(back, i * 2.2)); for (let j = 1; j < 4; j++) { const p1: V3 = add(add(p0, mul(perp, ((i + j) % 2 ? 1 : -1) * 0.7)), mul(back, 0.6)); L([p0[0], 0.04, p0[2]], [p1[0], 0.04, p1[2]]); p0 = p1; } }
+      for (let r = 0; r < 3; r++) { const rr = ((t * 1.1 + r / 3) % 1) * 9; ctx.strokeStyle = us.col2; ctx.globalAlpha = 0.7 * (1 - rr / 9); ctx.lineWidth = 3; for (let a = 0; a < 24; a++) L([sp[0] + Math.cos(a * 0.262) * rr, 0.05, sp[2] + Math.sin(a * 0.262) * rr], [sp[0] + Math.cos((a + 1) * 0.262) * rr, 0.05, sp[2] + Math.sin((a + 1) * 0.262) * rr]); }
+    } else if (key === 'fk') { // the curl drawn in gold over the wall before he strikes
+      ctx.strokeStyle = us.col; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.8 * Math.min(1, k * 2) * (fl > 0 ? 0.4 : 1);
+      let p0 = ballAt(sc, sc.tStrike).p; for (let i = 1; i <= 16; i++) { const p1 = ballAt(sc, sc.tStrike + (i / 16) * sc.tFlight).p; if (i % 2) L(p0, p1); p0 = p1; }
     } else if (key === 'dag') { // the wedge of goal he should not be able to see
       ctx.strokeStyle = us.col; ctx.lineWidth = 2; ctx.globalAlpha = 0.8 * Math.min(1, k * 2);
       L([sp[0], 0.03, sp[2]], [sc.goalX, 0.03, 34 - 3.66]); L([sp[0], 0.03, sp[2]], [sc.goalX, 0.03, 34 + 3.66]);
@@ -415,6 +426,11 @@ function ultFx(ctx: CanvasRenderingContext2D, cam: Cam, sc: Scene, ms: MatchStat
     ctx.strokeStyle = us.col; ctx.lineWidth = 2; ctx.globalAlpha = 0.9 * Math.min(1, k * 1.5) * (fl < 1 ? 1 : 0.3);
     L([sp[0], 1.65, sp[2]], sc.end);
     const q = proj(cam, sc.end); if (q.z > NEAR) { const rr = (0.5 + (1 - k) * 2.6) * (cam.fl / q.z); ctx.beginPath(); ctx.arc(q.x, q.y, rr, 0, 6.3); ctx.moveTo(q.x - rr * 1.5, q.y); ctx.lineTo(q.x + rr * 1.5, q.y); ctx.moveTo(q.x, q.y - rr * 1.5); ctx.lineTo(q.x, q.y + rr * 1.5); ctx.stroke(); }
+  } else if (key === 'comet' && fl > 0) { // a burning tail behind the ball
+    for (let i = 1; i <= 14; i++) { const u = fl - i * 0.035; if (u <= 0) break; const p = ballAt(sc, sc.tStrike + u * sc.tFlight).p; const q = proj(cam, p); if (q.z < NEAR) continue; const r = Math.max(2, 0.2 * (cam.fl / q.z) * (1 - i / 16)); ctx.fillStyle = i % 3 ? us.col : us.col2; ctx.globalAlpha = 0.85 * (1 - i / 15); ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.3); ctx.fill(); }
+    if (fl < 1) { const q = proj(cam, bp); if (q.z > NEAR) { const r = Math.max(4, 0.35 * (cam.fl / q.z)); const gr = ctx.createRadialGradient(q.x, q.y, 1, q.x, q.y, r); gr.addColorStop(0, '#fff'); gr.addColorStop(0.5, us.col2 + 'aa'); gr.addColorStop(1, us.col + '00'); ctx.fillStyle = gr; ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.3); ctx.fill(); } }
+  } else if (key === 'fk' && fl > 0 && fl < 1) { // golden sparkle on the ball as it bends
+    const q = proj(cam, bp); if (q.z > NEAR) { const s = cam.fl / q.z; for (let i = 0; i < 6; i++) { const a = i * 1.05 + t * 8; ctx.strokeStyle = us.col; ctx.globalAlpha = 0.9; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(q.x + Math.cos(a) * 0.12 * s, q.y + Math.sin(a) * 0.12 * s); ctx.lineTo(q.x + Math.cos(a) * 0.3 * s, q.y + Math.sin(a) * 0.3 * s); ctx.stroke(); } }
   } else if (key === 'zero' && fl > 0) { // frozen frames of the ball along its path
     for (let i = 1; i <= 6; i++) { const u = i / 7; if (u > fl) break; const p = ballAt(sc, sc.tStrike + u * sc.tFlight).p; const q = proj(cam, p); if (q.z < NEAR) continue; const r = Math.max(2.5, 0.115 * (cam.fl / q.z)); ctx.strokeStyle = us.col2; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7; ctx.strokeRect(q.x - r * 1.8, q.y - r * 1.8, r * 3.6, r * 3.6); ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.45; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.3); ctx.fill(); }
   } else if (key === 'dag' && fl > 0 && fl < 1) { // shards breaking off the ball

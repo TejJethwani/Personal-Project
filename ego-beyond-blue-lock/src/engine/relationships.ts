@@ -61,9 +61,13 @@ export function lastMemory(r: Rel, types?: string[]): Memory | undefined {
   for (let i = r.mem.length - 1; i >= 0; i--) if (!types || types.includes(r.mem[i].t)) return r.mem[i];
   return undefined;
 }
-export function relLabel(r: Rel): string {
-  if (r.rival >= 60 && r.friend >= 55) return 'Friendly rival';
-  if (r.rival >= 60) return r.resp >= 60 ? 'Respected rival' : 'Bitter rival';
+/** At most three declared rivals at a time: a rivalry should mean something. */
+export const MAX_RIVALS = 3;
+export function relLabel(r: Rel, declared = false): string {
+  // only a declared rival is called a rival; anyone else is just someone you compete with
+  if (declared && r.friend >= 55) return 'Friendly rival';
+  if (declared) return r.resp >= 60 ? 'Respected rival' : 'Bitter rival';
+  if (r.rival >= 60 && r.friend < 40) return 'Competitor';
   if (r.friend >= 75) return 'Close friend';
   if (r.friend >= 50) return 'Friend';
   if (r.trust < 20) return 'Distrusts you';

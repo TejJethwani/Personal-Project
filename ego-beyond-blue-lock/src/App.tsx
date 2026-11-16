@@ -6,7 +6,7 @@ import { fmtDate, seasonLabel } from './engine/competitions';
 import { nextStop } from './engine/sim';
 import { pendingInteractions } from './engine/interactions';
 import { openOffers } from './engine/transfers';
-import { continueGame, simWeeks, ceremonyDue } from './ui/flow';
+import { continueGame, simWeeks, ceremonyDue, galaDue } from './ui/flow';
 import { HallOfFame } from './screens/HallOfFame';
 import { Ceremony } from './screens/Ceremony';
 import { Admin } from './screens/Admin';
@@ -102,7 +102,7 @@ export function App() {
           {g.edited && <span className="chip w" title="This save has been changed with the sandbox editor.">Edited save</span>}
           <span className="grow" />
           <span className="muted small hide-s">{w.phase === 'nel' ? 'Neo Egoist League' : seasonLabel(w.season)} · {fmtDate(w, w.day, true)}</span>
-          {ceremonyDue(g) && r.name !== 'ceremony' && <button className="btn pulse" onClick={() => nav('ceremony')}>🏆 Awards ceremony</button>}
+          {ceremonyDue(g) && r.name !== 'ceremony' && <button className="btn pulse" onClick={() => nav('ceremony')}>{galaDue(g) ? "🏆 Ballon d'Or gala" : '🏆 Awards ceremony'}</button>}
           {!g.live && stop.kind !== 'retired' && <select className="simsel" aria-label="Simulate several weeks" value="" onChange={(e) => { const v = +e.target.value; e.target.value = ''; if (v) simWeeks(v); }}><option value="">Sim ahead…</option><option value="1">1 week</option><option value="2">2 weeks</option><option value="4">4 weeks</option><option value="8">8 weeks</option><option value="13">3 months</option><option value="26">Half a season</option><option value="52">A full year</option></select>}
           <button className={`btn pri ${stop.kind !== 'none' ? 'pulse' : ''}`} onClick={() => continueGame()} disabled={stop.kind === 'retired'} title={stop.detail}><Icon n="play" s={14} />{stop.label.length > 34 ? stop.label.slice(0, 32) + '…' : stop.label}</button>
         </div>

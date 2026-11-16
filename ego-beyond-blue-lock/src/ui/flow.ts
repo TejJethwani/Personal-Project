@@ -5,8 +5,9 @@ import { act, getGame, moment, nav, setBusy, toast, autosave } from '../store/ga
 let running = false;
 export function ceremonyDue(g: { career: { flags: Record<string, number | string> } }): boolean {
   const f = g.career.flags;
-  return f.ceremony != null && f.ceremony !== f.ceremonySeen;
+  return (f.ceremony != null && f.ceremony !== f.ceremonySeen) || (f.gala != null && f.gala !== f.galaSeen);
 }
+export function galaDue(g: { career: { flags: Record<string, number | string> } }): boolean { const f = g.career.flags; return f.gala != null && f.gala !== f.galaSeen; }
 /**
  * Simulate several weeks in one go. The user's matches are quick-simulated with the same engine.
  * Stops early for anything that needs a decision: choosing a club, the NEL summary, the awards ceremony, retirement.
@@ -25,7 +26,7 @@ export async function simWeeks(weeks: number): Promise<void> {
       const st = nextStop(x);
       if (st.kind === 'club') { why = 'You must choose a club to continue.'; break; }
       if (st.kind === 'summary' || st.kind === 'retired' || st.kind === 'live') { why = st.label; break; }
-      if (ceremonyDue(x)) { why = 'The awards ceremony is waiting.'; break; }
+      if (ceremonyDue(x)) { why = galaDue(x) ? "The Ballon d'Or gala is tonight." : 'The awards ceremony is waiting.'; break; }
       { const me2 = x.world.players[x.career.pid]; const ending = me2.con && me2.con.until === x.world.season && x.career.offers.some((o) => o.status === 'open' && o.club === me2.club); if (ending && !x.career.flags['renewSeen:' + x.world.season]) { act((y) => { y.career.flags['renewSeen:' + y.world.season] = 1; }, false); why = 'Your contract ends this season and your club has offered a new one — see Transfers.'; break; } }
       setBusy(`Simulating — week ${Math.min(weeks, Math.floor((weeks * 7 - (target - x.world.abs)) / 7) + 1)} of ${weeks}`);
       await new Promise((r) => setTimeout(r, 8));

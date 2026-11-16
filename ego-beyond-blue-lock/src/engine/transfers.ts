@@ -430,6 +430,7 @@ export function aiTransferDay(g: Game, intensity = 1): number {
     best.con!.role = roleAt(g, best, c);
     deals++;
   }
+  deals += marqueeMoves(g, intensity);
   // free agents find clubs
   for (const id of [...w.free]) {
     const p = w.players[id];
@@ -441,6 +442,48 @@ export function aiTransferDay(g: Game, intensity = 1): number {
   }
   return deals;
 }
+
+/**
+ * Marquee moves: stars who have outgrown their club, or who are hungry for the biggest trophies, are sold to
+ * a bigger club for a big fee. Loyal players (and a few one-club men) stay put; everyone else is on the market
+ * sooner or later, Blue Lock graduates included.
+ */
+export function marqueeMoves(g: Game, intensity = 1): number {
+  const w = g.world;
+  const rng = rngOf(w);
+  const clubs = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league);
+  let deals = 0;
+  for (const p of rng.shuffle(Object.values(w.players).filter((q) => q.club && !q.retired && ovr(q) >= 74))) {
+    if (!p.club || p.id === g.career.pid || p.con?.loanFrom) continue;
+    const from = w.clubs[p.club];
+    if (!from || from.nel || (p.lastMove ?? -999) > w.abs - 300) continue;
+    const o = ovr(p), age = w.season - p.born;
+    const star = o >= 80 || (p.origin === 'bluelock' && o >= 74);
+    if (!star || age > 31) continue;
+    // a one-club man in every few: loyal personalities rarely ask to leave
+    const oneClub = (hashId(p.id) % 100) < 12 + Math.max(0, p.pers.loyal - 70);
+    const outgrown = o - levelOf(from);
+    if (oneClub && outgrown < 9) continue;
+    const yearsLeft = (p.con?.until ?? w.season) - w.season;
+    let pr = 0.02 + Math.max(0, outgrown) * 0.014 + Math.max(0, p.pers.amb - 60) * 0.0006 - Math.max(0, p.pers.loyal - 55) * 0.0004 + (yearsLeft <= 1 ? 0.02 : 0) + (p.origin === 'bluelock' ? 0.022 : 0);
+    if (from.rep >= 90 && outgrown <= 0) pr *= 0.35; // already at the top
+    if (rng.next() > pr * intensity) continue;
+    const posCount = (c: Club) => c.squad.filter((id) => { const q = w.players[id]; return q && q.pos === p.pos && ovr(q) >= o - 2; }).length;
+    const fee0 = marketValue(p, w.season) * (1.25 + rng.next() * 0.55) * (o >= 84 ? 1.6 : o >= 80 ? 1.25 : 1) * (p.origin === 'bluelock' ? 1.2 : 1); // selling clubs drive a hard bargain for stars
+    const fee = p.con?.clause && p.con.clause < fee0 * 1.3 ? p.con.clause : fee0;
+    const dests = clubs.filter((c) => c.id !== from.id && c.rep >= from.rep + 1 && levelOf(c) >= o - 6 && c.budget * 1.4 >= fee && c.squad.length < 29 && posCount(c) < 2 && !(o >= 85 && strongCount(w, c) >= 7));
+    if (!dests.length) continue;
+    const dest = dests.sort((x, y) => y.rep - x.rep + (rng.next() - 0.5) * 8)[0];
+    const f = Math.round(fee / 1e6) * 1e6;
+    doTransfer(g, p, dest, f, 'transfer');
+    p.con!.role = roleAt(g, p, dest);
+    dest.budget = Math.max(0, dest.budget - f * 0.6);
+    deals++;
+    if (deals >= 3 + Math.round(intensity * 2)) break;
+  }
+  return deals;
+}
+function hashId(s: string): number { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 /** Summer: big clubs loan out youngsters who are far from the first team. */
 export function aiLoans(g: Game): void {

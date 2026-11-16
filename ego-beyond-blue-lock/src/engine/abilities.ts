@@ -499,6 +499,47 @@ export const WEAPONS: AbilityDef[] = [
     evo: [{ id: 'joy', name: 'Pure Joy', desc: 'Every beaten man feeds Flow.', fx: [f('FLOW_GAIN', 0.2, 0.04)] }, { id: 'unreadable', name: 'Unreadable', desc: 'Repeated use is much harder to read.', fx: [f('ADAPT', 0.15, 0.03), f('DR_TIGHT', 0.15, 0.03)] }],
     lines: ['Nobody knows what {n} will do next — including {n}!', 'Chaos! {n} dances through on instinct alone!'],
   },
+  // ── new weapons ──
+  {
+    id: 'rabona_cross', kind: 'weapon', name: 'Rabona Delivery', tags: ['pass', 'cross'], rarity: 4,
+    desc: 'You whip crosses in with the wrong foot wrapped behind the standing leg: the keeper reads the body, the ball goes elsewhere.',
+    req: 'Crossing from a wide area or delivering a free kick into the box.', reqAttr: [[A.CRO, 76], [A.BCO, 70], [A.AGI, 62]],
+    fx: [f('PA_CROSS', 0.25, 0.06), f('PA_DISG', 0.15, 0.04)],
+    act: { name: 'Rabona Cross', ctx: 'cross', fx: [f('PA_CROSS', 0.4, 0.07), f('PA_DISG', 0.25, 0.05)], sta: 4, desc: 'Wrap the wrong foot round and bend it into the corridor.' },
+    cost: 'Triggered: 4 stamina.', counter: 'A full-back who shows you outside before you can set your feet.', limits: 'Only for crosses and wide deliveries.',
+    evo: [{ id: 'rabona_curl', name: 'Corridor of Doubt', desc: 'Crosses arrive where keeper and defender both hesitate.', fx: [f('PA_CROSS', 0.2, 0.04)] }, { id: 'rabona_flair', name: 'Showman', desc: 'Flair feeds Flow.', fx: [f('FLOW_GAIN', 0.15, 0.03)] }],
+    lines: ['A RABONA cross from {n}! Wrapped round the standing leg!', '{n} with the rabona — and it lands on a sixpence!'],
+  },
+  {
+    id: 'phantom_feint', kind: 'weapon', name: 'Phantom Feint', tags: ['dribble', 'mind'], rarity: 4,
+    desc: 'A shoulder, a glance, a fake first step: the defender commits to a move you never make.',
+    req: 'Tight one-on-one with a defender in front of you.', reqAttr: [[A.DRI, 76], [A.AGI, 72], [A.BAL, 66]],
+    fx: [f('DR_TIGHT', 0.25, 0.06), f('ADAPT', 0.1, 0.03)],
+    act: { name: 'Phantom Step', ctx: 'dribble_tight', fx: [f('DR_TIGHT', 0.42, 0.07)], sta: 5, desc: 'Sell the fake, then go the other way.' },
+    cost: 'Triggered: 5 stamina.', counter: 'Patient defenders who refuse to commit.', limits: 'Loses power against the same defender over a match.',
+    evo: [{ id: 'double_phantom', name: 'Double Phantom', desc: 'Two fakes in one movement.', fx: [f('DR_TIGHT', 0.2, 0.04), f('DR_SKILL', 0.1, 0.03)] }, { id: 'phantom_shot', name: 'Feint to Finish', desc: 'The fake opens the shooting lane.', fx: [f('SH_PRESS', 0.15, 0.03)] }],
+    lines: ['{n} sold him a ghost! The defender is still going the wrong way!', 'Phantom Feint — {n} never even touched the ball!'],
+  },
+  {
+    id: 'meteor_volley', kind: 'weapon', name: 'Meteor Volley', tags: ['shoot'], rarity: 4,
+    desc: 'You meet falling balls with a full, clean swing. The ball leaves your foot like it was fired.',
+    req: 'A cross, clearance or lofted ball dropping to you around the box.', reqAttr: [[A.VOL, 76], [A.SHP, 74], [A.BAL, 64]],
+    fx: [f('SH_VOLLEY', 0.25, 0.06), f('SH_POWER', 0.12, 0.03)],
+    act: { name: 'Meteor Strike', ctx: 'shot_air', fx: [f('SH_VOLLEY', 0.42, 0.07), f('SH_POWER', 0.2, 0.04)], sta: 6, desc: 'Full swing, laces, out of the sky.' },
+    cost: 'Triggered: 6 stamina.', counter: 'Defenders who close you before the ball drops; balls that bounce first.', limits: 'Only for balls in the air.',
+    evo: [{ id: 'meteor_range', name: 'Long-Range Meteor', desc: 'Volleys from outside the box keep their power.', fx: [f('SH_LONG', 0.15, 0.03)] }, { id: 'meteor_calm', name: 'Still Head', desc: 'Volleys stay on target under pressure.', fx: [f('SH_PRESS', 0.15, 0.03)] }],
+    lines: ['METEOR VOLLEY! {n} hit that out of the sky!', '{n} catches it on the full — what a strike!'],
+  },
+  {
+    id: 'last_line', kind: 'weapon', name: 'Last-Line Read', tags: ['defend', 'mind'], rarity: 3,
+    desc: 'You read the final pass before it is played and step into the lane: the striker never receives it.',
+    req: 'Defending in your own third as the opponent looks for the final ball.', reqAttr: [[A.INT, 74], [A.POS, 62], [A.DAW, 70]],
+    fx: [f('INTERCEPT', 0.1, 0.03), f('READ', 0.15, 0.04)],
+    act: { name: 'Lane Steal', ctx: 'intercept', fx: [f('INTERCEPT', 0.14, 0.03), f('READ', 0.2, 0.04)], sta: 4, desc: 'Step into the passing lane at the last moment.' },
+    cost: 'Triggered: 4 stamina.', counter: 'Quick one-twos and dribblers who never pass.', limits: 'Does nothing against shots and dribbles.',
+    evo: [{ id: 'launch', name: 'Steal and Launch', desc: 'Interceptions start counters.', fx: [f('PA_LONG', 0.15, 0.03)] }, { id: 'organiser', name: 'Organiser', desc: 'Your reading lifts the whole line.', fx: [f('READ', 0.15, 0.03)] }],
+    lines: ['{n} read that pass a second before it was played!', 'Cut out by {n} — the last line holds!'],
+  },
 ];
 
 export const PASSIVES: AbilityDef[] = [
@@ -588,6 +629,27 @@ export const ULTIMATES: AbilityDef[] = [
     req: 'Flow State active. Off the ball as your team attacks the final third.', fx: [], cost: 'Consumes 40% of remaining Flow time and 6 stamina.',
     counter: 'A marker who physically blocks the run.', limits: 'You arrive unmarked, but someone still has to deliver the ball.',
     lines: ['{n} has found the one gap in the whole box!', 'The defence lost {n} for one second. That\'s all it takes.'],
+  },
+  {
+    id: 'comet_drive', kind: 'ultimate', name: 'Comet Drive', tags: ['shoot'], rarity: 4, ult: 'comet',
+    desc: 'A long-range strike hit so hard and so true that it burns a trail through the air, rising then dropping under the bar.',
+    req: 'Flow State active. On the ball between 18 and 32 metres from goal.', fx: [], cost: 'Consumes 40% of remaining Flow time and 8 stamina.',
+    counter: 'Closing the shooter down before he sets his body; a keeper standing high.', limits: 'Distance still matters: from 30 metres it is far from certain. Not available inside the box.',
+    lines: ['From THIRTY METRES! {n} has set it on fire!', 'COMET DRIVE! The keeper never moved!'],
+  },
+  {
+    id: 'bulldozer_charge', kind: 'ultimate', name: 'Bulldozer Charge', tags: ['dribble', 'pace'], rarity: 4, ult: 'charge',
+    desc: 'You lower your shoulder and go through them, not round them: two defenders bounce off and you arrive in the box with the ball.',
+    req: 'Flow State active. On the ball in the attacking half with a defender in front of you.', fx: [], cost: 'Consumes 40% of remaining Flow time and 9 stamina.',
+    counter: 'Stronger defenders, and a second man arriving to double up.', limits: 'Strength against strength: a bigger defender stops it, and failure loses the ball.',
+    lines: ['{n} is going THROUGH them! Two defenders on the floor!', 'Nobody can stop {n} — BULLDOZER CHARGE!'],
+  },
+  {
+    id: 'fk_sovereign', kind: 'ultimate', name: 'Free-Kick Sovereign', tags: ['shoot'], rarity: 4, ult: 'fk',
+    desc: 'Over the wall, round the keeper, into the one corner nobody can reach: a dead ball becomes a goal.',
+    req: 'Flow State active. A direct free kick within 32 metres.', fx: [], cost: 'Consumes 40% of remaining Flow time and 5 stamina.',
+    counter: 'A big wall and a keeper who holds his position.', limits: 'Only from direct free kicks.',
+    lines: ['Over the wall, in the top corner — FREE-KICK SOVEREIGN!', '{n} owns the dead ball. The keeper did not even dive!'],
   },
 ];
 

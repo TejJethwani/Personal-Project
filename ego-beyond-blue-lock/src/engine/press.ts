@@ -2,12 +2,16 @@
  * The weekly newspaper: short articles generated from the state of the world. They describe
  * results and hint at who is favourite for titles and awards — without ever deciding anything.
  */
+import { ordinal } from './util';
 import type { Game } from './types';
 import { S } from './match/model';
 import { tableOf, compFixtures } from './competitions';
 import { teamName } from './match/setup';
 import { addNews } from './util';
-import { worldCands, seasonLines } from './awards';
+import { seasonLines } from './awards';
+import { smartLine } from './data/banter2';
+import { rivalQuoteReply } from './interactions';
+import { bdoRows, base as bdoBase } from './ballondor';
 import { banterLine } from './data/banter';
 import { h2h } from './rivalry';
 
@@ -39,7 +43,7 @@ export function weeklyPress(g: Game, week: number): void {
     const [a, b, c] = tab;
     const gap = a.pts - b.pts, left = Math.max(0, comp.rounds - a.p);
     const fav = gap >= 7 ? `${a.name} are running away with it` : gap >= 3 ? `${a.name} are favourites, but ${b.name} are within reach` : `nothing separates ${a.name} and ${b.name}`;
-    addNews(g, 'paper', left <= 6 ? `Title run-in: ${fav}` : `Title race: ${fav}`, `${a.name} ${a.pts} pts, ${b.name} ${b.pts}, ${c.name} ${c.pts} after ${a.p} matches${left ? `, ${left} to play` : ''}. ${gap >= 7 ? 'Bookmakers have stopped taking bets.' : gap >= 3 ? 'One bad week would change everything.' : 'Our panel is split down the middle.'}${me.club && tab.findIndex((r) => r.id === me.club) >= 0 ? ` ${teamName(w, me.club)} sit ${tab.findIndex((r) => r.id === me.club) + 1}${['st', 'nd', 'rd'][tab.findIndex((r) => r.id === me.club)] ?? 'th'}.` : ''}`, { imp: 1, clubs: [a.id, b.id], me: a.id === me.club || b.id === me.club });
+    addNews(g, 'paper', left <= 6 ? `Title run-in: ${fav}` : `Title race: ${fav}`, `${a.name} ${a.pts} pts, ${b.name} ${b.pts}, ${c.name} ${c.pts} after ${a.p} matches${left ? `, ${left} to play` : ''}. ${gap >= 7 ? 'Bookmakers have stopped taking bets.' : gap >= 3 ? 'One bad week would change everything.' : 'Our panel is split down the middle.'}${me.club && tab.findIndex((r) => r.id === me.club) >= 0 ? ` ${teamName(w, me.club)} sit ${ordinal(tab.findIndex((r) => r.id === me.club) + 1)}.` : ''}`, { imp: 1, clubs: [a.id, b.id], me: a.id === me.club || b.id === me.club });
   }
   // 3. Golden Boot watch
   if (week % 3 === 0) {
@@ -50,14 +54,22 @@ export function weeklyPress(g: Game, week: number): void {
   if (week % 3 === 1 && g.career.rivals.length) {
     const rid = g.career.rivals[(seed >>> 1) % g.career.rivals.length];
     const rp = w.players[rid];
-    if (rp && !rp.retired) addNews(g, 'paper', `${rp.sn} on ${me.sn}: "${banterLine(rp, 'press', me.sn, rp.club ? teamName(w, rp.club) : '', w.season, seed)}"`, `${rp.name} was asked about his rivalry with ${me.name} this week. Head to head so far: ${h2h(g, rid).w} wins for ${me.sn}, ${h2h(g, rid).l} for ${rp.sn}, ${h2h(g, rid).d} drawn.`, { imp: 2, me: true, pids: [rid] });
+    // what he says depends on how the rivalry is going: a rival on the wrong end of it does not sneer
+    const hh = rp ? h2h(g, rid) : null;
+    const myS = Object.values(me.ss).reduce((x, l) => x + l[S.G], 0), hisS = rp ? Object.values(rp.ss).reduce((x, l) => x + l[S.G], 0) : 0;
+    const diff = hh ? hh.w - hh.l + (myS >= hisS + 6 ? 1 : 0) : 0;
+    const quote = rp ? smartLine(rp, 'press', { lead: 0, myGoals: 0, h2hDiff: diff }, me.sn, rp.club ? teamName(w, rp.club) : '', w.season, seed) : '';
+    if (rp && !rp.retired) rivalQuoteReply(g, rid, quote, diff >= 1);
+    if (rp && !rp.retired) addNews(g, 'paper', `${rp.sn} on ${me.sn}: "${quote}"`, `${rp.name} was asked about his rivalry with ${me.name} this week. Head to head so far: ${h2h(g, rid).w} wins for ${me.sn}, ${h2h(g, rid).l} for ${rp.sn}, ${h2h(g, rid).d} drawn.`, { imp: 2, me: true, pids: [rid] });
   }
   // 4. Ballon d'Or power ranking
   if (week % 4 === 0 && week >= 8) {
-    const top = worldCands(g, Math.min(15, Math.max(5, Math.floor(week / 3)))).slice(0, 5);
+    const rows = bdoRows(g, Math.min(15, Math.max(5, Math.floor(week / 3))));
+    const top = rows.slice(0, 5);
     if (top.length >= 5) {
-      const mine = top.findIndex((x) => x.p.id === me.id);
-      addNews(g, 'paper', `Ballon d'Or power ranking: ${top[0].p.sn} out in front`, `${top.map((x, i) => `${i + 1}. ${x.p.name} (${teamName(w, x.club)}) — ${x.line[S.G]} goals, ${x.line[S.A]} assists, avg ${x.rat.toFixed(2)}`).join(' · ')}. ${top[0].score - top[1].score > 12 ? `${top[0].p.sn} is the clear favourite as things stand.` : `${top[0].p.sn} and ${top[1].p.sn} are neck and neck; trophies in May will decide it.`}${mine >= 0 ? ' You are in the conversation.' : ''}`, { imp: mine >= 0 ? 2 : 1, pids: top.map((x) => x.p.id), me: mine >= 0 });
+      const mine = top.findIndex((x) => x.pid === me.id);
+      const gap = bdoBase(top[0]) - bdoBase(top[1]);
+      addNews(g, 'paper', `Ballon d'Or power ranking: ${top[0].name} out in front`, `${top.map((x, i) => `${i + 1}. ${x.name} (${x.clubName}) — ${x.g} goals, ${x.a} assists, avg ${x.rat.toFixed(2)}`).join(' · ')}. ${gap > 40 ? `${top[0].name} is the clear favourite as things stand.` : `${top[0].name} and ${top[1].name} are neck and neck; trophies in May and the summer tournament will decide it.`}${mine >= 0 ? ' You are in the conversation.' : ''} The vote is in late October.`, { imp: mine >= 0 ? 2 : 1, pids: top.map((x) => x.pid), me: mine >= 0 });
     }
   }
 }

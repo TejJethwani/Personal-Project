@@ -237,7 +237,8 @@ export type AwardType =
   | 'golden_shoe' | 'world_def' | 'world_mid' | 'world_fwd' | 'world_scorer' | 'world_playmaker'
   | 'tourn_xi' | 'tourn_young' | 'tourn_glove'
   | 'potm_king' | 'dribbler' | 'ballwinner' | 'ironman' | 'manager_s' | 'breakout' | 'veteran'
-  | 'world_manager' | 'world_club' | 'world_dribbler' | 'world_ballwinner' | 'world_veteran' | 'world_breakout' | 'world_potm';
+  | 'world_manager' | 'world_club' | 'world_dribbler' | 'world_ballwinner' | 'world_veteran' | 'world_breakout' | 'world_potm'
+  | 'kopa' | 'yashin' | 'muller' | 'cruyff' | 'bdo_club' | 'bdo_xi';
 
 export interface AwardNom { pid: string; name: string; club: string; clubName: string; line: string; score: number }
 export interface AwardXI { pid: string; name: string; pos: Pos; club: string; clubName: string; rat: number }
@@ -258,6 +259,8 @@ export interface Award {
   /** 'rank' = decided by one published number (shown as a ranking); 'vote' = judged on several things (presented with suspense) */
   mode?: 'rank' | 'vote';
   me?: boolean; // involves the user
+  /** Ballon d'Or: every journalist's top ten (pids, best first) */
+  votes?: { j: string; out: string; nat: string; picks: string[] }[];
 }
 
 export type NewsCat = 'match' | 'transfer' | 'award' | 'nel' | 'bid' | 'world' | 'club' | 'intl' | 'rivalry' | 'career' | 'injury' | 'manager' | 'record' | 'youth' | 'paper';
@@ -407,6 +410,10 @@ export interface StatHist { s: number; club: string; clubName: string; comp: str
 
 export interface Career {
   pid: string;
+  /** the user's Ballon d'Or finishes */
+  bdoHist?: { s: number; rank: number; pts: number; winner: string }[];
+  /** every match against a declared rival */
+  rivalLog?: { kind?: string; stg?: string; decider?: boolean; rid: string; fid: string; s: number; date: string; comp: string; my: string; his: string; sc: [number, number]; pens?: [number, number]; res: 'W' | 'D' | 'L'; mg: number; ma: number; hg: number; ha: number; mr: number; hr: number; potm: number; home: boolean }[];
   look: Appearance;
   egoType: string;
   philosophy: string;
@@ -559,6 +566,10 @@ export interface World {
   baseline: string;
   keepLines?: boolean; // tests: keep every fixture's stat lines
   events: { key: string; day: number; data?: string }[]; // scheduled world events for the current season
+  /** where each player finished the club season (for the Ballon d'Or, before the summer window moves him) */
+  seasonClub?: Record<string, string>;
+  /** last season's Ballon d'Or cases, waiting for the gala in late October */
+  bdoPending?: { s: number; rows: import('./ballondor').BdoRow[] };
 }
 
 export interface Game {

@@ -12,6 +12,7 @@ import { S } from './match/model';
 import { winnerId } from './match/setup';
 import { addNews, milestone, ordinal, log } from './util';
 import { compSeasonAwards, worldAwards, tournamentAwards, pruneAwards, seasonLines } from './awards';
+import { rememberSeasonClubs, bdoSnapshot } from './ballondor';
 import { archiveStats, contractYearEnd, managerChanges, ensureSquads, aiLoans, buildOffer, levelOf } from './transfers';
 import { yearlyDevelopment, pruneRetired } from './development';
 import { scheduleBreakFriendlies, finishTournament } from './international';
@@ -180,6 +181,7 @@ export function endSeason(g: Game): void {
   if (holder && !qual.ucl.includes(holder)) { qual.uel = qual.uel.filter((x) => x !== holder); qual.ucl.push(holder); }
   if (w.comps.ucl) w.comps.ucl.qual = qual;
   awardIds.push(...worldAwards(g));
+  rememberSeasonClubs(g);
   g.career.flags.ceremony = w.season; // the UI presents the season's awards as a ceremony
   w.rec.seasons = { v: (w.rec.seasons?.v ?? 0) + 1, pid: '', name: '', s: w.season };
   managerChanges(g, positions);
@@ -236,6 +238,8 @@ function applyMovement(g: Game): void {
 export function rollover(g: Game): void {
   const w = g.world;
   const me = g.career.pid;
+  // the Ballon d'Or judges the whole season, summer tournament included: take the cases before the lines are archived
+  bdoSnapshot(g);
   // archive every player's season lines into their career history
   for (const id in w.players) {
     const p = w.players[id];

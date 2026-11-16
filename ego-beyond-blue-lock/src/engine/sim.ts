@@ -13,6 +13,7 @@ import { advance as advanceMatch, setInjuryRate, setAbilityScale } from './match
 import { clockLabel } from './match/rules';
 import { afterNelRound, concludeNel, canonWinner, NEL_END_DAY, PROLOGUE_END_DAY } from './nel';
 import { onCompFinished, endSeason, rollover, startPro } from './season';
+import { ballonDorGala, BDO_DAY } from './ballondor';
 import { weeklyAwards, monthlyAwards } from './awards';
 import { weeklyPress } from './press';
 import { afterMatchRivalry } from './rivalry';
@@ -91,6 +92,7 @@ function morning(g: Game): void {
     }
     if (w.day % 28 === 14) { worldDevTick(g); userAgeing(g); }
     if (w.day === SEASON_END_DAY) endSeason(g);
+    if (w.day === BDO_DAY) ballonDorGala(g);
     if (w.day === SUMMER_TOURNAMENT_DAY - 1) setupSummerTournament(g);
     if (w.day > SEASON_END_DAY && w.day % 7 === 3) aiTransferDay(g, 1.5);
   } else {

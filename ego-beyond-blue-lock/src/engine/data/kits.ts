@@ -58,6 +58,7 @@ export function nationKit(id: string): Kit {
 }
 /** The kit of a club (id like "esp1_barcha" or "nel_barcha") given its two colours. */
 export function clubKit(id: string, col: [string, string] | string[]): Kit {
+  id = id ?? '';
   const short = id.includes('_') ? id.slice(id.indexOf('_') + 1) : id;
   const o = CLUB_PAT[short];
   const h = hashStr(id);

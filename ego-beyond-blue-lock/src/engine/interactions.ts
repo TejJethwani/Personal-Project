@@ -4,12 +4,13 @@
  * Opportunities appear from what actually happened (matches, memories, transfers, selection),
  * expire if ignored, and are rate-limited so relationships cannot be farmed by clicking.
  */
+import { PRESS_REPLY } from './data/banter2';
 import type { Fixture, Game, Interaction, InteractionOption, Player } from './types';
 import { ovr } from './attributes';
 import { abilityDef, mainWeapon } from './abilities';
-import { clamp } from './rng';
+import { clamp, hashStr } from './rng';
 import { rngOf } from './worldgen';
-import { adjust, relOf, remember, lastMemory, personName } from './relationships';
+import { adjust, relOf, remember, lastMemory, personName, MAX_RIVALS } from './relationships';
 import { addNews, fmtYenShort, ordinal, milestone } from './util';
 import { S, type MatchState } from './match/model';
 import { teamName } from './match/setup';
@@ -223,6 +224,15 @@ export function spawnPostMatch(g: Game, fx: Fixture, ms: MatchState): void {
   }
 }
 
+/** A rival said something about you in the papers: the press want your answer. */
+export function rivalQuoteReply(g: Game, rid: string, quote: string, up: boolean): void {
+  const p = g.world.players[rid];
+  if (!p || !cool(g, 'rq:' + rid, 10)) return;
+  const k = (hashStr(rid + g.world.abs) >>> 0);
+  const pick = (t: 'cold' | 'fire' | 'respect') => { const l = PRESS_REPLY[up ? 'up' : 'down'][t]; return l[k % l.length]; };
+  push(g, 'rq:' + rid, { who: 'journo3', place: 'Phone call from the press', title: `${p.sn} has been talking about you`, body: `${p.name} told reporters: "${quote}" They want your response for tomorrow's edition.`, opts: [[`"${pick('cold')}"`, 'cold', 'rq_cold'], [`"${pick('fire')}"`, 'ego', 'rq_fire'], [`"${pick('respect')}"`, 'humble', 'rq_resp']], ctx: { rid }, days: 4 });
+}
+
 /** Resolve the player's chosen answer. Returns the outcome text. */
 export function resolveInteraction(g: Game, id: number, optId: string): string {
   const w = g.world;
@@ -256,10 +266,19 @@ export function resolveInteraction(g: Game, id: number, optId: string): string {
     case 'agent_stay': c.flags.wantOut = 0; say('"Understood. I\'ll tell them you\'re not for sale."'); break;
     case 'agent_big': c.flags.wantOut = 1; effects.push('Your agent is inviting offers'); say('"Leave it with me. If your form holds, the phone will ring in the window."'); break;
     case 'agent_minutes': c.flags.wantOut = 1; effects.push('Your agent is looking for minutes'); say('"A loan or a smaller club, then. I\'ll have options when the window opens."'); break;
+    case 'rq_cold': case 'rq_fire': case 'rq_resp': {
+      const rid = String(it.ctx.rid ?? ''), rp = w.players[rid];
+      if (rp) {
+        effects.push(...adjust(g, rid, fx === 'rq_fire' ? { rival: 5, resp: -1 } : fx === 'rq_cold' ? { rival: 2, resp: 1 } : { resp: 3, friend: 1, rival: -1 }));
+        addNews(g, 'paper', fx === 'rq_fire' ? `${me.name} fires back at ${rp.name}` : fx === 'rq_cold' ? `${me.name} unmoved by ${rp.name}'s comments` : `${me.name} full of respect for ${rp.name}`, `Asked about ${rp.name}'s remarks, ${me.name} said: ${o.label}`, { imp: 2, me: true, pids: [rid] });
+      }
+      say(fx === 'rq_fire' ? 'The quote makes the back page. The rivalry just got hotter.' : fx === 'rq_cold' ? 'Short and cold. The papers love it anyway.' : 'A gracious answer. Even his fans nod along.');
+      break;
+    }
     case 'press_team': me.rep = clamp(me.rep + 0.5, 0, 99); for (const m of mates(g).slice(0, 30)) if (c.rel[m.id]) c.rel[m.id].trust = clamp(c.rel[m.id].trust + 0.6, 0, 100); effects.push('Team-mates\' trust +', 'Public image: humble'); say('The quote runs under the headline "All for the team". The dressing room notices.'); break;
     case 'press_conf': me.rep = clamp(me.rep + 1, 0, 99); effects.push('Reputation +1'); say('A clean, professional answer. It gets clipped and shared.'); break;
     case 'press_ego': me.rep = clamp(me.rep + 2, 0, 99); for (const m of mates(g)) { const r = c.rel[m.id]; if (r) { if (m.pers.ego >= 70) r.rival = clamp(r.rival + 2, 0, 100); else r.trust = clamp(r.trust - 1.2, 0, 100); } } effects.push('Reputation +2', 'Humble team-mates\' trust −', 'Ego-driven team-mates\' rivalry +'); say('It leads every broadcast tonight. Some of your team-mates loved it. Some did not.'); addNews(g, 'career', `"${o.label.replace(/"/g, '')}"`, `${me.name}'s interview is the talk of the league.`, { imp: 2, me: true }); break;
-    case 'declare_soft': effects.push(...adjust(g, it.who, { rival: 6 })); if (p && !c.rivals.includes(p.id) && relOf(g, p.id).rival >= 45 && c.rivals.length < 3) { c.rivals.push(p.id); effects.push(`${p.sn} is now a declared rival`); milestone(g, 'rival', `A rivalry with ${p.name} begins.`); } say('The air between you changes. This is going to be a thing.'); break;
+    case 'declare_soft': effects.push(...adjust(g, it.who, { rival: 6 })); if (p && !c.rivals.includes(p.id) && relOf(g, p.id).rival >= 45 && c.rivals.length < MAX_RIVALS) { c.rivals.push(p.id); effects.push(`${p.sn} is now a declared rival`); milestone(g, 'rival', `A rivalry with ${p.name} begins.`); } say('The air between you changes. This is going to be a thing.'); break;
     case 'share_ambition': effects.push(...adjust(g, it.who, { friend: 2, trust: 1 })); remember(g, it.who, 'talked', `A long talk about ambitions with ${personName(g, it.who).split(' ').pop()}${it.ctx.amb ? `: "${String(it.ctx.amb).slice(0, 60)}…"` : ''}.`, 1); say('You talk until the motorway lights blur. You know each other a little now.'); break;
     case 'advice': { const L = p ? mainWeapon(p) : undefined; c.discipline = clamp(c.discipline + 3, 0, 100); effects.push('Tactical discipline +3'); if (L && !me.ab.some((x) => x.id === L.id)) { const e = (c.learning[L.id] ??= { exposure: 0, practice: 0, from: it.who }); e.exposure = Math.min(100, e.exposure + 12); effects.push(`Studied ${L.name} (+12% exposure)`); } say('"Recovery is training. Decisions are training. Most players only count the running." You write it down later.'); break; }
     case 'apologise': { const r = relOf(g, it.who); const m = r.mem.filter((x) => x.t === 'ignored_them').pop(); if (m) m.w = -0.5; effects.push(...adjust(g, it.who, { trust: 5, friend: 2 })); if (p) { c.combo = { with: p.id, until: w.abs + 10 }; effects.push(`Planned combination with ${p.sn} for the next match`); } say('He holds your eye, then nods. "Next one\'s mine. I\'ll hold you to it."'); break; }
@@ -367,7 +386,7 @@ export function doAction(g: Game, pid: string, action: string): { text: string; 
     case 'advice': { fx = adjust(g, pid, { resp: -0.3, friend: 1.2 * k, trust: 1 * k }); const L = mainWeapon(p); if (L && !me.ab.some((x) => x.id === L.id)) { const e = (c.learning[L.id] ??= { exposure: 0, practice: 0, from: pid }); e.exposure = Math.min(100, e.exposure + 12 * k); fx.push(`Studied ${L.name} (+${Math.round(12 * k)}% exposure)`); } c.discipline = clamp(c.discipline + 1.5 * k, 0, 100); text = `${p.sn} talks you through how he sees the game.`; break; }
     case 'praise': fx = adjust(g, pid, ego >= 80 ? { friend: 1 * k, resp: -0.5 } : { friend: 2.2 * k, trust: 1 * k }); text = ego >= 80 ? `${p.sn} takes the compliment as his due.` : `${p.sn} is genuinely pleased.`; break;
     case 'challenge': fx = adjust(g, pid, ego >= 65 ? { rival: 4 * k, resp: 2 * k } : { rival: 2 * k, trust: -1.5, friend: -1 }); text = ego >= 65 ? `"First to score next match. Loser carries the bags." ${p.sn} grins. He's in.` : `${p.sn} doesn't see why everything has to be a competition.`; break;
-    case 'rival': c.rivals.push(pid); fx = adjust(g, pid, { rival: 15, resp: ego >= 60 ? 3 : 0 }); remember(g, pid, 'rival_declared', `You declared ${p.sn} your rival.`, 1); milestone(g, 'rival', `Declared ${p.name} a rival.`); fx.push('Declared rival'); text = `You tell ${p.sn} to his face: he is the one you measure yourself against.`; if (p.rep >= 60 || me.rep >= 60) addNews(g, 'rivalry', `${me.name} names ${p.name} as his rival`, 'A new personal duel to watch.', { imp: 2, me: true, pids: [pid] }); break;
+    case 'rival': if (c.rivals.length >= MAX_RIVALS) { text = `You already have ${MAX_RIVALS} rivals. Settle one of those scores first.`; break; } c.rivals.push(pid); fx = adjust(g, pid, { rival: 15, resp: ego >= 60 ? 3 : 0 }); remember(g, pid, 'rival_declared', `You declared ${p.sn} your rival.`, 1); milestone(g, 'rival', `Declared ${p.name} a rival.`); fx.push('Declared rival'); text = `You tell ${p.sn} to his face: he is the one you measure yourself against.`; if (p.rep >= 60 || me.rep >= 60) addNews(g, 'rivalry', `${me.name} names ${p.name} as his rival`, 'A new personal duel to watch.', { imp: 2, me: true, pids: [pid] }); break;
     case 'apologise': { const m = r.mem.filter((x) => x.t === 'ignored_them' && x.w <= -1).pop(); if (m) m.w = -0.5; fx = adjust(g, pid, { trust: 5, friend: 1.5 }); c.image = clamp(c.image - 3, -100, 100); text = `${p.sn} accepts it. "Just look up next time."`; break; }
     case 'combo': c.combo = { with: pid, until: w.abs + 10 }; fx = adjust(g, pid, { chem: 1 * k }); fx.push('Combination planned for the next match (+one-two bonus)'); text = `You and ${p.sn} agree a trigger: when he checks short, you spin in behind.`; break;
     case 'ambitions': {

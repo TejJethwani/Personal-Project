@@ -7,7 +7,8 @@ import { LivePitch } from '../ui/LivePitch';
 import { UltCutIn } from '../ui/UltCutIn';
 import { Cutscene3D } from '../ui/Cutscene3D';
 import { faceoffFor, applyFaceoff, interviewFor, applyInterview } from '../engine/rivalry';
-import { banterLine } from '../engine/data/banter';
+import { smartLine, comeback, type ReplyTone } from '../engine/data/banter2';
+import { adjust } from '../engine/relationships';
 import { wcqTable } from '../engine/international';
 import { PlayerAvatar } from '../ui/kit';
 import { clockLabel } from '../engine/match/rules';
@@ -234,7 +235,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
   const ticks = useRef(0);
   const [queue, setQueue] = useState<({ k: 'rp'; r: Replay } | { k: 'ult'; e: UltEvent })[]>([]);
   const replay = queue[0] ?? null;
-  const [banter, setBanter] = useState<{ pid: string; name: string; text: string } | null>(null);
+  const [banter, setBanter] = useState<{ pid: string; name: string; text: string; reply?: string } | null>(null);
   const [outcome, setOutcome] = useState<{ ok: boolean | null; title: string; text: string } | null>(null);
   const hold = useRef(0);
   const slow = useRef(0);
@@ -272,7 +273,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
       if (!sp || !wp) continue;
       const known = g.career.rivals.includes(sp.id) || !!g.career.rel[sp.id];
       if (!known && (ms.steps * 31 + i) % 100 >= (sit === 'youScore' ? 70 : 45)) continue;
-      setBanter({ pid: sp.id, name: sp.nm, text: banterLine(wp, sit, me.nm, ms.teams[sp.t].name, g.world.season, ms.steps) });
+      setBanter({ pid: sp.id, name: sp.nm, text: smartLine(wp, sit, { lead: ms.score[me.t] - ms.score[1 - me.t], myGoals: me.s[S.G] }, me.nm, ms.teams[sp.t].name, g.world.season, ms.steps) });
     }
     seen.current = ms.ev.length;
     // every ultimate gets its cut-in and every shot zooms into the 3D view
@@ -355,7 +356,7 @@ function Live({ g, ms }: { g: Game; ms: MatchState }) {
       </div>
       <div className="matchgrid">
         <div className="col" style={{ gap: 10, position: 'relative' }}>
-          {banter && !replay && g.world.players[banter.pid] && <div className="pbanter" role="status"><PlayerAvatar g={g} p={g.world.players[banter.pid]} size={46} /><div><span className="who">{banter.name}{g.career.rivals.includes(banter.pid) ? ' · rival' : ''}</span><b>“{banter.text}”</b></div></div>}
+          {banter && !replay && g.world.players[banter.pid] && <div className="pbanter" role="status"><PlayerAvatar g={g} p={g.world.players[banter.pid]} size={46} /><div><span className="who">{banter.name}{g.career.rivals.includes(banter.pid) ? ' · rival' : ''}</span><b>“{banter.text}”</b>{banter.reply ? <span className="reply">You: “{banter.reply}”</span> : u.mode !== 'sim' && <span className="replies">{(['cold', 'fire', 'respect'] as ReplyTone[]).map((t) => <button key={t} className="btn sm ghost" onClick={() => { const mp = ms.pl[u.idx]; const lead = ms.score[mp.t] - ms.score[1 - mp.t]; const txt = comeback(lead, t, banter.name, ms.steps + t.length); if (t === 'fire') mp.fl = Math.min(100, mp.fl + 6); else if (t === 'cold') mp.fl = Math.min(100, mp.fl + 3); act((x) => { adjust(x, banter.pid, t === 'fire' ? { rival: 2 } : t === 'cold' ? { rival: 1, resp: 1 } : { resp: 2, friend: 1 }); }, false); setBanter({ ...banter, reply: txt }); }}>{t === 'fire' ? '🔥 Fire back' : t === 'cold' ? '🧊 Cold reply' : '🤝 Respect'}</button>)}</span>}</div></div>}
           {replay?.k === 'ult' ? <UltCutIn ms={ms} ev={replay.e} onDone={() => setQueue((q) => q.slice(1))} /> : replay?.k === 'rp' ? <Replay3D key={replay.r.id} g={g} ms={ms} rp={replay.r} auto quick={replay.r.res !== 'goal' && replay.r.xg < 0.3 && replay.r.sh !== u.idx && !replay.r.ult} onClose={() => setQueue((q) => q.slice(1))} /> : <LivePitch ms={ms} hover={hover} tick={slow.current > 0 ? 520 : delay} banner={b} touch={g.settings.touch !== false} onPick={pick} outcome={outcome} />}
           <Hud ms={ms} live={liveRating} delta={rat.current.delta} hist={rat.current.hist} />
         </div>
