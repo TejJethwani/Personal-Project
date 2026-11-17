@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore, nav, toggleNav } from './store/game';
 import { Icon, Ovr, ClubBadge } from './ui/kit';
 import { ovr } from './engine/attributes';
@@ -29,16 +29,19 @@ import { Transfers } from './screens/Transfers';
 import { NewsScreen, History } from './screens/News';
 import { Settings } from './screens/Settings';
 import { TeamSheets } from './screens/TeamSheets';
+import { SocialFeed } from './ui/SocialFeed';
+import { Calendar } from './screens/Calendar';
 
 const NAV: [string, string, string][] = [
   ['hub', 'Career Hub', 'hub'], ['player', 'Profile', 'player'], ['weapons', 'Weapons', 'weapon'], ['training', 'Training', 'training'], ['squad', 'Squad & Tactics', 'squad'],
-  ['relationships', 'Relationships', 'people'], ['match', 'Match Centre', 'match'], ['bids', 'NEL Bids', 'bids'], ['competitions', 'Tables & Fixtures', 'table'], ['sheets', 'Team Sheets', 'squad'], ['stats', 'Statistics', 'stats'],
+  ['relationships', 'Relationships', 'people'], ['match', 'Match Centre', 'match'], ['bids', 'NEL Bids', 'bids'], ['calendar', 'Calendar', 'table'], ['competitions', 'Tables & Fixtures', 'table'], ['sheets', 'Team Sheets', 'squad'], ['stats', 'Statistics', 'stats'],
   ['awards', 'Awards', 'award'], ['transfers', 'Transfers', 'transfer'], ['news', 'News', 'news'], ['history', 'Career History', 'history'], ['hof', 'Hall of Fame', 'award'], ['settings', 'Settings', 'settings'],
 ];
 
 export function App() {
   const { g, ui } = useStore();
   const r = ui.route;
+  const [feedOpen, setFeedOpen] = useState(() => { try { return localStorage.getItem('ego:feed') === '1'; } catch { return false; } });
   useEffect(() => { document.body.classList.toggle('rm', !!g?.settings.reduceMotion); }, [g?.settings.reduceMotion]);
   useEffect(() => { if (!g && r.name !== 'menu' && r.name !== 'create' && r.name !== 'admin' && r.name !== 'sim') nav('menu'); }, [g, r.name]);
   const overlays = (
@@ -70,6 +73,7 @@ export function App() {
       case 'stats': return <Stats g={g} />;
       case 'awards': return <Awards g={g} />;
       case 'sheets': return <TeamSheets g={g} />;
+      case 'calendar': return <Calendar g={g} />;
       case 'transfers': return <Transfers g={g} />;
       case 'news': return <NewsScreen g={g} />;
       case 'history': return <History g={g} />;
@@ -80,7 +84,7 @@ export function App() {
     }
   })();
   return (
-    <div className="app">
+    <div className={`app ${feedOpen ? 'with-feed' : ''}`}>
       <aside className={`side ${ui.navOpen ? 'open' : ''}`}>
         <div className="brand"><b>EGO</b><span>Beyond Blue Lock</span></div>
         <nav className="nav" aria-label="Main">
@@ -103,6 +107,7 @@ export function App() {
           {me.club && <span className="row gap6 hide-s"><ClubBadge g={g} id={me.club} /><span className="muted">{w.clubs[me.club]?.sn}</span></span>}
           {g.edited && <span className="chip w" title="This save has been changed with the sandbox editor.">Edited save</span>}
           <span className="grow" />
+          <button className={`btn sm ${feedOpen ? 'pri' : 'ghost'}`} onClick={() => setFeedOpen((x) => { try { localStorage.setItem('ego:feed', x ? '0' : '1'); } catch { /* storage may be blocked */ } return !x; })} title="Social feed">📱 Feed</button>
           <span className="muted small hide-s">{w.phase === 'nel' ? 'Neo Egoist League' : seasonLabel(w.season)} · {fmtDate(w, w.day, true)}</span>
           {ceremonyDue(g) && r.name !== 'ceremony' && <button className="btn pulse" onClick={() => nav('ceremony')}>{galaDue(g) ? "🏆 Ballon d'Or gala" : '🏆 Awards ceremony'}</button>}
           {!g.live && stop.kind !== 'retired' && <select className="simsel" aria-label="Simulate several weeks" value="" onChange={(e) => { const v = +e.target.value; e.target.value = ''; if (v) simWeeks(v); }}><option value="">Sim ahead…</option><option value="1">1 week</option><option value="2">2 weeks</option><option value="4">4 weeks</option><option value="8">8 weeks</option><option value="13">3 months</option><option value="26">Half a season</option><option value="52">A full year</option></select>}
@@ -110,6 +115,7 @@ export function App() {
         </div>
         <div className="page" key={r.name + (r.id ?? '')}>{screen}</div>
       </main>
+      {feedOpen && <SocialFeed g={g} onClose={() => { setFeedOpen(false); try { localStorage.setItem('ego:feed', '0'); } catch { /* ignore */ } }} />}
       {overlays}
     </div>
   );

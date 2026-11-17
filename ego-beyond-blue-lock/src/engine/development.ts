@@ -43,7 +43,8 @@ export function weeklyGrowth(g: Game): number {
   // form: the average rating of the last five rated matches feeds training growth too
   const last = g.career.matches.filter((m) => m.rat > 0).slice(-5);
   const form = last.length ? last.reduce((x, m) => x + m.rat, 0) / last.length : 6.8;
-  return 1.15 * g.settings.devSpeed * AGE_F(ag) * clamp(0.25 + gap * 0.11, 0.1, 1.9) * (0.8 + (club?.fac ?? 5) * 0.04) * clamp(1 + (form - 6.8) * 0.28, 0.85, 1.5);
+  // calibrated so an elite 16-year-old prospect gains roughly 3-5 OVR a season at x1, a little more in a breakout year
+  return 0.6 * g.settings.devSpeed * AGE_F(ag) * clamp(0.25 + gap * 0.09, 0.1, 1.5) * (0.8 + (club?.fac ?? 5) * 0.04) * clamp(1 + (form - 6.8) * 0.2, 0.85, 1.3);
 }
 
 function gainXp(g: Game, attr: number, amount: number, source: string): void {
@@ -51,7 +52,10 @@ function gainXp(g: Game, attr: number, amount: number, source: string): void {
   const p = g.world.players[c.pid];
   if ((attr >= N_OUT && p.pos !== 'GK') || p.a[attr] >= 99) return;
   const dim = clamp(1.3 - (p.a[attr] / 100) * 0.95, 0.25, 1);
-  const v = amount * dim;
+  // a season has only so many breakthroughs: past +5 OVR in one season, every further point comes slowly
+  const st = Number(c.flags['ovrStart:' + g.world.season] ?? (c.flags['ovrStart:' + g.world.season] = ovr(p)));
+  const gained = ovr(p) - st;
+  const v = amount * dim * (gained >= 7 ? 0.15 : gained >= 5 ? 0.4 : 1);
   c.xp[attr] += v;
   const src = (c.xpSrc[attr] ??= {});
   src[source] = (src[source] ?? 0) + v;
@@ -240,7 +244,7 @@ export function applyMatchDevelopment(g: Game, ms: MatchState): string[] {
   // performance drives development: a 9.0 is worth roughly three times a 6.5, and decisive contributions add more
   const duel = Number(g.career.flags.duelBoost ?? 0) > 0 ? 0.6 : 0; // winning the duel with a rival
   if (duel) delete g.career.flags.duelBoost;
-  const perf = clamp(1 + (rat - 6.5) * 0.6, 0.4, 3) + Math.min(0.8, s[S.G] * 0.2 + s[S.A] * 0.12) + (s[S.POTM] ? 0.4 : 0) + duel;
+  const perf = clamp(1 + (rat - 6.5) * 0.45, 0.4, 2.2) + Math.min(0.8, s[S.G] * 0.2 + s[S.A] * 0.12) + (s[S.POTM] ? 0.4 : 0) + duel;
   const pts = weeklyGrowth(g) * 0.3 * share * perf;
   if (rat >= 8 && share > 0.3) notes.push(`Outstanding display (${rat.toFixed(1)}): development ×${perf.toFixed(1)} from this match.`);
   const used: [number, number][] = [[A.FIN, s[S.SH] * 1.2 + s[S.G] * 3], [A.POS, s[S.SH] + s[S.G] * 2], [A.SPA, s[S.PC] * 0.25], [A.VIS, s[S.KP] * 2 + s[S.A] * 3], [A.DRI, s[S.DC] * 1.6], [A.BCO, s[S.TCH] * 0.1], [A.TAC, s[S.TKW] * 2], [A.INT, s[S.INT] * 2], [A.DAW, s[S.INT] + s[S.BLK] * 2 + s[S.CLR]], [A.HEA, s[S.AW] * 1.5], [A.STA, share * 4], [A.COM, share * 2 + s[S.G] * 2], [A.DEC, share * 3], [A.REA, share * 2]];

@@ -84,7 +84,15 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     const sForm = (rat - 6.6) * 40 * Math.min(1, n / 35) + (good - 0.35) * 200 * Math.min(1, n / 30) - poor * 90 + Math.min(1, line[S.APP] / 50) * 30 + line[S.POTM] * 1.5
       // and how he played when it mattered most: knockout ties and finals
       + bigGA * 4 + (bigN ? (bigRat - 6.8) * 6 * Math.min(bigN, 8) : 0);
-    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, good: Math.round(good * 100), bigGA, sGoals: soft(sGoals, 160), sTroph: tPts * 1.3, sForm: soft(sForm, 150) });
+    // the big stage: a season without Champions League, Europa League or a major international tournament has
+    // never been tested where voters look hardest, however many goals it produced
+    const stage = ['ucl', 'uel', 'wc', 'euro', 'copa', 'afcon', 'asian', 'gold'].reduce((x, cid) => x + (p.ss[cid]?.[S.APP] ?? 0) * (cid === 'ucl' || cid === 'wc' ? 1.5 : 1), 0);
+    const stageMul = stage >= 8 ? 1 : stage >= 3 ? 0.9 : stage > 0 ? 0.82 : 0.7;
+    // team success: where his club finished in its league
+    const lgId = cl?.league ?? '';
+    const lpos = (w.comps[lgId]?.hist.find((h) => h.s === s)?.table ?? []).findIndex((r) => r.id === club) + 1;
+    const lteam = !lpos ? 0 : lpos === 1 ? 6 : lpos === 2 ? 14 : lpos <= 4 ? 6 : lpos <= 8 ? -4 : -18;
+    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, good: Math.round(good * 100), bigGA, sGoals: soft(sGoals, 160) * stageMul, sTroph: tPts * 1.3 + lteam, sForm: soft(sForm, 150) * stageMul });
   }
   return rows.sort((a, b) => base(b) - base(a));
 }
@@ -132,7 +140,8 @@ export function ballonDorGala(g: Game): string[] {
   const short = rows.slice(0, 30);
   const pts: Record<string, number> = {}, firsts: Record<string, number> = {}, votes: BdoVote[] = [];
   for (const J of journalists()) {
-    const sc = short.map((r) => ({ r, v: (r.sGoals * J.wG + r.sTroph * J.wT + r.sForm * J.wF) * (1 + (r.nat === J.nat ? J.homer : 0)) * (1 + (rng.next() - 0.5) * 0.36) }));
+    const fav = short[Math.floor(rng.next() * Math.min(6, short.length))]?.pid; // everyone has a soft spot for someone
+    const sc = short.map((r) => ({ r, v: (r.sGoals * J.wG + r.sTroph * J.wT + r.sForm * J.wF) * (1 + (r.nat === J.nat ? J.homer : 0)) * (1 + (rng.next() - 0.5) * 0.46) * (fav === r.pid ? 1.14 : 1) }));
     sc.sort((a, b) => b.v - a.v);
     const picks = sc.slice(0, 10).map((x) => x.r.pid);
     picks.forEach((pid, i) => { pts[pid] = (pts[pid] ?? 0) + BDO_POINTS[i]; if (i === 0) firsts[pid] = (firsts[pid] ?? 0) + 1; });

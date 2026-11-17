@@ -64,14 +64,19 @@ function Countdown({ g, a, onDone, onVotes }: { g: Game; a: Award; onDone: () =>
   const myIdx = noms.findIndex((x) => x.pid === me);
   return (
     <div className="cer-count">
-      <div className="cer-roll">{visible.filter(({ i }) => i >= 3).slice(0, 9).map(({ x, i }) => <div key={x.pid + i} className={`cer-row ${x.pid === me ? 'me' : ''}`}><span className="pl">{i + 1}</span><Face g={g} n={x} size={34} /><b>{x.name}{pts && <span className="cer-pts">{x.score}{pts}</span>}</b><i>{x.clubName}</i><em>{x.line}</em></div>)}</div>
-      {shown >= fast && <div className="cer-podium">{[2, 1, 0].map((i) => noms[i] && (podium > 2 - i ? <div key={i} className={`cer-pod p${i + 1} ${noms[i].pid === me ? 'me' : ''}`}><span className="pl">{i === 0 ? 'WINNER' : i === 1 ? '2ND' : '3RD'}</span><Face g={g} n={noms[i]} size={i === 0 ? 132 : 92} /><b>{noms[i].name}</b><i>{noms[i].clubName}</i>{pts && <span className="cer-pts big">{noms[i].score} points</span>}<em>{noms[i].line}</em></div> : <div key={i} className={`cer-pod p${i + 1} wait`}><span className="pl">{i === 0 ? '1ST' : i === 1 ? '2ND' : '3RD'}</span><div className="q">?</div></div>))}</div>}
+      <div className="cer-board">{visible.filter(({ i }) => i >= 3).map(({ x, i }) => <div key={x.pid + i} className={`cer-row ${x.pid === me ? 'me' : ''}`}><span className="pl">{i + 1}</span><Face g={g} n={x} size={34} /><b>{x.name}{pts && <span className="cer-pts">{x.score}{pts}</span>}</b><i>{x.clubName}</i><em>{x.line}</em></div>)}</div>
+      {shown >= fast && <div className="cer-podium">{[2, 1, 0].map((i) => noms[i] && (podium > 2 - i ? <div key={i} className={`cer-pod p${i + 1} ${noms[i].pid === me ? 'me' : ''}`}><span className="pl">{i === 0 ? 'WINNER' : i === 1 ? '2ND' : '3RD'}</span><div className={i === 0 ? 'cer-walk' : 'cer-walk small'}><Face g={g} n={noms[i]} size={i === 0 ? 132 : 92} /></div>{i === 0 && <div className="cer-handover"><Trophy kind={a.type === 'super_bdo' ? 'ballon' : kindForAward(a.type)} size={74} /></div>}{i === 0 && <Confetti />}<b>{noms[i].name}</b><i>{noms[i].clubName}</i>{pts && <span className="cer-pts big">{noms[i].score} points</span>}<em>{noms[i].line}</em></div> : <div key={i} className={`cer-pod p${i + 1} wait`}><span className="pl">{i === 0 ? '1ST' : i === 1 ? '2ND' : '3RD'}</span><div className="q">?</div></div>))}</div>}
       {shown < fast ? <button className="btn" onClick={() => setShown(fast)}>Skip to the podium</button>
         : podium < 3 ? <div className="row gap6" style={{ justifyContent: 'center' }}><button className="btn pri big" onClick={() => setShown((x) => x + 1)}>{podium === 0 ? 'Third place is…' : podium === 1 ? 'The runner-up is…' : `✉ And the ${a.title} goes to…`}</button><button className="btn ghost" onClick={() => setShown(fast + 3)}>Reveal all</button></div>
           : <><p className="cer-why">{a.why}</p>{noms[0]?.pid === me ? <div className="cer-you">The best player in the world. That is you.</div> : myIdx > 0 ? <div className="cer-you">You finished {ordinal(myIdx + 1)}.</div> : null}
             <div className="row gap6" style={{ justifyContent: 'center' }}>{onVotes && <button className="btn big" onClick={onVotes}>🗳 How the journalists voted</button>}<button className="btn pri big" onClick={onDone}>Close the gala</button></div></>}
     </div>
   );
+}
+
+/** Paper confetti for the moment the winner takes the trophy. */
+function Confetti() {
+  return <div className="confetti" aria-hidden="true">{Array.from({ length: 36 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${0.9 + (i % 9) * 0.12}s`, background: ['#f6d77a', '#fff3c9', '#d7a938', '#3df2ff', '#ff6b6b'][i % 5], transform: `rotate(${i * 23}deg)` }} />)}</div>;
 }
 
 /** Every journalist's ballot, with a points table and a filter for one player. */
@@ -143,7 +148,7 @@ export function Ceremony({ g }: { g: Game }) {
           <h1>Ballon d'Or Gala</h1>
           <p className="cer-why">The red carpet. Thirty nominees, chosen by the whole of the {seasonLabel(s)} season and the summer that followed it. One hundred journalists have voted.</p>
           <div className="cer-carpet">{nominees.map((n, k) => <div key={n.pid} className={n.pid === me ? 'me' : ''} style={{ animationDelay: `${k * 50}ms` }}><Face g={g} n={n} size={46} /><b>{n.name}</b><i>{n.clubName}</i></div>)}</div>
-          <div className="row gap6" style={{ justifyContent: 'center' }}><button className="btn pri big" onClick={() => setIntro(false)}>Take your seats ▶</button><button className="btn big" onClick={() => { setIntro(false); go(list.length - 1); }}>Straight to the Ballon d'Or</button></div>
+          <div className="row gap6" style={{ justifyContent: 'center' }}><button className="btn pri big" onClick={() => setIntro(false)}>Take your seats ▶</button><button className="btn big" onClick={() => { setIntro(false); go(Math.max(0, list.findIndex((x) => x.type === 'world_player'))); }}>Straight to the Ballon d'Or</button></div>
           <button className="btn ghost sm cer-skip" onClick={done}>Skip ceremony</button>
         </div>
       </div>
@@ -171,7 +176,9 @@ export function Ceremony({ g }: { g: Game }) {
           ) : a.winner ? (
             <div className={`cer-win ${a.winner.pid === me ? 'me' : ''}`}>
               <div className="burst" aria-hidden="true" />
-              <Face g={g} n={a.winner} size={150} />
+              <Confetti />
+              <div className="cer-walk"><Face g={g} n={a.winner} size={150} /></div>
+              <div className="cer-handover"><Trophy kind={kindForAward(a.type)} size={80} /></div>
               <div className="nm">{a.winner.name}</div>
               <div className="cl">{a.winner.clubName}</div>
               <div className="ln">{a.winner.line}</div>

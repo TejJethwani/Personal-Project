@@ -102,7 +102,9 @@ function markedMan(p: Player): number {
   let g = 0, ap = 0;
   for (const k in p.ss) { g += p.ss[k][S.G]; ap += p.ss[k][S.APP]; }
   if (ap < 4) return 0;
-  return clamp((g / ap - 0.5) * 2.2, 0, 1.6);
+  // defences read a scorer quickly; a midfielder who keeps arriving to score is tracked sooner than a striker
+  const ln = POS_LINE[p.pos] ?? 3;
+  return clamp((g / ap - (ln >= 3 ? 0.5 : ln === 2 ? 0.28 : 0.18)) * 2.4, 0, 1.8);
 }
 function markedCreator(p: Player): number {
   let a = 0, ap = 0;
