@@ -545,3 +545,20 @@ body.rm .cer-walk, body.rm .cer-handover, body.rm .confetti i { animation: none;
 .app.with-feed .cal-cell .t { display: none; }
 .cal-cell .ev { font-size: 9.5px; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .cal-cell .ev.on { position: absolute; left: 5px; top: 24px; right: 30px; color: #fff3c9; }
+/* finished days fade back like a console calendar; completed matches keep only crest, score and competition */
+.cal-cell.past { background: rgba(8,12,22,.55); opacity: 1; }
+.cal-cell.past .n { color: #5d6a82; }
+.cal-cell.played { background: rgba(8,12,22,.65) !important; }
+.cal-cell.played .c { opacity: .75; transform: scale(.85); }
+.cal-cell.played .t { color: #6f7c94; }
+.cal-cell.played .r { background: transparent !important; color: #aab6cc; font-size: 13px; padding: 0; }
+.cal-cell.played .r::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+.cal-cell.played .r.W::before { background: #22c55e; } .cal-cell.played .r.D::before { background: #94a3b8; } .cal-cell.played .r.L::before { background: #ef4444; }
+/* the gala and the awards night shine */
+.cal-cell.gala { border-color: #f6d77a; background: linear-gradient(135deg, rgba(246,215,122,.28), rgba(120,80,10,.25)) !important; box-shadow: 0 0 18px rgba(246,215,122,.45), inset 0 0 12px rgba(246,215,122,.25); animation: galaGlow 2.4s ease-in-out infinite; }
+.cal-cell.gala .ev { color: #fff3c9; font-weight: 700; }
+.cal-cell.gala::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); transform: translateX(-100%); animation: galaShine 3s ease-in-out infinite; pointer-events: none; }
+@keyframes galaGlow { 50% { box-shadow: 0 0 28px rgba(246,215,122,.75), inset 0 0 16px rgba(246,215,122,.35); } }
+@keyframes galaShine { 60%, 100% { transform: translateX(100%); } }
+.cal-cell.final:not(.played) { box-shadow: 0 0 12px rgba(125,211,252,.35); border-color: rgba(125,211,252,.6); }
+body.rm .cal-cell.gala, body.rm .cal-cell.gala::after { animation: none; }

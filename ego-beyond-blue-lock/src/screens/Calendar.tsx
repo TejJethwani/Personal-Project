@@ -91,9 +91,11 @@ export function Calendar({ g }: { g: Game }) {
             {DOW.map((d) => <div key={d} className="cal-dow">{d}</div>)}
             {cells.map((d) => {
               const day = toDay(d), inM = d.getUTCMonth() === ym[1], f = fx[day], r = f ? res(f) : null, kind = f ? w.comps[f.comp]?.kind ?? 'friendly' : '';
-              const cls = ['cal-cell', inM ? '' : 'out', day === w.day ? 'today' : '', day === sel ? 'sel' : '', day < w.day ? 'past' : '', f ? 'has' : ''].join(' ');
+              const evs = events[day] ?? [], gala = evs.some((t) => /Ballon d'Or gala|End-of-season awards/.test(t)), fin = evs.some((t) => /final\b/i.test(t));
+              const done = !!f?.played || (day < w.day);
+              const cls = ['cal-cell', inM ? '' : 'out', day === w.day ? 'today' : '', day === sel ? 'sel' : '', day < w.day ? 'past' : '', f ? 'has' : '', f?.played ? 'played' : '', gala ? 'gala' : '', fin && !gala ? 'final' : ''].join(' ');
               return (
-                <button key={d.toISOString()} className={cls} style={f ? { background: `linear-gradient(160deg, ${KIND_COL[kind] ?? '#475569'}cc, ${KIND_COL[kind] ?? '#475569'}55)` } : undefined} onClick={() => setSel(day)} disabled={day < 0 || day > last}>
+                <button key={d.toISOString()} className={cls} style={f && !done ? { background: `linear-gradient(160deg, ${KIND_COL[kind] ?? '#475569'}cc, ${KIND_COL[kind] ?? '#475569'}55)` } : f ? { borderColor: `${KIND_COL[kind] ?? '#475569'}66` } : undefined} onClick={() => setSel(day)} disabled={day < 0 || day > last}>
                   <span className="n">{d.getUTCDate()}</span>
                   {f && <><span className="c"><ClubBadge g={g} id={opp(f)} /></span><span className="t">{f.neutral ? 'Neutral' : f.h === userSide(g, f) ? 'Home' : 'Away'}<br />{w.comps[f.comp]?.sn ?? ''}</span>{r && <span className={`r ${r.r}`}>{r.s}</span>}</>}
                   {events[day] && <span className={`ev ${f ? 'on' : ''}`} title={events[day].join(' · ')}>{events[day][0]}{events[day].length > 1 ? ` +${events[day].length - 1}` : ''}</span>}
