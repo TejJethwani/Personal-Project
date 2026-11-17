@@ -240,7 +240,9 @@ export function finishUserMatch(g: Game, ms: MatchState): string[] {
   const me = w.players[c.pid];
   const u = ms.uc;
   const notes: string[] = [];
-  const side = u ? ms.pl[u.idx].t : 0;
+  // when you were not in the matchday squad there is no user slot: work out your side from the fixture, not 'home'
+  const us = userSide(g, fx);
+  const side = u ? ms.pl[u.idx].t : us && us === fx.a ? 1 : 0;
   const mp = u ? ms.pl[u.idx] : null;
   const myTeam = ms.teams[side], opp = ms.teams[1 - side];
   const res = ms.winner === side ? 'W' : ms.winner === -1 ? 'D' : 'L';

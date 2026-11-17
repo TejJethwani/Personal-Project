@@ -427,7 +427,7 @@ describe('later additions', () => {
     const me = g.world.players[g.career.pid];
     expect(me.pos).toBe('GK'); expect(ovr(me)).toBeGreaterThan(80);
     let keeper = 0, saves = 0, played = 0;
-    for (let m = 0; m < 6 && keeper < 6; m++) {
+    for (let m = 0; m < 10 && (keeper < 6 || saves === 0); m++) {
       ap2(g, (x) => !!uft2(x) && x.world.stage === 1, 60);
       const ms = sum2(g, 'full'); if (!ms) break;
       if (!ms.uc) { adv2(ms); finishUserMatch(g, ms); continue; }

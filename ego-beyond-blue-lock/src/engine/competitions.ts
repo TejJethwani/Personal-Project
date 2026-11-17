@@ -180,7 +180,9 @@ export function scheduleLeaguePhase(w: World, c: Competition, teams: string[], k
       let ok = true;
       for (const a of order) {
         if (used.has(a)) continue;
-        const b = order.find((x) => x !== a && !used.has(x) && !met.has(a < x ? a + x : x + a));
+        // like the real draw, clubs from the same league are kept apart in the league phase (relaxed only if no draw works)
+        const sameOk = attempt >= 150;
+        const b = order.find((x) => x !== a && !used.has(x) && !met.has(a < x ? a + x : x + a) && (sameOk || !w.clubs[a] || w.clubs[a].league !== w.clubs[x]?.league));
         if (!b) { ok = false; break; }
         used.add(a); used.add(b);
         pairs.push(home[a] <= home[b] ? [a, b] : [b, a]);

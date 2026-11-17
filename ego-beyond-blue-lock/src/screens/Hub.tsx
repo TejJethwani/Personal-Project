@@ -40,7 +40,7 @@ export function Hub({ g }: { g: Game }) {
           </div></div>
           <div style={{ textAlign: 'right' }}>
             <div className="tiny up muted">Next</div>
-            <div className="num" style={{ fontSize: 26 }}>{stop.label}</div>
+            <div className="num" style={{ fontSize: 26 }}>{stop.kind === 'none' ? (() => { const nf = nextUserFixture(g); if (!nf) return 'Free week'; const us = userSide(g, nf); const dd = nf.day - w.day; return `${nf.h === us ? 'v' : '@'} ${teamName(w, nf.h === us ? nf.a : nf.h)} · ${dd <= 0 ? 'today' : dd === 1 ? 'tomorrow' : `in ${dd} days`}`; })() : stop.label}</div>
             <div className="small muted mb">{stop.detail}</div>
             <button className="btn pri big pulse" onClick={() => continueGame()} disabled={stop.kind === 'retired'}>{stop.kind === 'match' ? 'Go to match' : stop.kind === 'none' ? 'Continue' : stop.label}</button>
           </div>

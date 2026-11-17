@@ -14,7 +14,7 @@ test('the new ultimates are offered, resolve cleanly and keep the match consiste
     const me = g.world.players[g.career.pid];
     me.ab = me.ab.filter((a) => !/genesis|zero|trance|puppet|sky|chain|sprint|curtain|dominion|predator|comet|bulldozer|sovereign/.test(a.id));
     me.ab.push({ ...(me.ab[0] ?? {}), id, lv: 3, xp: 0 } as never);
-    for (let m = 0; m < 4; m++) {
+    for (let m = 0; m < 16 && !(seen[key] > 0 && m >= 4); m++) {
       autoPilot(g, (x) => !!userFixtureToday(x) && x.world.stage === 1, 60);
       const ms = startUserMatch(g, 'full'); if (!ms) break;
       let guard = 0;

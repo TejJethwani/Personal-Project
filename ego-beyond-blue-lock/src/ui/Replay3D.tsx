@@ -598,6 +598,15 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
   sky.addColorStop(0, '#04060c'); sky.addColorStop(0.55, '#0a1424'); sky.addColorStop(1, '#0c1a14');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
   for (const fx of [0.12, 0.88]) { const g = ctx.createRadialGradient(W * fx, H * 0.02, 2, W * fx, H * 0.02, H * 0.6); g.addColorStop(0, 'rgba(190,225,255,.34)'); g.addColorStop(1, 'rgba(190,225,255,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  // floodlight towers: glinting lamps with a soft star flare
+  for (const fx of [0.07, 0.93]) {
+    const lx = W * fx, ly = H * 0.035, fr = H * 0.05;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const g2 = ctx.createRadialGradient(lx, ly, 0, lx, ly, fr * 2.2); g2.addColorStop(0, 'rgba(255,255,240,.85)'); g2.addColorStop(0.25, 'rgba(200,230,255,.25)'); g2.addColorStop(1, 'rgba(200,230,255,0)');
+    ctx.fillStyle = g2; ctx.fillRect(lx - fr * 2.2, ly - fr * 2.2, fr * 4.4, fr * 4.4);
+    ctx.strokeStyle = 'rgba(220,240,255,.35)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(lx - fr * 3, ly); ctx.lineTo(lx + fr * 3, ly); ctx.moveTo(lx, ly - fr * 1.4); ctx.lineTo(lx, ly + fr * 1.4); ctx.stroke();
+    ctx.restore();
+  }
   // ── stands on three sides
   const stand = (pts: (f: number, k: number) => V3, rows: number, cols: number, quad: V3[]) => {
     poly(ctx, cam, quad, '#0b1020');
@@ -617,7 +626,10 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
   poly(ctx, cam, [[goalX + dir * 5, 0, -6], [goalX + dir * 5, 0, 74], [goalX + dir * 5, 1, 74], [goalX + dir * 5, 1, -6]], rp.res === 'goal' && impact > 0 && Math.floor(t * 8) % 2 === 0 ? '#3df2ff' : '#123a6b');
   // ── pitch
   poly(ctx, cam, [[-12, 0, -12], [117, 0, -12], [117, 0, 80], [-12, 0, 80]], '#0a2f18');
-  for (let i = 0; i < 20; i++) poly(ctx, cam, [[i * 5.25, 0, 0], [(i + 1) * 5.25, 0, 0], [(i + 1) * 5.25, 0, 68], [i * 5.25, 0, 68]], i % 2 ? '#0f4a24' : '#0c3f1e');
+  for (let i = 0; i < 20; i++) poly(ctx, cam, [[i * 5.25, 0, 0], [(i + 1) * 5.25, 0, 0], [(i + 1) * 5.25, 0, 68], [i * 5.25, 0, 68]], i % 2 ? '#105026' : '#0c3f1e');
+  // cross-mowing: a faint checkerboard across the stripes, and a lit pool round the box
+  for (let j = 0; j < 8; j++) if (j % 2) poly(ctx, cam, [[0, 0, j * 8.5], [105, 0, j * 8.5], [105, 0, (j + 1) * 8.5], [0, 0, (j + 1) * 8.5]], 'rgba(255,255,255,.025)');
+  for (let r = 3; r >= 1; r--) { const rr = r * 9; const pts: V3[] = []; for (let k = 0; k < 18; k++) { const a = (k / 18) * 6.283; pts.push([goalX - dir * 12 + Math.cos(a) * rr, 0, 34 + Math.sin(a) * rr * 1.2]); } poly(ctx, cam, pts, 'rgba(220,255,225,.022)'); }
   ctx.strokeStyle = 'rgba(225,245,232,.7)'; ctx.lineWidth = Math.max(1, W / 620);
   const L = (a: V3, c2: V3) => line(ctx, cam, a, c2);
   const rect = (x0: number, z0: number, x1: number, z1: number) => { L([x0, 0, z0], [x1, 0, z0]); L([x1, 0, z0], [x1, 0, z1]); L([x1, 0, z1], [x0, 0, z1]); L([x0, 0, z1], [x0, 0, z0]); };
@@ -855,6 +867,12 @@ function render(ctx: CanvasRenderingContext2D, W: number, H: number, ms: MatchSt
     const cols = [ms.teams[rp.t].col, '#ffffff', ms.teams[rp.t].col2 || '#3df2ff', us?.col ?? '#ffd166'];
     for (let i = 0; i < 70; i++) { const sp = 0.25 + ((i * 53) % 40) / 80; const y = (((impact - 0.1) * sp + ((i * 97) % 100) / 100) % 1.15) * H; const x = ((i * 137.5) % 100) / 100 * W + Math.sin(impact * 3 + i) * 14; ctx.fillStyle = cols[i % 4]; ctx.globalAlpha = Math.min(0.9, (impact - 0.1) * 2); ctx.save(); ctx.translate(x, y); ctx.rotate(impact * 5 + i); ctx.fillRect(-3, -1.5, 6, 3); ctx.restore(); }
     ctx.globalAlpha = 1;
+  }
+  if (bq.z > NEAR && bq.x > -20 && bq.x < W + 20) { // a little bloom round the ball so it reads at a glance
+    const br2 = Math.max(6, Math.min(40, (cam.fl / bq.z) * 0.7));
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const gb = ctx.createRadialGradient(bq.x, bq.y, 0, bq.x, bq.y, br2); gb.addColorStop(0, 'rgba(255,255,255,.28)'); gb.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gb; ctx.beginPath(); ctx.arc(bq.x, bq.y, br2, 0, 6.3); ctx.fill(); ctx.restore();
   }
   const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 0.95);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');

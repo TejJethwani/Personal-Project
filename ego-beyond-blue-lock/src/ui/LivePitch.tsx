@@ -72,20 +72,100 @@ function snapOf(ms: MatchState): Snap {
   for (let i = 0; i < n; i++) if (on[i]) sig += pos[i * 2] * (i + 1) + pos[i * 2 + 1] * 1.7;
   return { sig: Math.round(sig * 10), step: ms.steps, pos, on, ball: [ms.bx, ms.by], car: ms.car, high: ms.bh > 0, poss: ms.poss };
 }
+/** The static pitch, drawn once per size into an offscreen canvas: mown stripes with a fine grass grain, floodlight
+ *  pools, the full set of markings (penalty arcs and corner arcs included), goal nets and LED boards round the edge. */
+const PITCH_CACHE: { key: string; cv: HTMLCanvasElement | null } = { key: '', cv: null };
+function pitchLayer(W: number, H: number, dpr: number, pad: number, c0: string, c1: string): HTMLCanvasElement {
+  const key = `${W}x${H}@${dpr}:${c0}:${c1}`;
+  if (PITCH_CACHE.key === key && PITCH_CACHE.cv) return PITCH_CACHE.cv;
+  const cv = document.createElement('canvas'); cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const ctx = cv.getContext('2d')!; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sx = (W - pad * 2) / 100, sy = (H - pad * 2) / 100;
+  const X = (x: number) => pad + x * sx, Y = (y: number) => pad + y * sy;
+  // surround: dark track with LED boards in the two clubs' colours
+  ctx.fillStyle = '#05140b'; ctx.fillRect(0, 0, W, H);
+  const led = (x: number, y: number, w: number, h: number, col: string, vert: boolean) => {
+    const g = vert ? ctx.createLinearGradient(x, y, x, y + h) : ctx.createLinearGradient(x, y, x + w, y);
+    g.addColorStop(0, col + '00'); g.addColorStop(0.15, col + 'aa'); g.addColorStop(0.5, col + 'dd'); g.addColorStop(0.85, col + 'aa'); g.addColorStop(1, col + '00');
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  };
+  const lh = Math.max(2, pad * 0.28);
+  led(X(2), pad * 0.25, 46 * sx, lh, c0, false); led(X(52), pad * 0.25, 46 * sx, lh, c1, false);
+  led(X(2), H - pad * 0.25 - lh, 46 * sx, lh, c1, false); led(X(52), H - pad * 0.25 - lh, 46 * sx, lh, c0, false);
+  // grass: mown stripes, then grain
+  for (let i = 0; i < 14; i++) { ctx.fillStyle = i % 2 ? '#0d3d1f' : '#104826'; ctx.fillRect(X((i * 100) / 14), Y(0) - pad * 0.5, (100 / 14) * sx + 0.6, 100 * sy + pad); }
+  for (let i = 0; i < 7; i++) { ctx.fillStyle = 'rgba(255,255,255,.018)'; ctx.fillRect(X(0) - pad * 0.5, Y((i * 100) / 7), 100 * sx + pad, (100 / 14) * sy); }
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const grains = Math.min(9000, Math.round(W * H / 26));
+  for (let i = 0; i < grains; i++) { const gx = rnd() * W, gy = rnd() * H, l = rnd(); ctx.fillStyle = l > 0.5 ? 'rgba(160,255,170,.035)' : 'rgba(0,0,0,.06)'; ctx.fillRect(gx, gy, 1, 1.6); }
+  // floodlight pools from the four corners, and a soft vignette
+  for (const [fx, fy] of [[0.12, 0], [0.88, 0], [0.12, 1], [0.88, 1]]) { const g = ctx.createRadialGradient(W * fx, H * fy, 0, W * fx, H * fy, W * 0.42); g.addColorStop(0, 'rgba(255,255,235,.07)'); g.addColorStop(1, 'rgba(255,255,235,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, W * 0.72);
+  vg.addColorStop(0, 'rgba(255,255,255,.035)'); vg.addColorStop(1, 'rgba(0,0,0,.32)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  // markings
+  const lw = Math.max(1.1, W / 560);
+  ctx.strokeStyle = 'rgba(240,250,242,.78)'; ctx.lineWidth = lw; ctx.shadowColor = 'rgba(240,255,240,.35)'; ctx.shadowBlur = 3;
+  const mx = (v: number) => (v / 105) * 100, my = (v: number) => (v / 68) * 100;
+  ctx.strokeRect(X(0), Y(0), 100 * sx, 100 * sy);
+  ctx.beginPath(); ctx.moveTo(X(50), Y(0)); ctx.lineTo(X(50), Y(100)); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(X(50), Y(50), mx(9.15) * sx, my(9.15) * sy, 0, 0, 6.3); ctx.stroke();
+  ctx.fillStyle = 'rgba(240,250,242,.85)'; ctx.beginPath(); ctx.arc(X(50), Y(50), lw * 1.6, 0, 6.3); ctx.fill();
+  for (const side of [0, 1]) {
+    const gx = side ? 100 : 0, d = side ? -1 : 1;
+    ctx.strokeRect(X(gx), Y(50 - my(20.16)), d * mx(16.5) * sx, my(40.32) * sy);
+    ctx.strokeRect(X(gx), Y(50 - my(9.16)), d * mx(5.5) * sx, my(18.32) * sy);
+    ctx.beginPath(); ctx.arc(X(gx + d * mx(11)), Y(50), lw * 1.5, 0, 6.3); ctx.fill();
+    // the D: the part of the 9.15 m circle round the spot that lies outside the box
+    const a = Math.acos(5.5 / 9.15);
+    ctx.save(); ctx.beginPath(); ctx.rect(side ? 0 : X(mx(16.5)), 0, side ? X(100 - mx(16.5)) : W, H); ctx.clip();
+    ctx.beginPath(); ctx.ellipse(X(gx + d * mx(11)), Y(50), mx(9.15) * sx, my(9.15) * sy, 0, side ? Math.PI - a : -a, side ? Math.PI + a : a); ctx.stroke(); ctx.restore();
+    for (const cy of [0, 100]) { ctx.beginPath(); ctx.ellipse(X(gx), Y(cy), mx(1) * sx * 1.4, my(1) * sy * 1.4, 0, cy ? (side ? Math.PI : 1.5 * Math.PI) : side ? 0.5 * Math.PI : 0, cy ? (side ? 1.5 * Math.PI : 2 * Math.PI) : side ? Math.PI : 0.5 * Math.PI); ctx.stroke(); }
+    // goal with a net
+    const gw = pad * 0.7, gy0 = Y(50 - my(3.66)), gh = my(7.32) * sy, gx0 = side ? X(gx) : X(gx) - gw;
+    ctx.save(); ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(gx0, gy0, gw, gh);
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 0.6; ctx.beginPath();
+    for (let q = 1; q < 4; q++) { ctx.moveTo(gx0 + (gw * q) / 4, gy0); ctx.lineTo(gx0 + (gw * q) / 4, gy0 + gh); }
+    for (let q = 1; q < 8; q++) { ctx.moveTo(gx0, gy0 + (gh * q) / 8); ctx.lineTo(gx0 + gw, gy0 + (gh * q) / 8); }
+    ctx.stroke(); ctx.restore();
+    ctx.lineWidth = lw * 1.6; ctx.strokeStyle = '#f4f7fb'; ctx.strokeRect(gx0, gy0, gw, gh); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(240,250,242,.78)';
+  }
+  ctx.shadowBlur = 0;
+  PITCH_CACHE.key = key; PITCH_CACHE.cv = cv;
+  return cv;
+}
+/** Push overlapping decision rings apart (screen space) so every label stays readable. Rings on players stay put. */
+function declutter(pts: { x: number; y: number; fixed: boolean }[], r: number, W: number, H: number): void {
+  for (let it = 0; it < 14; it++) {
+    let moved = false;
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const a = pts[i], b = pts[j];
+      let dx = b.x - a.x, dy = b.y - a.y; let d = Math.hypot(dx, dy);
+      const need = r * 3.5;
+      if (d >= need || (a.fixed && b.fixed)) continue;
+      if (d < 0.01) { dx = 0.7; dy = 0.7; d = 1; }
+      const push = (need - d) / 2 + 0.5, ux = dx / d, uy = dy / d;
+      if (a.fixed) { b.x += ux * push * 2; b.y += uy * push * 2; } else if (b.fixed) { a.x -= ux * push * 2; a.y -= uy * push * 2; } else { a.x -= ux * push; a.y -= uy * push; b.x += ux * push; b.y += uy * push; }
+      moved = true;
+    }
+    for (const q of pts) if (!q.fixed) { q.x = Math.max(r + 2, Math.min(W - r - 2, q.x)); q.y = Math.max(r + 2, Math.min(H - r - 14, q.y)); }
+    if (!moved) break;
+  }
+}
 const lum = (hex: string) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return 0.3; const v = parseInt(m[1], 16); return (0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255; };
 
 export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: { ms: MatchState; tick: number; hover: number; banner: { x: string; i: number } | null; touch?: boolean; onPick?: (id: string) => void; outcome?: { ok: boolean | null; title: string; text: string } | null }) {
   const cv = useRef<HTMLCanvasElement>(null);
-  const st = useRef<{ from: Snap; to: Snap; t0: number; dur: number; shown: Snap; trail: { x1: number; y1: number; x2: number; y2: number; t: number } | null }>(null);
+  const st = useRef<{ from: Snap; to: Snap; t0: number; dur: number; shown: Snap; trail: { x1: number; y1: number; x2: number; y2: number; t: number } | null; btrail?: [number, number, number][] }>(null);
   const marks = touch ? markersFor(ms, ms.pending) : [];
-  const live = useRef({ ms, hover, tick, marks, drag: null as null | { x: number; y: number; sx: number; sy: number } });
+  const live = useRef({ ms, hover, tick, marks, drag: null as null | { x: number; y: number; sx: number; sy: number }, disp: [] as [number, number][] });
   live.current = { ...live.current, ms, hover, tick, marks };
   const [menu, setMenu] = useState<{ x: number; y: number; opts: Option[]; label: string } | null>(null);
   const geo = useRef({ pad: 8, sx: 1, sy: 1 });
   if (!ms.pending && menu) setMenu(null);
   const toPitch = (e: { clientX: number; clientY: number }) => { const r = cv.current!.getBoundingClientRect(); const G = geo.current; return { x: (e.clientX - r.left - G.pad) / G.sx, y: (e.clientY - r.top - G.pad) / G.sy, px: e.clientX - r.left, py: e.clientY - r.top }; };
   /** Where a marker is on screen right now: markers on players follow the drawn (interpolated) player. */
-  const shownOf = (m: Marker): [number, number] => { const P = st.current?.shown.pos; return m.idx >= 0 && P ? [P[m.idx * 2], P[m.idx * 2 + 1]] : [m.x, m.y]; };
+  const shownOf = (m: Marker): [number, number] => { const k = live.current.marks.indexOf(m), D = live.current.disp[k]; if (D) return D; const P = st.current?.shown.pos; return m.idx >= 0 && P ? [P[m.idx * 2], P[m.idx * 2 + 1]] : [m.x, m.y]; };
   const choose = (m: Marker, px: number, py: number) => {
     if (!onPick) return;
     if (m.opts.length === 1) { setMenu(null); onPick(m.opts[0].id); }
@@ -148,25 +228,9 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
       geo.current = { pad, sx, sy };
       const X = (x: number) => pad + x * sx, Y = (y: number) => pad + y * sy;
       const k = Math.min(1, (now - S.t0) / S.dur);
-      // ── pitch
-      ctx.fillStyle = '#082814'; ctx.fillRect(0, 0, W, H);
-      for (let i = 0; i < 12; i++) { ctx.fillStyle = i % 2 ? '#0c3a1d' : '#0e4322'; ctx.fillRect(X((i * 100) / 12), Y(0), (100 / 12) * sx + 0.6, 100 * sy); }
-      const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.75);
-      vg.addColorStop(0, 'rgba(255,255,255,.05)'); vg.addColorStop(1, 'rgba(0,0,0,.28)');
-      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = 'rgba(232,246,236,.62)'; ctx.lineWidth = Math.max(1, W / 620);
-      const mx = (v: number) => (v / 105) * 100, my = (v: number) => (v / 68) * 100;
-      ctx.strokeRect(X(0), Y(0), 100 * sx, 100 * sy);
-      ctx.beginPath(); ctx.moveTo(X(50), Y(0)); ctx.lineTo(X(50), Y(100)); ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(X(50), Y(50), mx(9.15) * sx, my(9.15) * sy, 0, 0, 6.3); ctx.stroke();
-      for (const side of [0, 1]) {
-        const gx = side ? 100 : 0, d = side ? -1 : 1;
-        ctx.strokeRect(X(gx), Y(50 - my(20.16)), d * mx(16.5) * sx, my(40.32) * sy);
-        ctx.strokeRect(X(gx), Y(50 - my(9.16)), d * mx(5.5) * sx, my(18.32) * sy);
-        ctx.beginPath(); ctx.arc(X(gx + d * mx(11)), Y(50), 1.6, 0, 6.3); ctx.fillStyle = 'rgba(232,246,236,.7)'; ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,.16)'; ctx.fillRect(X(gx) - (side ? 0 : pad * 0.6), Y(50 - my(3.66)), pad * 0.6, my(7.32) * sy);
-        ctx.strokeRect(X(gx) - (side ? 0 : pad * 0.6), Y(50 - my(3.66)), pad * 0.6, my(7.32) * sy);
-      }
+      // ── pitch (cached)
+      const KITS0 = msKits(m);
+      ctx.drawImage(pitchLayer(W, H, dpr, pad, KITS0[0]?.c1 && /^#[0-9a-f]{6}$/i.test(KITS0[0].c1) ? KITS0[0].c1 : '#1ea7ff', KITS0[1]?.c1 && /^#[0-9a-f]{6}$/i.test(KITS0[1].c1) ? KITS0[1].c1 : '#ff4d6d'), 0, 0, W, H);
       // ── interpolated positions
       const n = m.pl.length;
       const px = new Float32Array(n), py = new Float32Array(n);
@@ -183,7 +247,12 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
       // ── pass trail
       if (S.trail) {
         const age = (now - S.trail.t) / 900;
-        if (age < 1) { ctx.strokeStyle = `rgba(255,255,255,${0.55 * (1 - age)})`; ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X(S.trail.x1), Y(S.trail.y1)); ctx.lineTo(X(bx), Y(by)); ctx.stroke(); ctx.setLineDash([]); } else S.trail = null;
+        if (age < 1) {
+          const x1 = X(S.trail.x1), y1 = Y(S.trail.y1), x2 = X(bx), y2 = Y(by);
+          ctx.strokeStyle = `rgba(255,255,255,${0.6 * (1 - age)})`; ctx.setLineDash([5, 5]); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x1, y1);
+          if (S.to.high) ctx.quadraticCurveTo((x1 + x2) / 2, (y1 + y2) / 2 - Math.hypot(x2 - x1, y2 - y1) * 0.22, x2, y2); else ctx.lineTo(x2, y2);
+          ctx.stroke(); ctx.setLineDash([]);
+        } else S.trail = null;
       }
       // ── hover target
       if (hv >= 0 && m.pl[hv]?.on) { ctx.strokeStyle = '#3df2ff'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(X(bx), Y(by)); ctx.lineTo(X(px[hv]), Y(py[hv])); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(X(px[hv]), Y(py[hv]), Math.max(12, W * 0.022), 0, 6.3); ctx.stroke(); }
@@ -195,6 +264,7 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
       const order: number[] = [];
       for (let i = 0; i < n; i++) if (S.to.on[i]) order.push(i);
       order.sort((a, b) => py[a] - py[b]);
+      if (car >= 0 && S.to.on[car]) { const gx = X(px[car]), gy = Y(py[car]); const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, R * 3.2); gg.addColorStop(0, 'rgba(255,255,255,.22)'); gg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(gx, gy, R * 3.2, 0, 6.3); ctx.fill(); }
       for (const i of order) {
         const p = m.pl[i];
         const cx = X(px[i]), cy = Y(py[i]);
@@ -223,17 +293,29 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
       }
       // ── ball (always on top, shadow shows height)
       const bX = X(bx), bY = Y(by), br = Math.max(4, R * 0.5) * (1 + lift * 0.7);
+      const BT = (S.btrail ??= []); BT.push([bX, bY - lift * 10, now]); while (BT.length && now - BT[0][2] > 220) BT.shift();
+      if (BT.length > 2 && Math.hypot(BT[BT.length - 1][0] - BT[0][0], BT[BT.length - 1][1] - BT[0][1]) > 6) {
+        for (let q = 1; q < BT.length; q++) { const a0 = q / BT.length; ctx.strokeStyle = `rgba(255,255,255,${0.35 * a0})`; ctx.lineWidth = br * 1.3 * a0; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(BT[q - 1][0], BT[q - 1][1]); ctx.lineTo(BT[q][0], BT[q][1]); ctx.stroke(); }
+        ctx.lineCap = 'butt';
+      }
       ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(bX + lift * 6, bY + 3 + lift * 9, br * 0.9, br * 0.5, 0, 0, 6.3); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#10131a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(bX, bY - lift * 10, br, 0, 6.3); ctx.fill(); ctx.stroke();
+      const bg = ctx.createRadialGradient(bX - br * 0.35, bY - lift * 10 - br * 0.35, br * 0.1, bX, bY - lift * 10, br);
+      bg.addColorStop(0, '#ffffff'); bg.addColorStop(1, '#c9d2de');
+      ctx.fillStyle = bg; ctx.strokeStyle = '#10131a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(bX, bY - lift * 10, br, 0, 6.3); ctx.fill(); ctx.stroke();
+      { const r0 = br * 0.42, rot = (bx + by) * 0.6; ctx.fillStyle = '#1a1f2b'; ctx.beginPath(); for (let q = 0; q < 5; q++) { const a0 = rot + (q * 2 * Math.PI) / 5; const qx = bX + Math.cos(a0) * r0, qy = bY - lift * 10 + Math.sin(a0) * r0; if (q) ctx.lineTo(qx, qy); else ctx.moveTo(qx, qy); } ctx.closePath(); ctx.fill(); }
       // ── touch markers: tap a ring or swipe from your player towards it
       const MK = live.current.marks;
       if (MK.length && u >= 0) {
         const mx0 = X(px[u]), my0 = Y(py[u]);
         const dg = live.current.drag;
-        for (const mk of MK) {
+        const rr = Math.max(15, W * 0.024);
+        const pts = MK.map((mk) => ({ x: mk.idx >= 0 ? X(px[mk.idx]) : X(mk.x), y: mk.idx >= 0 ? Y(py[mk.idx]) : Y(mk.y), fixed: mk.kind === 'mate' }));
+        declutter(pts, rr, W, H);
+        live.current.disp = pts.map((q) => [(q.x - pad) / sx, (q.y - pad) / sy] as [number, number]);
+        for (let mi2 = 0; mi2 < MK.length; mi2++) {
+          const mk = MK[mi2];
           const o = best(mk), col = pcol(o.p);
-          const x = mk.idx >= 0 ? X(px[mk.idx]) : X(mk.x), y = mk.idx >= 0 ? Y(py[mk.idx]) : Y(mk.y);
-          const rr = Math.max(15, W * 0.024);
+          const x = pts[mi2].x, y = pts[mi2].y;
           if (mk.kind === 'move' || mk.kind === 'goal') {
             ctx.strokeStyle = col; ctx.globalAlpha = 0.75; ctx.lineWidth = 2.5; ctx.setLineDash(mk.kind === 'goal' ? [] : [7, 5]); ctx.lineDashOffset = -now / 50;
             ctx.beginPath(); ctx.moveTo(mx0, my0); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
@@ -245,7 +327,7 @@ export function LivePitch({ ms, tick, hover, banner, touch, onPick, outcome }: {
           const txt = `${Math.round(o.p * 100)}%`;
           ctx.font = `700 ${Math.max(12, Math.round(rr * 0.7))}px 'Barlow Condensed', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           if (mk.kind === 'mate') { const w = ctx.measureText(txt).width + 8; ctx.fillStyle = 'rgba(4,8,16,.88)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y + rr + 2, w, 15, 3); ctx.fill(); ctx.fillStyle = col; ctx.fillText(txt, x, y + rr + 10); }
-          else { ctx.fillStyle = col; ctx.fillText(txt, x, y - 3); ctx.font = `600 9px 'Barlow Condensed', sans-serif`; ctx.fillStyle = '#dfe7f7'; ctx.fillText(mk.label.slice(0, 11), x, y + rr * 0.48); }
+          else { ctx.fillStyle = col; ctx.fillText(txt, x, y - 3); ctx.font = `600 9px 'Barlow Condensed', sans-serif`; ctx.fillStyle = '#dfe7f7'; ctx.fillText(mk.label.slice(0, 12), x, y + rr * 0.48); }
           if (o.hot) { ctx.strokeStyle = '#ff2d75'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, rr * pulse + 4, 0, 6.3); ctx.stroke(); }
         }
         if (dg) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X(dg.sx), Y(dg.sy)); ctx.lineTo(X(dg.x), Y(dg.y)); ctx.stroke(); }

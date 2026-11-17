@@ -71,6 +71,15 @@ function ev(x: number, y: number): number {
   return v;
 }
 
+/** A deterministic 0–0.3 jitter per player and step, to break exact ties between mirror-image team-mates. */
+function tieJit(ms: MatchState, i: number): number { return (((i + 1) * 2654435761 + ms.steps * 40503) >>> 0) % 1000 * 3e-4; }
+
+/** Teams use the flanks: from the middle, a free full-back or winger out wide is worth more than the raw position suggests. */
+function widthPull(width: number, fromY: number, toY: number, toX: number): number {
+  if (Math.abs(toY - 50) < 22 || Math.abs(fromY - 50) > 26 || toX < 30 || toX > 88) return 0;
+  return 0.009 * (0.55 + width * 0.9) * (toX > 60 ? 1.15 : 1);
+}
+
 /** Mean defensive quality of a team's outfielders (cached per step count bucket). */
 const DQ = [60, 60];
 function refreshDq(ms: MatchState): void {
@@ -595,6 +604,7 @@ function riskLabel(p: number): string { return p >= 0.8 ? 'Safe' : p >= 0.58 ? '
 const SHOT_OFFSET = 0;
 /** Utility cost of shooting: higher values make players wait for better chances (fewer, better shots). */
 const SHOT_COST = 0.15;
+const LONG_COST = 0.017;
 /** First-to-three matches are about patience: chances are rarer so a match lasts about an hour of playing time. */
 const NEL_EXTRA = -0.02;
 function shotCalc(ms: MatchState, c: MPlayer, v: string, act: { fx: { k: number; v: number }[] } | null, ult: string): { xg: number; p: number; d: number; theta: number } {
@@ -733,7 +743,13 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       const add = (v: string, id: string, label: string, detail: string, ab = '') => {
         const act = ab ? actFor(ms, c, ab as ActCtx) : null;
         const s = shotCalc(ms, c, v, act, '');
-        const o = opt('shoot', id, s.p, (s.p * 0.9 + 0.008) * bias * (g.d > 16.5 ? 0.75 : 1) - SHOT_COST - (ms.rules.kind === 'nel' ? NEL_EXTRA : 0) - c.s[S.SH] * 0.04 - c.s[S.XG] * 0.06 - c.s[S.G] * 0.1 - c.mk * 0.12, -1, v);
+        // a speculative effort from distance costs far less than wasting a clear chance: the ball usually goes out for a
+        // goal kick or a corner, or loops up off a defender, so players do try their luck from range now and then
+        const long = v === 'long' && ms.note !== 'fk' && ms.rules.kind !== 'nel';
+        const u = long
+          ? (s.p * 0.9 + 0.006) * bias * (0.85 + (at(ms, c, A.LSH) - 60) / 120) - LONG_COST - (ms.rules.kind === 'nel' ? NEL_EXTRA * 0.5 : 0) - c.s[S.SH] * 0.006 - c.s[S.G] * 0.02 - c.mk * 0.03 - (ms.press > 0.7 ? 0.02 : 0)
+          : (s.p * 0.9 + 0.008) * bias * (g.d > 16.5 ? 0.75 : 1) - SHOT_COST - (ms.rules.kind === 'nel' ? NEL_EXTRA : 0) - c.s[S.SH] * 0.04 - c.s[S.XG] * 0.06 - c.s[S.G] * 0.1 - c.mk * 0.12;
+        const o = opt('shoot', id, s.p, u, -1, v);
         if (act) { o.ab = act.id; o.sta = act.sta; o.hot = true; }
         if (full) { o.label = label; o.detail = detail + ` (${Math.round(g.d)} m, xG ${s.xg.toFixed(2)})`; o.intent = 'Go for goal'; o.risk = riskLabel(Math.min(1, s.p * 2.4)); }
         return o;
@@ -825,27 +841,32 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
     const d = dist(ms.bx, ms.by, m.x, m.y);
     if (d < 3 || d > 58) continue;
     const max = ax(t, m.x);
-    let raw = ev(max, m.y) - m.s[S.SH] * 0.02 - m.s[S.XG] * 0.04 - m.s[S.G] * 0.06 - m.mk * 0.07 - (d > 34 ? 0.006 : 0) + (m.open ? 0.03 : 0) + (m.req > 0 ? 0.015 * (1.25 - c.ego / 100) * (0.6 + m.trust / 120) : 0);
+    let raw = tieJit(ms, mi) * 1e-3 + ev(max, m.y) - m.s[S.SH] * 0.02 - m.s[S.XG] * 0.04 - m.s[S.G] * 0.06 - m.mk * 0.07 - (d > 34 ? 0.006 : 0) + (m.open ? 0.03 : 0) + (m.req > 0 ? 0.015 * (1.25 - c.ego / 100) * (0.6 + m.trust / 120) : 0);
     if (m.user && !c.user) raw *= 0.82 + m.trust / 300;
     if (ms.uc && c.user && ms.uc.combo === mi) raw += 0.01;
+    raw += widthPull(T.tac.width, cy, m.y, max);
     if (isGk) raw = (d < 30 ? 0.02 : 0.012) + ev(max, m.y) * 0.4;
     CAND[n] = mi; CRAW[n] = raw; n++;
-    const sv = (max <= cax + 4 ? 1 : 0.5) * d < 26 ? 1 / (1 + Math.abs(d - 12)) : 0;
+    const sv = (max <= cax + 4 ? 1 : 0.5) * (d < 26 ? 1 / (1 + Math.abs(d - 12)) : 0);
     if (sv > safeV) { safeV = sv; safe = mi; }
   }
   const chosen: number[] = [];
   {
     // candidates: the most valuable target, the best nearby target, the nearest team-mate and a safe outlet
-    let b1 = -1, v1 = -1, b2 = -1, v2 = -1, b3 = -1, d3 = 99, b4 = -1, v4 = -1;
+    let b1 = -1, v1 = -1, b2 = -1, v2 = -1, b3 = -1, d3 = 99, b4 = -1, v4 = -1, b5 = -1, v5 = -1;
     for (let k = 0; k < n; k++) {
       const m = ms.pl[CAND[k]];
-      const d = dist(ms.bx, ms.by, m.x, m.y);
+      // a tiny tie-break that changes every step: with the ball on the centre line (kick-offs, goal kicks) the left and
+      // right team-mates are exactly as far away, and always picking the first-listed one sent the play down the left
+      const d = dist(ms.bx, ms.by, m.x, m.y) + tieJit(ms, CAND[k]);
       if (CRAW[k] > v1) { v1 = CRAW[k]; b1 = k; }
       if (d < 24 && CRAW[k] > v2) { v2 = CRAW[k]; b2 = k; }
       if (d < d3) { d3 = d; b3 = k; }
+      // the best man out wide (full-back or winger on the far side of the ball's lane), so the play can go to the flanks
+      if (Math.abs(m.y - 50) > 22 && Math.abs(m.y - cy) > 12 && CRAW[k] > v5) { v5 = CRAW[k]; b5 = k; }
     }
     if (full) for (let k = 0; k < n; k++) if (k !== b1 && k !== b2 && CRAW[k] > v4) { v4 = CRAW[k]; b4 = k; }
-    for (const b of [b1, b2, b3, b4]) if (b >= 0 && chosen.indexOf(CAND[b]) < 0) chosen.push(CAND[b]);
+    for (const b of [b1, b2, b3, b4, b5]) if (b >= 0 && chosen.indexOf(CAND[b]) < 0) chosen.push(CAND[b]);
   }
   if (safe >= 0 && chosen.indexOf(safe) < 0) chosen.push(safe);
   const wideCar = Math.abs(cy - 50) > 24 && cax > 70;
@@ -863,14 +884,17 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
     const pc = passCalc(ms, c, m, kind, tx, ty, null);
     let u = pc.p * ev(tax, ty) - (1 - pc.p) * (ev(100 - tax, 100 - ty) * 0.8 + 0.035 - T.tac.direct * 0.012) + T.tac.direct * 0.0004 * (tax - cax);
     if (kind === 'through') u += pc.p * 0.06;
+    if (kind === 'pass') u += pc.p * widthPull(T.tac.width, cy, ty, tax);
     // a creator who has already carved the defence open gets watched: his next final ball into the box is closed down
     if (tax > 76) {
       u -= (c.s[S.KP] * 0.022 + c.s[S.A] * 0.05 + c.mka * 0.03) * pc.p;
       // a deep midfielder threading a simple ball into the box is rarer than wide play and No. 10s
       if (kind === 'pass' && (c.pos === 'CM' || c.pos === 'DM' || c.line <= 1)) u -= 0.02 * pc.p;
     }
-    else if (kind === 'cross') u += pc.p * 0.05 * (0.6 + T.tac.width * 0.8);
-    else if (kind === 'cutback') u += pc.p * 0.05;
+    // wide delivery: crosses and cut-backs are what wide players are there for (this bonus used to sit in an
+    // unreachable else-branch, so balls into the box from the flanks were never rewarded)
+    if (kind === 'cross') u += pc.p * 0.05 * (0.6 + T.tac.width * 0.8);
+    else if (kind === 'cutback') u += pc.p * 0.06;
     if (m.user && !c.user) { u *= 0.86 + m.trust / 340; if (m.req > 0) u += 0.012 * (1.25 - c.ego / 100) * (0.5 + m.chem / 100); }
     const o = opt(kind, `${kind}:${mi}`, pc.p, u, mi, kind);
     if (full) {
@@ -926,7 +950,9 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
       const base = cz(drbSk(ms, c) - defSk(ms, nd)) / 16 - 0.05 - (ms.press > 0.8 ? 0.35 : 0) + (tight ? c.m[M.DR_TIGHT] : c.m[M.DR_OPEN] + c.m[M.PACE] * 0.5) - nd.m[M.TACKLE] * 0.6 + c.m[GB] - nd.m[GB]
         + (nd.focus === 2 ? -0.45 : 0) + (c.lostTo === ms.nd ? c.m[M.ADAPT] : 0) + (c.user && ms.uc ? ms.uc.forgive : 0);
       const p = clamp(sig(base), 0.05, 0.95);
-      const gain = ev(cax + 11, cy) * (1 + (cax > 66 ? 0.25 : 0));
+      // a wide attacker who beats his man cuts inside towards goal
+      const wideAtt = Math.abs(cy - 50) > 20 && (c.line === 3 || c.pos === 'LW' || c.pos === 'RW' || c.pos === 'LM' || c.pos === 'RM');
+      const gain = ev(cax + 11, cy + (50 - cy) * (wideAtt ? 0.38 : 0.12)) * (1 + (cax > 66 ? 0.25 : 0));
       const o = opt('dribble', 'dribble:takeon', p, p * gain - (1 - p) * (loseCost + 0.04) + (c.ego - 50) / 5000 - 0.012, ms.nd, 'takeon');
       if (full) {
         o.label = `Take on ${nd.nm}`; o.detail = `${nd.pos} · ${tight ? 'tight to you' : 'backing off'}`; o.intent = 'Beat your man'; o.risk = riskLabel(p);
@@ -1447,7 +1473,8 @@ function resolve(ms: MatchState, rng: Rng, c: MPlayer, o: Option): void {
         // beating a man near the box gets you to around the penalty spot, not to a tap-in on the goal line
         const nax = Math.min(cax + adv, Math.max(cax, 92));
         ms.bx = clamp(t === 0 ? nax : 100 - nax, 2, 98);
-        ms.by = clamp(ms.by + (50 - ms.by) * 0.12 + (rng.next() - 0.5) * 8, 3, 97);
+        const wideAtt = Math.abs(ms.by - 50) > 20 && (c.line === 3 || c.pos === 'LW' || c.pos === 'RW' || c.pos === 'LM' || c.pos === 'RM');
+        ms.by = clamp(ms.by + (50 - ms.by) * (wideAtt ? 0.38 : 0.12) + (rng.next() - 0.5) * 8, 3, 97);
         ms.arr = ARR.SET; ms.from = -1;
         flowGain(ms, c, skill ? 10 : 7, 'dribble', nd);
         c.lostTo = -1;
