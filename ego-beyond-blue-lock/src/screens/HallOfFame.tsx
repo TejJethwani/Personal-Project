@@ -7,6 +7,13 @@ import { useState } from 'react';
 import type { Game } from '../engine/types';
 import { S, newLine, addLine } from '../engine/match/model';
 import { seasonLabel } from '../engine/competitions';
+/** International tournaments are named by the year they were played (the U-20 World Cup is every two years: 2025, 2027…);
+ *  club trophies by season. One without a year in its name is the U-20 World Cup straight after the NEL. */
+function trophyYear(name: string, s: number): string {
+  const y = / (\d{4})$/.exec(name)?.[1];
+  if (y) return y;
+  return /World Cup|Euro|Copa|Nations|Asian Cup|Gold Cup/.test(name) ? String(s) : seasonLabel(s);
+}
 import { ovr } from '../engine/attributes';
 import { NATIONS } from '../engine/data/nations';
 import { retire } from '../engine/actions';
@@ -55,7 +62,7 @@ export function HallOfFame({ g }: { g: Game }) {
   const first = seasonList[0]?.s ?? w.season, last = seasonList[seasonList.length - 1]?.s ?? w.season;
   // grouped cabinet
   const cab = new Map<string, { name: string; n: number; years: string[]; team: string }>();
-  for (const t of trophies) { const base = t.name.replace(/ \d{4}$/, ''); const e = cab.get(base) ?? { name: base, n: 0, years: [], team: t.team }; e.n++; e.years.push(seasonLabel(t.s)); cab.set(base, e); }
+  for (const t of trophies) { const base = t.name.replace(/ \d{4}$/, ''); const e = cab.get(base) ?? { name: base, n: 0, years: [], team: t.team }; e.n++; e.years.push(trophyYear(t.name, t.s)); cab.set(base, e); }
   const awardCab = new Map<string, { title: string; n: number; years: string[]; type?: string }>();
   for (const a of major) { const e = awardCab.get(a.title) ?? { title: a.title, n: 0, years: [], type: a.type }; e.n++; e.years.push(seasonLabel(a.s)); awardCab.set(a.title, e); }
   // records

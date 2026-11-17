@@ -23,7 +23,7 @@ export async function simToDay(day: number): Promise<void> {
 export async function simWeeks(weeks: number, back = 'hub'): Promise<void> {
   const g = getGame();
   if (!g || running) return;
-  if (g.live) { toast('Finish the match in progress first.', true); return nav('match'); }
+  if (g.live) { toast('Finish the match in progress first.', true); return nav(g.mgr ? 'mmatch' : 'match'); }
   running = true;
   const target = g.world.abs + Math.round(weeks * 7);
   let played = 0, wins = 0, goals = 0, why = '';
@@ -32,17 +32,18 @@ export async function simWeeks(weeks: number, back = 'hub'): Promise<void> {
       const x = getGame()!;
       if (x.world.abs >= target) break;
       const st = nextStop(x);
-      if (st.kind === 'club') { why = 'You must choose a club to continue.'; break; }
+      if (st.kind === 'club') { why = x.mgr ? 'You need a new job to continue.' : 'You must choose a club to continue.'; break; }
       if (st.kind === 'summary' || st.kind === 'retired' || st.kind === 'live') { why = st.label; break; }
       if (ceremonyDue(x)) { why = galaDue(x) ? "The Ballon d'Or gala is tonight." : 'The awards ceremony is waiting.'; break; }
-      { const me2 = x.world.players[x.career.pid]; const ending = me2.con && me2.con.until === x.world.season && x.career.offers.some((o) => o.status === 'open' && o.club === me2.club); if (ending && !x.career.flags['renewSeen:' + x.world.season]) { act((y) => { y.career.flags['renewSeen:' + y.world.season] = 1; }, false); why = 'Your contract ends this season and your club has offered a new one — see Transfers.'; break; } }
+      if (!x.mgr) { const me2 = x.world.players[x.career.pid]; const ending = me2.con && me2.con.until === x.world.season && x.career.offers.some((o) => o.status === 'open' && o.club === me2.club); if (ending && !x.career.flags['renewSeen:' + x.world.season]) { act((y) => { y.career.flags['renewSeen:' + y.world.season] = 1; }, false); why = 'Your contract ends this season and your club has offered a new one — see Transfers.'; break; } }
       setBusy(`Simulating — ${target - x.world.abs} day${target - x.world.abs === 1 ? '' : 's'} to go`);
       await new Promise((r) => setTimeout(r, 8));
       if (st.kind === 'match') {
-        const n0 = x.career.matches.length;
+        const n0 = x.mgr ? x.mgr.matches.length : x.career.matches.length;
         act((y) => simUserMatch(y), false);
-        const m = getGame()!.career.matches[n0];
-        if (m) { played++; if (m.res === 'W') wins++; goals += m.line ? m.line[18] * 0 : 0; }
+        const gg = getGame()!;
+        const m = gg.mgr ? gg.mgr.matches[n0] : gg.career.matches[n0];
+        if (m) { played++; if (m.res === 'W') wins++; }
       } else act((y) => advance(y, 1), false);
     }
   } catch (e) {
@@ -58,18 +59,18 @@ export async function simWeeks(weeks: number, back = 'hub'): Promise<void> {
   void goals;
   const st = nextStop(g2);
   if (ceremonyDue(g2)) nav('ceremony');
-  else if (st.kind === 'club') nav('transfers');
+  else if (st.kind === 'club') nav(g2.mgr ? 'mboard' : 'transfers');
   else if (st.kind === 'summary') nav('nelsummary');
   else if (st.kind === 'retired') nav('hof');
-  else nav(back);
+  else nav(g2.mgr && back === 'hub' ? 'mhub' : back);
 }
 export async function continueGame(maxDays = 7): Promise<void> {
   const g = getGame();
   if (!g || running) return;
   const s0 = nextStop(g);
-  if (s0.kind === 'match' || s0.kind === 'live') return nav('match');
+  if (s0.kind === 'match' || s0.kind === 'live') return nav(g.mgr ? 'mmatch' : 'match');
   if (s0.kind === 'summary') return nav('nelsummary');
-  if (s0.kind === 'club') return nav('transfers');
+  if (s0.kind === 'club') return nav(g.mgr ? 'mboard' : 'transfers');
   if (s0.kind === 'retired') return nav('hof');
   if (ceremonyDue(g)) return nav('ceremony');
   running = true;
@@ -94,8 +95,8 @@ export async function continueGame(maxDays = 7): Promise<void> {
   for (const t of [...new Set(digest)].slice(0, 4)) toast(t);
   if (g2.career.flags.awardPop) { const a = g2.world.awards[String(g2.career.flags.awardPop)]; if (a) moment(a.title, a.compName, 'award'); act((x) => { delete x.career.flags.awardPop; }, false); }
   if (ceremonyDue(g2)) return nav('ceremony');
-  if (stop === 'match') nav('match');
+  if (stop === 'match') nav(g2.mgr ? 'mmatch' : 'match');
   else if (stop === 'summary') nav('nelsummary');
-  else if (stop === 'club') { toast('You must choose a club to continue.'); nav('transfers'); }
-  else if (getGame()) nav('hub');
+  else if (stop === 'club') { toast(g2.mgr ? 'You need a new job to continue.' : 'You must choose a club to continue.'); nav(g2.mgr ? 'mboard' : 'transfers'); }
+  else if (getGame()) nav(g2.mgr ? 'mhub' : 'hub');
 }

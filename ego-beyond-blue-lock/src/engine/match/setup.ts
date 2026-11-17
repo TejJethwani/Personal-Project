@@ -262,7 +262,7 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
   {
     const xiOvr = (t: number) => { const xs = pl.filter((q) => q.t === t && q.on && q.line > 0); return xs.length ? xs.reduce((x, q) => x + q.ovr, 0) / xs.length : 70; };
     const o0 = xiOvr(0), o1 = xiOvr(1), gap = Math.abs(o0 - o1), weak = o0 < o1 ? 0 : 1;
-    if (gap > 1) (teams[weak] as MTeam).day = ((teams[weak] as MTeam).day ?? 1) + Math.min(0.09, (gap - 1) * 0.009);
+    if (gap > 1) (teams[weak] as MTeam).day = ((teams[weak] as MTeam).day ?? 1) + Math.min(0.13, (gap - 0.5) * 0.014);
   }
   let agg: [number, number] | null = null;
   if (fx.leg === 2 && fx.tie) {

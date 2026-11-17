@@ -185,6 +185,8 @@ export interface MatchState {
   uc: UserCtl | null;
   imp: number; // match importance 0..1
   verb: number; // 0 silent, 1 key, 2 full
+  /** manager mode: the side the user manages, and whether the AI makes its tactical substitutions */
+  mgrT?: number; mgrAuto?: boolean;
   steps: number;
   esc: number; // NEL escalation
   inj: { idx: number; days: number }[];

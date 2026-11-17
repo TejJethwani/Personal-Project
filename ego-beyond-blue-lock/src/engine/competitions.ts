@@ -59,8 +59,18 @@ export function monthName(m: number): string { return ['January', 'February', 'M
 export function seasonLabel(s: number): string { return `${s}/${String((s + 1) % 100).padStart(2, '0')}`; }
 
 // ───────────────────────────── fixtures ─────────────────────────────
+/** Old saves: work out which fixtures of the current season were played in the NEL period (the NEL itself and the
+ *  U-20 World Cup that follows it), so they never show up on the professional season's calendar. */
+export function tagFixturePhases(w: World): void {
+  for (const id in w.fixtures) {
+    const f = w.fixtures[id];
+    if (f.ph) continue;
+    const c = w.comps[f.comp];
+    f.ph = f.comp === 'nel' || (w.phase === 'pro' && f.s === w.season && !!c?.u20 && f.day < SUMMER_TOURNAMENT_DAY) || (w.phase === 'nel' && f.s === w.season) ? 'nel' : 'pro';
+  }
+}
 export function addFixture(w: World, f: Omit<Fixture, 'id' | 'played' | 's'>): Fixture {
-  const fx: Fixture = { ...f, id: `f${w.nextId++}`, s: w.season, played: false };
+  const fx: Fixture = { ...f, id: `f${w.nextId++}`, s: w.season, ph: w.phase, played: false };
   w.fixtures[fx.id] = fx;
   (w.sched[fx.day] ??= []).push(fx.id);
   cache.delete(w);

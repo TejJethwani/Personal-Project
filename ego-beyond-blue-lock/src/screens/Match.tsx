@@ -20,6 +20,7 @@ import { NATIONS } from '../engine/data/nations';
 import { ovr } from '../engine/attributes';
 import { act, autosave, moment, nav, refresh, toast } from '../store/game';
 import { continueGame } from '../ui/flow';
+import { WatchLive } from './Manager';
 import { Bar, Card, Chip, ClubBadge, Empty, PlayerLink, Rating, Tabs, Ovr } from '../ui/kit';
 
 let lastDone: { ms: MatchState; notes: string[] } | null = null;
@@ -178,7 +179,8 @@ function PreMatch({ g }: { g: Game }) {
     lastDone = null;
     const ms = act((x) => startUserMatch(x, mode), false);
     if (!ms) return;
-    if (mode === 'sim' || !ms.uc) { if (!ms.uc) toast('You are not in the matchday squad — the match is played without you.'); advMatch(ms); const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; refresh(); }
+    if (!ms.uc && mode !== 'sim') { ms.verb = 2; toast('You are not in the matchday squad — watching from the stands.'); refresh(); }
+    else if (mode === 'sim' || !ms.uc) { advMatch(ms); const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; refresh(); }
     else { advMatch(ms, undefined, 1); refresh(); autosave(); }
   };
   const [faceDone, setFaceDone] = useState(false);
@@ -419,7 +421,7 @@ function Post({ g, ms, notes }: { g: Game; ms: MatchState; notes: string[] }) {
 export function MatchCentre({ g }: { g: Game }) {
   const w = g.world;
   const ms = g.live as MatchState | null;
-  if (ms && !ms.uc) { advMatch(ms); const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; return <Post g={g} ms={ms} notes={notes} />; }
+  if (ms && !ms.uc) return <WatchLive g={g} ms={ms} side={-1} onDone={() => { const notes = act((x) => finishUserMatch(x, ms)) ?? []; lastDone = { ms, notes }; autosave(true); refresh(); }} />;
   if (ms) return <Live g={g} ms={ms} />;
   if (lastDone) return <Post g={g} ms={lastDone.ms} notes={lastDone.notes} />;
   if (w.stage <= 1 && userFixtureToday(g)) return <PreMatch g={g} />;

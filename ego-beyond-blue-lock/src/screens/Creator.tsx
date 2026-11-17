@@ -13,6 +13,7 @@ import { Avatar, HAIR_COLS, LOOK_OPTIONS, Bar, Chip, Ovr, Tabs, Modal } from '..
 import { LEAGUES } from '../engine/data/clubs';
 import { skipNel } from '../engine/sim';
 import { defaultLook } from '../engine/career';
+import { CharacterPicker, CharacterCard, allCharacters } from '../ui/CharacterPicker';
 
 const STEPS: [string, string][] = [['id', '1 Identity'], ['team', '2 Team & Start'], ['body', '3 Body & Position'], ['look', '4 Appearance'], ['mind', '5 Ego'], ['ovr', '6 Rating'], ['attr', '7 Attributes'], ['ab', '8 Abilities'], ['rules', '9 Rules']];
 const natList = Object.values(NATIONS).sort((a, b) => a.name.localeCompare(b.name));
@@ -81,6 +82,7 @@ export function Creator() {
   const [locked, setLocked] = useState<number[]>([]);
   const [building, setBuilding] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [picking, setPicking] = useState(false);
   const up = (p: Partial<CareerConfig>) => setCfg((c) => ({ ...c, ...p }));
   const balanced = cfg.settings.mode === 'balanced';
   const cur = calcOvr(cfg.attrs, cfg.pos);
@@ -113,6 +115,23 @@ export function Creator() {
         <span className="row gap6"><Ovr v={cur} /><span className="small muted hide-s">{cfg.name || 'Unnamed'} · {cfg.pos} · {NATIONS[cfg.nat]?.name}</span></span>
         <button className="btn pri" disabled={starting} onClick={start}>{starting ? 'Building world…' : 'Start Career'}</button></div>
       <div className="page" style={{ maxWidth: 1180 }}>
+        {/* the quick way in: pick a Blue Lock character instead of building a player */}
+        {(() => { const sel = cfg.playAs ? allCharacters().find((c) => c.row.name === cfg.playAs) : undefined; return (
+          <section className={`card mb charbanner ${sel ? 'hot' : ''}`}>
+            {sel ? <div className="row wrap" style={{ gap: 16 }}>
+              <CharacterCard c={sel} on big />
+              <div className="col grow" style={{ gap: 8 }}>
+                <h2>You are {sel.row.name}</h2>
+                <p className="small muted" style={{ margin: 0 }}>{sel.row.pos} · {sel.row.ovr} OVR (potential {sel.row.pot}) · age {sel.row.age} · {NATIONS[sel.row.nat]?.name} · starts at {NEL_TEAMS.find((t) => t.id === sel.team)?.name} in the Neo Egoist League. His own attributes, weapons and ultimate are used — the other creator tabs are skipped.</p>
+                <div className="row wrap gap6"><button className="btn pri big" disabled={starting} onClick={start}>{starting ? 'Building world…' : `▶ Start as ${sel.row.sn}`}</button><button className="btn" onClick={() => setPicking(true)}>Change character</button><button className="btn ghost" onClick={() => up({ playAs: undefined })}>Create my own player instead</button></div>
+              </div>
+            </div> : <div className="row wrap between" style={{ gap: 12 }}>
+              <div className="row gap6">{['Yoichi Isagi', 'Rin Itoshi', 'Seishiro Nagi', 'Meguru Bachira', 'Michael Kaiser'].map((n) => { const c = allCharacters().find((x) => x.row.name === n); return c ? <div key={n} className="charmini"><CharacterCard c={c} onPick={() => up({ playAs: c.row.name, nelTeam: c.team, name: c.row.name })} /></div> : null; })}</div>
+              <div className="col" style={{ gap: 6, maxWidth: 360 }}><h3>Play as a Blue Lock character</h3><span className="small muted">Skip the creator and live Isagi's, Rin's or anyone else's career. Tap a face, or browse them all.</span><button className="btn pri" onClick={() => setPicking(true)}>Browse all characters</button></div>
+            </div>}
+          </section>); })()}
+        {picking && <CharacterPicker value={cfg.playAs} onClose={() => setPicking(false)} onPick={(c) => { up({ playAs: c.row.name, nelTeam: c.team, name: c.row.name }); setPicking(false); }} />}
+        {!cfg.playAs && <h4 className="mb">…or create your own egoist</h4>}
         <Tabs tabs={STEPS} value={step} onChange={setStep} />
         {step === 'id' && <div className="grid g2">
           <section className="card"><h3>Identity</h3><div className="grid g2">

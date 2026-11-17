@@ -4,6 +4,7 @@
  * relationships) is always preserved across moves.
  * Units: transfer fees / market values in EUR, wages in EUR per week.
  */
+import { managerContracts } from './manager';
 import type { Club, Game, Offer, Player, Pos, SquadRole, Transfer, World } from './types';
 import { ovr, POS_LINE, fitAt } from './attributes';
 import { clamp, mixSeed, Rng } from './rng';
@@ -395,8 +396,9 @@ export function renewalCheck(g: Game): void {
 export function aiTransferDay(g: Game, intensity = 1): number {
   const w = g.world;
   const rng = rngOf(w);
-  const clubs = rng.shuffle(Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league));
-  const pool = Object.values(w.players).filter((p) => p.club && !p.retired && p.id !== g.career.pid && w.clubs[p.club] && !w.clubs[p.club].nel && (p.lastMove ?? -999) < w.abs - 150 && !p.con?.loanFrom);
+const mc = g.mgr?.club ?? '';
+  const clubs = rng.shuffle(Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league && c.id !== mc));
+  const pool = Object.values(w.players).filter((p) => p.club && p.club !== mc && !p.retired && p.id !== g.career.pid && w.clubs[p.club] && !w.clubs[p.club].nel && (p.lastMove ?? -999) < w.abs - 150 && !p.con?.loanFrom);
   let deals = 0;
   for (const c of clubs) {
     if (rng.next() > 0.07 * intensity || c.squad.length >= 29) continue;
@@ -437,7 +439,7 @@ export function aiTransferDay(g: Game, intensity = 1): number {
     if (!p || p.retired || id === g.career.pid) continue;
     if (rng.next() > 0.12) continue;
     const o = ovr(p);
-    const dest = clubs.find((c) => c.squad.length < 26 && Math.abs(levelOf(c) - o) <= 5);
+    const dest = clubs.find((c) => c.id !== g.mgr?.club && c.squad.length < 26 && Math.abs(levelOf(c) - o) <= 5);
     if (dest) { doTransfer(g, p, dest, 0, 'free', { quiet: p.rep < 75 }); p.con!.role = roleAt(g, p, dest); deals++; }
   }
   return deals;
@@ -454,7 +456,7 @@ export function marqueeMoves(g: Game, intensity = 1): number {
   const clubs = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league);
   let deals = 0;
   for (const p of rng.shuffle(Object.values(w.players).filter((q) => q.club && !q.retired && ovr(q) >= 74))) {
-    if (!p.club || p.id === g.career.pid || p.con?.loanFrom) continue;
+    if (!p.club || p.id === g.career.pid || p.con?.loanFrom || p.club === g.mgr?.club) continue;
     const from = w.clubs[p.club];
     if (!from || from.nel || (p.lastMove ?? -999) > w.abs - 300) continue;
     const o = ovr(p), age = w.season - p.born;
@@ -471,7 +473,7 @@ export function marqueeMoves(g: Game, intensity = 1): number {
     const posCount = (c: Club) => c.squad.filter((id) => { const q = w.players[id]; return q && q.pos === p.pos && ovr(q) >= o - 2; }).length;
     const fee0 = marketValue(p, w.season) * (1.25 + rng.next() * 0.55) * (o >= 84 ? 1.6 : o >= 80 ? 1.25 : 1) * (p.origin === 'bluelock' ? 1.2 : 1); // selling clubs drive a hard bargain for stars
     const fee = p.con?.clause && p.con.clause < fee0 * 1.3 ? p.con.clause : fee0;
-    const dests = clubs.filter((c) => c.id !== from.id && c.rep >= from.rep + 1 && levelOf(c) >= o - 6 && c.budget * 1.4 >= fee && c.squad.length < 29 && posCount(c) < 2 && !(o >= 85 && strongCount(w, c) >= 7));
+    const dests = clubs.filter((c) => c.id !== from.id && c.id !== g.mgr?.club && c.rep >= from.rep + 1 && levelOf(c) >= o - 6 && c.budget * 1.4 >= fee && c.squad.length < 29 && posCount(c) < 2 && !(o >= 85 && strongCount(w, c) >= 7));
     if (!dests.length) continue;
     const dest = dests.sort((x, y) => y.rep - x.rep + (rng.next() - 0.5) * 8)[0];
     const f = Math.round(fee / 1e6) * 1e6;
@@ -491,12 +493,12 @@ export function aiLoans(g: Game): void {
   const rng = rngOf(w);
   const clubs = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.league);
   for (const c of clubs) {
-    if (c.rep < 78 || c.squad.length < 24) continue;
+    if (c.rep < 78 || c.squad.length < 24 || c.id === g.mgr?.club) continue;
     const lvl = levelOf(c);
     for (const id of [...c.squad]) {
       const p = w.players[id];
       if (!p || id === g.career.pid || p.pos === 'GK' || p.con?.loanFrom || w.season - p.born > 21 || ovr(p) > lvl - 7 || rng.next() > 0.3 || c.squad.length <= 22) continue;
-      const dest = rng.pick(clubs.filter((x) => x.id !== c.id && x.squad.length < 27 && Math.abs(levelOf(x) - ovr(p)) <= 3));
+      const dest = rng.pick(clubs.filter((x) => x.id !== c.id && x.id !== g.mgr?.club && x.squad.length < 27 && Math.abs(levelOf(x) - ovr(p)) <= 3));
       if (dest) doTransfer(g, p, dest, 0, 'loan', { role: 'rotation', loanFrom: c.id });
     }
   }
@@ -526,11 +528,13 @@ export function contractYearEnd(g: Game): void {
     const c = w.clubs[p.con.club];
     if (!c) { p.con = null; continue; }
     if (id === me) continue; // the user's expiry is handled by offers / free agency
+    if (g.mgr?.club && c.id === g.mgr.club) continue; // the manager decides (see managerContracts)
     const o = ovr(p), ag = w.season - p.born;
     const keep = o >= levelOf(c) - 6 || (ag <= 23 && p.pot >= levelOf(c)) || c.squad.length <= 21;
     if (keep && rng.next() < 0.85) { p.con.until = w.season + 1 + rng.int(3); p.con.wage = wageFor(o, c.rep); }
     else release(g, p);
   }
+  if (g.mgr) managerContracts(g);
   // the user
   const p = w.players[me];
   if (p.con && !p.con.loanFrom && p.con.until <= w.season && p.club) {
@@ -566,7 +570,7 @@ export function managerChanges(g: Game, positions: Record<string, { pos: number;
   const rng = rngOf(w);
   for (const cid in positions) {
     const c = w.clubs[cid];
-    if (!c || c.nel) continue;
+    if (!c || c.nel || (g.mgr && c.id === g.mgr.club)) continue;
     const { pos, relegated } = positions[cid];
     const under = pos - c.expect;
     const tenure = w.season - c.mgr.since;

@@ -204,6 +204,8 @@ export interface Fixture {
   id: string;
   comp: string;
   s: number;
+  /** which part of the year it belongs to: the NEL period or the professional season share a season number */
+  ph?: 'nel' | 'pro';
   rd: number;
   stg?: string;
   grp?: number;
@@ -583,6 +585,29 @@ export interface World {
   coef?: import('./coefficients').CoefState;
 }
 
+/** Manager mode: you run a club instead of playing for one. */
+export interface MgrMatch { fid: string; s: number; day: number; date: string; comp: string; compName: string; opp: string; oppName: string; home: boolean; sc: [number, number]; pens?: [number, number]; res: 'W' | 'D' | 'L'; potm?: string; conf: number }
+export interface MgrOffer { id: number; pid: string; from: string; fee: number; day: number; abs: number; status: 'open' | 'accepted' | 'rejected' | 'expired'; unsolicited?: boolean }
+export interface MgrMsg { id: number; abs: number; date: string; title: string; body: string; kind: 'board' | 'transfer' | 'squad' | 'job' | 'season' }
+export interface MgrDeal { s: number; date: string; pid: string; name: string; from: string; to: string; fee: number; dir: 'in' | 'out' | 'free' | 'release' }
+export interface MgrSeason { s: number; club: string; clubName: string; league: string; pos: number; n: number; obj: number; trophies: string[]; conf: number; w: number; d: number; l: number }
+export interface ManagerState {
+  name: string; nat: string;
+  club: string; since: number; rep: number;
+  /** board confidence 0..100 */
+  conf: number; confLog: { abs: number; v: number }[];
+  budget: number; wageBudget: number;
+  /** the club's yearly allocation when you took the job */
+  base?: number;
+  obj: { pos: number; text: string };
+  sheet: { form: string; xi: string[]; bench: string[] } | null;
+  autoPick: boolean; autoSubs: boolean;
+  listed: string[]; releaseAtEnd: string[];
+  offers: MgrOffer[]; msgs: MgrMsg[]; nextId: number;
+  matches: MgrMatch[]; deals: MgrDeal[]; hist: MgrSeason[]; trophies: { s: number; name: string; club: string }[];
+  sacked: boolean; jobs: string[]; unread: number;
+}
+
 export interface Game {
   schema: number;
   id: string;
@@ -593,4 +618,6 @@ export interface Game {
   world: World;
   career: Career;
   live: unknown | null; // serialised MatchState for an in-progress interactive match
+  /** present in manager mode */
+  mgr?: ManagerState;
 }

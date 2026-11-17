@@ -31,7 +31,13 @@ import { Settings } from './screens/Settings';
 import { TeamSheets } from './screens/TeamSheets';
 import { SocialFeed } from './ui/SocialFeed';
 import { Calendar } from './screens/Calendar';
+import { MgrCreate, MgrHub, MgrSquad, MgrTransfers, MgrMatch, MgrBoard } from './screens/Manager';
 
+const MGR_NAV: [string, string, string][] = [
+  ['mhub', 'Manager Hub', 'hub'], ['mmatch', 'Match Day', 'match'], ['msquad', 'Squad & Tactics', 'squad'], ['mtransfers', 'Transfer Market', 'transfer'], ['mboard', 'Board & Career', 'award'],
+  ['calendar', 'Calendar', 'table'], ['competitions', 'Tables & Fixtures', 'table'], ['sheets', 'Team Sheets', 'squad'], ['stats', 'Statistics', 'stats'], ['awards', 'Awards', 'award'], ['transfers', 'Transfer News', 'transfer'], ['news', 'News', 'news'], ['settings', 'Settings', 'settings'],
+];
+const PLAYER_ONLY = new Set(['hub', 'player', 'weapons', 'training', 'squad', 'relationships', 'match', 'bids', 'nelsummary', 'history', 'hof']);
 const NAV: [string, string, string][] = [
   ['hub', 'Career Hub', 'hub'], ['player', 'Profile', 'player'], ['weapons', 'Weapons', 'weapon'], ['training', 'Training', 'training'], ['squad', 'Squad & Tactics', 'squad'],
   ['relationships', 'Relationships', 'people'], ['match', 'Match Centre', 'match'], ['bids', 'NEL Bids', 'bids'], ['calendar', 'Calendar', 'table'], ['competitions', 'Tables & Fixtures', 'table'], ['sheets', 'Team Sheets', 'squad'], ['stats', 'Statistics', 'stats'],
@@ -43,7 +49,7 @@ export function App() {
   const r = ui.route;
   const [feedOpen, setFeedOpen] = useState(() => { try { return localStorage.getItem('ego:feed') === '1'; } catch { return false; } });
   useEffect(() => { document.body.classList.toggle('rm', !!g?.settings.reduceMotion); }, [g?.settings.reduceMotion]);
-  useEffect(() => { if (!g && r.name !== 'menu' && r.name !== 'create' && r.name !== 'admin' && r.name !== 'sim') nav('menu'); }, [g, r.name]);
+  useEffect(() => { if (!g && r.name !== 'menu' && r.name !== 'create' && r.name !== 'mcreate' && r.name !== 'admin' && r.name !== 'sim') nav('menu'); }, [g, r.name]);
   const overlays = (
     <>
       {ui.busy && <div className="busy" role="status"><div>{ui.busy}</div></div>}
@@ -53,12 +59,34 @@ export function App() {
   );
   if (r.name === 'admin') return <><Admin />{overlays}</>;
   if (r.name === 'sim') return <><MatchSim />{overlays}</>;
+  if (r.name === 'mcreate') return <><MgrCreate />{overlays}</>;
   if (!g || r.name === 'menu' || r.name === 'create') return <>{r.name === 'create' ? <Creator /> : <Menu />}{overlays}</>;
   const w = g.world;
   const me = w.players[g.career.pid];
   const stop = nextStop(g);
+  const M = g.mgr;
   const pend = pendingInteractions(g).length, offers = openOffers(g).length;
   const screen = (() => {
+    if (M) {
+      switch (PLAYER_ONLY.has(r.name) && !(r.name === 'player' && r.id) ? 'mhub' : r.name) {
+        case 'player': return <PlayerScreen g={g} id={r.id!} />;
+        case 'club': return <ClubScreen g={g} id={r.id ?? M.club} />;
+        case 'mmatch': return <MgrMatch g={g} />;
+        case 'msquad': return <MgrSquad g={g} />;
+        case 'mtransfers': return <MgrTransfers g={g} />;
+        case 'mboard': return <MgrBoard g={g} />;
+        case 'competitions': return <Competitions g={g} id={r.id} />;
+        case 'stats': return <Stats g={g} />;
+        case 'awards': return <Awards g={g} />;
+        case 'sheets': return <TeamSheets g={g} />;
+        case 'calendar': return <Calendar g={g} />;
+        case 'transfers': return <Transfers g={g} />;
+        case 'news': return <NewsScreen g={g} />;
+        case 'ceremony': return <Ceremony g={g} />;
+        case 'settings': return <Settings g={g} />;
+        default: return <MgrHub g={g} />;
+      }
+    }
     switch (r.name) {
       case 'player': return <PlayerScreen g={g} id={r.id ?? me.id} />;
       case 'weapons': return <Weapons g={g} />;
@@ -88,11 +116,13 @@ export function App() {
       <aside className={`side ${ui.navOpen ? 'open' : ''}`}>
         <div className="brand"><b>EGO</b><span>Beyond Blue Lock</span></div>
         <nav className="nav" aria-label="Main">
-          {NAV.filter(([id]) => id !== 'bids' || w.nel.round > 0 || w.phase === 'nel').map(([id, label, icon]) => (
+          {(M ? MGR_NAV : NAV.filter(([id]) => id !== 'bids' || w.nel.round > 0 || w.phase === 'nel')).map(([id, label, icon]) => (
             <button key={id} className={r.name === id || (id === 'squad' && r.name === 'club') ? 'on' : ''} onClick={() => nav(id)} aria-current={r.name === id ? 'page' : undefined}>
               <Icon n={icon} />{label}
               {id === 'relationships' && pend > 0 && <span className="pip">{pend}</span>}
-              {id === 'transfers' && offers > 0 && <span className="pip">{offers}</span>}
+              {id === 'mhub' && !!M?.unread && <span className="pip">{M.unread}</span>}
+              {id === 'mtransfers' && !!M && M.offers.some((o) => o.status === 'open') && <span className="pip">{M.offers.filter((o) => o.status === 'open').length}</span>}
+              {id === 'transfers' && !M && offers > 0 && <span className="pip">{offers}</span>}
             </button>
           ))}
           <div className="sep" />
@@ -103,15 +133,16 @@ export function App() {
       <main className="main">
         <div className="topbar">
           <button className="btn sm ghost mobnav" onClick={toggleNav} aria-label="Open menu"><Icon n="menu" /></button>
+          {M ? <button className="link row gap6" onClick={() => nav('mboard')}><span className="chip b">MGR</span><b>{M.name}</b>{M.club && <><ClubBadge g={g} id={M.club} /><span className="muted hide-s">{w.clubs[M.club]?.sn}</span></>}</button> : <>
           <button className="link row gap6" onClick={() => nav('player')}><Ovr v={ovr(me)} size="sm" /><b>{me.name}</b></button>
-          {me.club && <span className="row gap6 hide-s"><ClubBadge g={g} id={me.club} /><span className="muted">{w.clubs[me.club]?.sn}</span></span>}
+          {me.club && <span className="row gap6 hide-s"><ClubBadge g={g} id={me.club} /><span className="muted">{w.clubs[me.club]?.sn}</span></span>}</>}
           {g.edited && <span className="chip w" title="This save has been changed with the sandbox editor.">Edited save</span>}
           <span className="grow" />
-          <button className={`btn sm ${feedOpen ? 'pri' : 'ghost'}`} onClick={() => setFeedOpen((x) => { try { localStorage.setItem('ego:feed', x ? '0' : '1'); } catch { /* storage may be blocked */ } return !x; })} title="Social feed">📱 Feed</button>
+          <button className={`btn sm ${feedOpen ? 'pri' : 'ghost'}`} onClick={() => setFeedOpen((x) => { try { localStorage.setItem('ego:feed', x ? '0' : '1'); } catch { /* storage may be blocked */ } return !x; })} title="Social feed">📱<span className="hide-s"> Feed</span></button>
           <span className="muted small hide-s">{w.phase === 'nel' ? 'Neo Egoist League' : seasonLabel(w.season)} · {fmtDate(w, w.day, true)}</span>
           {ceremonyDue(g) && r.name !== 'ceremony' && <button className="btn pulse" onClick={() => nav('ceremony')}>{galaDue(g) ? "🏆 Ballon d'Or gala" : '🏆 Awards ceremony'}</button>}
           {!g.live && stop.kind !== 'retired' && <select className="simsel" aria-label="Simulate several weeks" value="" onChange={(e) => { const v = +e.target.value; e.target.value = ''; if (v) simWeeks(v); }}><option value="">Sim ahead…</option><option value="1">1 week</option><option value="2">2 weeks</option><option value="4">4 weeks</option><option value="8">8 weeks</option><option value="13">3 months</option><option value="26">Half a season</option><option value="52">A full year</option></select>}
-          {!(g.live && r.name === 'match') && <button className={`btn pri ${stop.kind !== 'none' ? 'pulse' : ''}`} onClick={() => continueGame()} disabled={stop.kind === 'retired'} title={stop.detail}><Icon n="play" s={14} />{stop.label.length > 34 ? stop.label.slice(0, 32) + '…' : stop.label}</button>}
+          {!(g.live && (r.name === 'match' || r.name === 'mmatch')) && <button className={`btn pri ${stop.kind !== 'none' ? 'pulse' : ''}`} onClick={() => continueGame()} disabled={stop.kind === 'retired'} title={stop.detail}><Icon n="play" s={14} />{stop.label.length > 34 ? stop.label.slice(0, 32) + '…' : stop.label}</button>}
         </div>
         <div className="page" key={r.name + (r.id ?? '')}>{screen}</div>
       </main>

@@ -25,10 +25,12 @@ import { spawnWeekly, spawnPreMatch, spawnPostMatch, expireInteractions } from '
 import { setupSummerTournament, breakFriendly } from './international';
 import { addNews, milestone, log, ordinal } from './util';
 import { registerCustom } from './abilities';
+import { managerMorning, managerSeasonEnd, managerNewSeason, finishManagerMatch, applySheet, mgrSide } from './manager';
 
 /** The user's team id in a fixture (club, or nation when called up), or null. */
 export function userSide(g: Game, fx: Fixture): string | null {
   const w = g.world;
+  if (g.mgr) { const c = g.mgr.club; return c && (fx.h === c || fx.a === c) ? c : null; }
   const me = w.players[g.career.pid];
   if (!me || me.retired) return null;
   const comp = w.comps[fx.comp];
@@ -75,15 +77,18 @@ function morning(g: Game): void {
   setInjuryRate(INJURY_RATE[g.settings.injuries] ?? 1);
   setAbilityScale(REALISM[g.settings.realism]?.scale ?? 0.5);
   const uf = userFixtureToday(g);
-  expireInteractions(g); expireOffers(g);
-  dailyRecovery(g);
-  runTraining(g, !!uf);
   const dow = w.day % 7;
-  if (dow === 0) {
-    payWages(g);
-    spawnWeekly(g);
-    if (w.phase === 'pro') { generateUserOffers(g); renewalCheck(g); }
-    ensureUserHasOptions(g);
+  if (g.mgr) managerMorning(g);
+  else {
+    expireInteractions(g); expireOffers(g);
+    dailyRecovery(g);
+    runTraining(g, !!uf);
+    if (dow === 0) {
+      payWages(g);
+      spawnWeekly(g);
+      if (w.phase === 'pro') { generateUserOffers(g); renewalCheck(g); }
+      ensureUserHasOptions(g);
+    }
   }
   if (w.phase === 'pro') {
     for (const e of w.events) {
@@ -92,8 +97,8 @@ function morning(g: Game): void {
       else if (e.key === 'intlbreak') breakFriendly(g);
       else if (e.key === 'midseason') midSeason(g);
     }
-    if (w.day % 28 === 14) { worldDevTick(g); userAgeing(g); }
-    if (w.day === SEASON_END_DAY) endSeason(g);
+    if (w.day % 28 === 14) { worldDevTick(g); if (!g.mgr) userAgeing(g); }
+    if (w.day === SEASON_END_DAY) { endSeason(g); if (g.mgr) managerSeasonEnd(g); }
     if (w.day === BDO_DAY) ballonDorGala(g);
     if (w.day === TOTS_FINAL_DAY - 1) totsCupFinal(g);
     if (w.day === TOTS_FINAL_DAY + 1) totsCupFinish(g);
@@ -103,7 +108,7 @@ function morning(g: Game): void {
     if (w.day === 21) worldDevTick(g);
     if (w.day === NEL_END_DAY) concludeNel(g);
   }
-  if (uf) spawnPreMatch(g, uf);
+  if (uf && !g.mgr) spawnPreMatch(g, uf);
   // every other fixture of the day is simulated with the same engine
   for (const id of [...(w.sched[w.day] ?? [])]) {
     const f = w.fixtures[id];
@@ -143,6 +148,7 @@ function evening(g: Game): void {
 export interface Stop { kind: 'match' | 'club' | 'summary' | 'live' | 'retired' | 'none'; label: string; detail: string }
 export function needsClub(g: Game): boolean {
   const w = g.world;
+  if (g.mgr) return w.phase === 'pro' && !g.mgr.club && !!g.mgr.sacked;
   const me = w.players[g.career.pid];
   if (me.retired) return false;
   if (w.phase === 'nel') return w.day >= PROLOGUE_END_DAY - 1 && w.stage === 2 && (!me.club || !!w.clubs[me.club]?.nel);
@@ -153,6 +159,14 @@ export function needsClub(g: Game): boolean {
 /** What the career hub should present as the next meaningful action. */
 export function nextStop(g: Game): Stop {
   const w = g.world;
+  if (g.mgr) {
+    if (g.live) return { kind: 'live', label: 'Resume match', detail: 'A match is in progress.' };
+    if (!g.mgr.club) return { kind: 'club', label: 'Choose your next job', detail: 'You are out of work. Pick one of the clubs that want you.' };
+    const uf = w.stage <= 1 ? userFixtureToday(g) : null;
+    if (uf) { const side = userSide(g, uf)!; const opp = uf.h === side ? uf.a : uf.h; return { kind: 'match', label: `Match day: ${teamName(w, side)} v ${teamName(w, opp)}`, detail: `${w.comps[uf.comp]?.name ?? ''}${uf.stg ? ' · ' + uf.stg : ` · Round ${uf.rd}`}` }; }
+    const nf = nextUserFixture(g);
+    return { kind: 'none', label: 'Continue', detail: nf ? `Next match: ${fmtDate(w, nf.day, true)} — ${teamName(w, nf.h)} v ${teamName(w, nf.a)}` : 'No fixtures scheduled yet.' };
+  }
   const me = w.players[g.career.pid];
   if (me.retired) return { kind: 'retired', label: 'Career over', detail: 'You have retired. Your history remains browsable.' };
   if (g.live) return { kind: 'live', label: 'Resume match', detail: 'An interactive match is in progress.' };
@@ -179,7 +193,7 @@ export function step(g: Game): Stop['kind'] | null {
   if (needsClub(g)) { ensureUserHasOptions(g); return 'club'; }
   // move to the next day
   if (w.phase === 'nel' && w.day >= PROLOGUE_END_DAY) { startPro(g); w.abs++; return null; }
-  if (w.phase === 'pro' && w.day >= SEASON_DAYS - 1) { rollover(g); w.abs++; return null; }
+  if (w.phase === 'pro' && w.day >= SEASON_DAYS - 1) { rollover(g); if (g.mgr) managerNewSeason(g); w.abs++; return null; }
   w.day++; w.abs++; w.stage = 0;
   void me;
   return null;
@@ -221,7 +235,9 @@ export function startUserMatch(g: Game, mode: 'full' | 'key' | 'sim'): MatchStat
   setInjuryRate(INJURY_RATE[g.settings.injuries] ?? 1);
   setAbilityScale(REALISM[g.settings.realism]?.scale ?? 0.5);
   registerCustom(g.career.custom);
+  if (g.mgr) applySheet(g);
   const ms = createMatch(g, fx, mode);
+  if (g.mgr) { const t = mgrSide(g, ms); if (t >= 0) { ms.mgrT = t; ms.mgrAuto = mode === 'sim' || g.mgr.autoSubs; } if (mode !== 'sim') ms.verb = 2; }
   const sel = (ms as MatchState & { sel?: Game['career']['lastSel'] }).sel;
   if (sel) g.career.lastSel = { ...sel, fid: fx.id } as Game['career']['lastSel'];
   g.live = ms;
@@ -230,6 +246,7 @@ export function startUserMatch(g: Game, mode: 'full' | 'key' | 'sim'): MatchStat
 
 /** Apply a finished user match to the world and the career. Safe to call twice. */
 export function finishUserMatch(g: Game, ms: MatchState): string[] {
+  if (g.mgr) return finishManagerMatch(g, ms);
   const w = g.world;
   const c = g.career;
   const fx = w.fixtures[ms.fid];

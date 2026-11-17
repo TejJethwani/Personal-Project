@@ -94,6 +94,10 @@ export const LOOKS: Record<string, L> = {
 /** The portrait for a player: hand-made where one exists, generated otherwise. */
 export function lookOf(p: Pick<Player, 'id' | 'name'>): Appearance {
   const o = LOOKS[p.name];
-  return o ? { ...lookFor(p.id), ...o } : lookFor(p.id);
+  if (!o) return lookFor(p.id);
+  // a hand-made portrait: anything it does not specify is plain (no random beard, scar, blush, streak or accessory),
+  // so a character never turns up with a stranger's goatee
+  const base = lookFor(p.id);
+  return { ...base, beard: 0, mark: 0, cheek: 0, hair2: 0, acc: 0, nose: 0, ears: 0, eyeSize: 0, fringe: 0, brows: 0, eyes: 0, mouth: 0, face: 0, ...o };
 }
 export const hasLook = (name: string) => !!LOOKS[name];

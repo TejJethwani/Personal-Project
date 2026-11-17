@@ -71,6 +71,13 @@ function ev(x: number, y: number): number {
   return v;
 }
 
+/** Defenders beyond a back four (a back five, or a wing-back dropping in): 0 for a back four, 1 for a back five. */
+function backExtra(ms: MatchState, t: number): number {
+  const on = ms.teams[t].on; let n = 0;
+  for (let k = 0; k < on.length; k++) if (ms.pl[on[k]].line === 1) n++;
+  return Math.max(0, Math.min(1.5, n - 4));
+}
+
 /** A deterministic 0–0.3 jitter per player and step, to break exact ties between mirror-image team-mates. */
 function tieJit(ms: MatchState, i: number): number { return (((i + 1) * 2654435761 + ms.steps * 40503) >>> 0) % 1000 * 3e-4; }
 
@@ -470,8 +477,8 @@ function manageSubs(ms: MatchState, rng: Rng): void {
       const late = ms.rules.kind === 'nel' ? (ms.play >= 1500 || Math.max(ms.score[0], ms.score[1]) >= ms.rules.goalTarget - 1) : ms.clock >= 4080;
       if (me.t === t && !me.used && !me.on && me.inj <= 0 && late && T.bench.includes(ms.uc.idx)) { ms.uc.cameo = 0; bringOnUser(ms, t); }
     }
-    // tactical substitutions
-    if (T.subs < ms.rules.subs && T.bench.length && (ms.rules.kind === 'nel' ? ms.play : ms.clock) >= T.nextSub) {
+    // tactical substitutions (a human manager makes his own, unless he handed them to the assistant)
+    if (!(ms.mgrT === t && !ms.mgrAuto) && T.subs < ms.rules.subs && T.bench.length && (ms.rules.kind === 'nel' ? ms.play : ms.clock) >= T.nextSub) {
       T.nextSub += ms.rules.kind === 'nel' ? 560 : 520;
       let off = -1, worst = 1e9;
       for (let k = 0; k < T.on.length; k++) {
@@ -492,6 +499,20 @@ function manageSubs(ms: MatchState, rng: Rng): void {
       }
     }
   }
+}
+/** Manager mode: the user makes a substitution. Returns an error message, or '' when it was made. */
+export function managerSub(ms: MatchState, t: number, offI: number, onI: number): string {
+  const T = ms.teams[t];
+  if (ms.done) return 'The match is over.';
+  if (T.subs >= ms.rules.subs) return 'No substitutions left.';
+  if (T.on.indexOf(offI) < 0) return 'That player is not on the pitch.';
+  if (T.bench.indexOf(onI) < 0 || ms.pl[onI].used) return 'That player cannot come on.';
+  if (ms.pl[onI].inj > 0) return 'That player is injured.';
+  if ((ms.pl[offI].line === 0) !== (ms.pl[onI].pos === 'GK')) return ms.pl[offI].line === 0 ? 'Only a goalkeeper can replace the goalkeeper.' : 'A goalkeeper can only come on for the goalkeeper.';
+  T.subs++;
+  emit(ms, 'sub', t, onI, offI, 0, say(ms, 'sub', ms.pl[onI].nm, ms.pl[offI].nm, T.name), 2);
+  swap(ms, t, offI, onI, false);
+  return '';
 }
 /** Swap the user in for the most tired / worst-performing team-mate in a similar role. */
 function bringOnUser(ms: MatchState, t: number): boolean {
@@ -704,7 +725,7 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   if (tax > 66 && !mate.open && kind !== 'cutback') l -= ((tax - 66) / 34) * 1.5; // congestion around the box
   { // a deep, compact block crowds the box: balls into it are harder against a low line (and easier against a high one)
     const DL = ms.teams[1 - c.t].tac.line;
-    if (tax > 70) l -= (0.5 - DL) * (kind === 'through' ? 0.5 : 1.1);
+    if (tax > 70) l -= (0.5 - DL) * (kind === 'through' ? 0.5 : 1.1) + backExtra(ms, 1 - c.t) * (kind === 'through' ? 0.35 : 0.5);
   }
   const free = mate.open && lr.r < 0.35;
   if (tax > 74) l -= Math.min(2, mate.mk * 1.2 + mate.s[S.SH] * 0.12 + mate.s[S.G] * 0.7) * (free ? 0.45 : 1); // a man who keeps scoring is marked tighter
@@ -1242,7 +1263,7 @@ function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id
   }
   const header = v === 'header';
   const sk = shotSk(ms, c, v.startsWith('dag') ? 'volley' : v);
-  const compact = Math.max(0, 0.5 - ms.teams[1 - t].tac.line); // bodies behind the ball: a low block blocks more shots
+  const compact = Math.max(0, 0.5 - ms.teams[1 - t].tac.line) + backExtra(ms, 1 - t) * 0.5; // bodies behind the ball: a low block or a back five blocks more shots
   const pBlock = ult === 'zero' || v === 'fk' || ult === 'comet' ? 0.02 : header ? 0.04 + compact * 0.1 : clamp(0.05 + ms.press * 0.3 + (s.d > 18 ? 0.08 : 0) + compact * (s.d > 18 ? 0.4 : 0.22), 0, 0.55);
   const pOff = clamp(0.44 - (sk - 65) / 110 + (s.d - 12) / 80 + ms.press * 0.1 + (v === 'power' ? 0.08 : 0), 0.12, 0.8);
   const r = rng.next();

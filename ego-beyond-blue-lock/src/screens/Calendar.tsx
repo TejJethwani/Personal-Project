@@ -24,7 +24,7 @@ export function Calendar({ g }: { g: Game }) {
   const today = dateOf(w.phase, w.season, w.day);
   const [ym, setYm] = useState<[number, number]>([today.getUTCFullYear(), today.getUTCMonth()]);
   const [sel, setSel] = useState(w.day);
-  const fx = useMemo(() => { const m: Record<number, Fixture> = {}; for (const id in w.fixtures) { const f = w.fixtures[id]; if (f.s === w.season && userSide(g, f)) m[f.day] = f; } return m; }, [w.day, w.season]);
+  const fx = useMemo(() => { const m: Record<number, Fixture> = {}; for (const id in w.fixtures) { const f = w.fixtures[id]; if (f.s === w.season && (f.ph ?? 'pro') === w.phase && userSide(g, f)) m[f.day] = f; } return m; }, [w.day, w.season]);
   const windowAt = (d: number) => (pro ? d < WINDOWS.summerEnd || (d >= WINDOWS.winterStart && d < WINDOWS.winterEnd) || d >= WINDOWS.summerStart : d >= 35);
   // the big dates of the season: ceremonies, windows, finals, breaks and tournaments
   const events = useMemo(() => {
@@ -37,8 +37,8 @@ export function Calendar({ g }: { g: Game }) {
       for (const e of w.events) add(e.day, e.key === 'intlbreak' ? 'International break' : e.key === 'midseason' ? 'Mid-season review' : e.key === 'market' ? 'Transfer market busy' : e.key);
     } else add(35, 'NEL bids & window');
     const seenFinal = new Set<string>();
-    for (const id in w.fixtures) { const f = w.fixtures[id]; if (f.s !== w.season || f.stg !== 'Final' || seenFinal.has(f.comp)) continue; seenFinal.add(f.comp); add(f.day, `${w.comps[f.comp]?.name ?? 'Cup'} final`); }
-    for (const id in w.comps) { const c = w.comps[id]; if (c.kind !== 'league' || c.tier !== 1) continue; const fs = Object.values(w.fixtures).filter((f) => f.comp === id && f.s === w.season); if (fs.length) add(Math.max(...fs.map((f) => f.day)), `${c.sn} final day`); }
+    for (const id in w.fixtures) { const f = w.fixtures[id]; if (f.s !== w.season || (f.ph ?? 'pro') !== w.phase || f.stg !== 'Final' || seenFinal.has(f.comp)) continue; seenFinal.add(f.comp); add(f.day, `${w.comps[f.comp]?.name ?? 'Cup'} final`); }
+    for (const id in w.comps) { const c = w.comps[id]; if (c.kind !== 'league' || c.tier !== 1) continue; const fs = Object.values(w.fixtures).filter((f) => f.comp === id && f.s === w.season && (f.ph ?? 'pro') === w.phase); if (fs.length) add(Math.max(...fs.map((f) => f.day)), `${c.sn} final day`); }
     return ev;
   }, [w.season, w.phase, Object.keys(w.fixtures).length]);
   // the month grid, Monday first

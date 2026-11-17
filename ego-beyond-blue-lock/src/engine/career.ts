@@ -86,7 +86,7 @@ export function validateConfig(c: CareerConfig): string[] {
   return e;
 }
 
-function baseCareer(cfg: CareerConfig, w: World, p: Player, o: number): Career {
+export function baseCareer(cfg: CareerConfig, w: World, p: Player, o: number): Career {
   return {
     pid: p.id, look: cfg.look, egoType: cfg.egoType, philosophy: cfg.philosophy, personality: cfg.personality, backstory: cfg.backstory,
     mgrTrust: 50, discipline: 65, image: 0,

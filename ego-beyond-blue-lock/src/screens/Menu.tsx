@@ -37,11 +37,11 @@ export function Menu() {
   const reload = () => listSaves().then(setSaves).catch(() => setSaves([]));
   useEffect(() => { reload(); }, []);
   const load = async (slot: string) => {
-    try { setGame(await loadGame(slot)); nav('hub'); } catch (e) { toast((e as Error).message, true); }
+    try { const lg = await loadGame(slot); setGame(lg); nav(lg.mgr ? 'mhub' : 'hub'); } catch (e) { toast((e as Error).message, true); }
   };
   const onImport = async (f: File | undefined) => {
     if (!f) return;
-    try { const game = importSave(await f.text()); await saveGame(game, 'auto'); setGame(game); toast('Save imported.'); nav('hub'); }
+    try { const game = importSave(await f.text()); await saveGame(game, 'auto'); setGame(game); toast('Save imported.'); nav(game.mgr ? 'mhub' : 'hub'); }
     catch (e) { toast((e as Error).message, true); }
     if (file.current) file.current.value = '';
   };
@@ -55,7 +55,8 @@ export function Menu() {
         </div>
         <div className="row wrap mb">
           <button className="btn pri big" onClick={() => nav('create')}>New Career</button>
-          {g && <button className="btn big" onClick={() => nav('hub')}>Resume current</button>}
+          <button className="btn pri big" onClick={() => nav('mcreate')}>New Manager Career</button>
+          {g && <button className="btn big" onClick={() => nav(g.mgr ? 'mhub' : 'hub')}>Resume current</button>}
           <button className="btn big" onClick={() => nav('sim')}>Match simulator</button>
           <button className="btn" onClick={() => file.current?.click()}>Import save (.json)</button>
           <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => onImport(e.target.files?.[0])} aria-label="Import save file" />
@@ -67,7 +68,7 @@ export function Menu() {
             <div className="col gap6">{saves.map((s) => (
               <div key={s.slot} className="row wrap" style={{ borderBottom: '1px solid var(--line)', padding: '8px 0' }}>
                 <Ovr v={s.summary.ovr} size="sm" />
-                <div className="grow"><b>{s.summary.name}</b> <span className="muted">· {s.summary.pos} · age {s.summary.age} · {s.summary.club}</span><div className="tiny dim">{isAdmin() && <b>{s.owner ?? 'guest'} · </b>}{s.label} · {s.summary.season} · {new Date(s.updated).toLocaleString()}</div></div>
+                <div className="grow"><b>{s.summary.name}</b> <span className="muted">{s.summary.pos === 'MGR' ? `· ${s.summary.club}` : `· ${s.summary.pos} · age ${s.summary.age} · ${s.summary.club}`}</span><div className="tiny dim">{isAdmin() && <b>{s.owner ?? 'guest'} · </b>}{s.label} · {s.summary.season} · {new Date(s.updated).toLocaleString()}</div></div>
                 <Chip k={s.kind === 'auto' ? 'b' : ''}>{s.kind === 'auto' ? 'Autosave' : 'Manual'}</Chip>
                 {s.summary.edited && <Chip k="w">Edited</Chip>}
                 <button className="btn sm pri" onClick={() => load(s.slot)}>Load</button>

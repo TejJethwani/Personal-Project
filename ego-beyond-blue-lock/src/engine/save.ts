@@ -3,6 +3,7 @@
  * JSON export/import. Corrupt or foreign files are rejected with a readable reason
  * instead of crashing the game.
  */
+import { tagFixturePhases } from './competitions';
 import type { Game } from './types';
 import { SCHEMA_VERSION } from './types';
 import { ovr, N_ATTR } from './attributes';
@@ -11,6 +12,7 @@ import { seasonLabel } from './competitions';
 
 export interface SaveSummary { name: string; ovr: number; pos: string; club: string; season: string; phase: string; edited: boolean; age: number }
 export function summarize(g: Game): SaveSummary {
+  if (g.mgr) { const c = g.mgr.club ? g.world.clubs[g.mgr.club] : null; return { name: g.mgr.name, ovr: Math.round(g.mgr.rep), pos: 'MGR', club: c ? `Manager · ${c.name}` : 'Manager · out of work', season: seasonLabel(g.world.season), phase: g.world.phase, edited: g.edited, age: 0 }; }
   const p = g.world.players[g.career.pid];
   const club = p.club ? g.world.clubs[p.club]?.name ?? '—' : p.retired ? 'Retired' : 'Free agent';
   return { name: p.name, ovr: ovr(p), pos: p.pos, club, season: g.world.phase === 'nel' ? 'Neo Egoist League' : seasonLabel(g.world.season), phase: g.world.phase, edited: g.edited, age: g.world.season - p.born };
@@ -27,6 +29,7 @@ export function migrate(raw: Record<string, any>): Game {
   if (!Number.isInteger(v) || v < 1) throw new Error('This file has no valid schema version.');
   if (v > SCHEMA_VERSION) throw new Error(`This save was made with a newer version of the game (schema ${v}; this build understands up to ${SCHEMA_VERSION}).`);
   while (v < SCHEMA_VERSION) { const m = MIGRATIONS[v]; if (m) m(raw); v++; raw.schema = v; }
+  if (raw.world?.fixtures) tagFixturePhases(raw.world);
   return raw as Game;
 }
 
