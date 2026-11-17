@@ -67,26 +67,30 @@ export function addFixture(w: World, f: Omit<Fixture, 'id' | 'played' | 's'>): F
   return fx;
 }
 
-/** Circle-method round robin. Returns rounds of [home, away] pairs; odd team counts give one team a rest each round. */
+/**
+ * Circle-method round robin. Returns rounds of [home, away] pairs; odd team counts give one team a rest each round.
+ * Home and away alternate: in every pairing, home goes to the side that was away last time (then to the side with
+ * fewer home games), so nobody plays long runs at home or on the road. The second half mirrors the first.
+ */
 export function roundRobin(teams: string[], double: boolean, rng: Rng): [string, string][][] {
   const list = rng.shuffle([...teams]);
   if (list.length % 2) list.push('');
   const n = list.length;
-  const rounds: [string, string][][] = [];
+  const pairs: [string, string][][] = [];
   for (let r = 0; r < n - 1; r++) {
     const rd: [string, string][] = [];
-    for (let i = 0; i < n / 2; i++) {
-      const a = list[i], b = list[n - 1 - i];
-      if (!a || !b) continue;
-      rd.push((r + i) % 2 === 0 ? [a, b] : [b, a]);
-    }
-    rounds.push(rd);
+    for (let i = 0; i < n / 2; i++) { const a = list[i], b = list[n - 1 - i]; if (a && b) rd.push([a, b]); }
+    pairs.push(rd);
     list.splice(1, 0, list.pop()!);
   }
-  if (double) {
-    const second = rounds.map((rd) => rd.map(([a, b]) => [b, a] as [string, string]));
-    return [...rounds, ...rng.shuffle(second)];
-  }
+  const homes: Record<string, number> = {}, last: Record<string, number> = {}, run: Record<string, number> = {};
+  const want = (t: string) => (last[t] === -1 ? 2 + (run[t] ?? 0) : last[t] === 1 ? -2 - (run[t] ?? 0) : 0) - (homes[t] ?? 0) * 0.1;
+  const rounds = pairs.map((rd) => rd.map(([a, b]) => {
+    const [h, aw] = want(a) >= want(b) ? [a, b] : [b, a];
+    for (const [t, v] of [[h, 1], [aw, -1]] as const) { run[t] = last[t] === v ? (run[t] ?? 0) + 1 : 1; last[t] = v; if (v === 1) homes[t] = (homes[t] ?? 0) + 1; }
+    return [h, aw] as [string, string];
+  }));
+  if (double) return [...rounds, ...rounds.map((rd) => rd.map(([a, b]) => [b, a] as [string, string]))];
   return rounds;
 }
 
