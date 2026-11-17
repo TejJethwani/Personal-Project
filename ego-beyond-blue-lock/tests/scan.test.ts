@@ -56,7 +56,7 @@ test('interactive matches keep a consistent state', () => {
       for (const p of ms.pl) { for (const v of p.s) if (!(v >= 0) || !Number.isFinite(v)) { note('negative / NaN stat'); break; } if (p.s[S.G] > p.s[S.SH]) note('goals > shots'); if (p.s[S.PC] > p.s[S.PA]) note('passes completed > attempted'); if (p.s[S.RATN] && !(p.s[S.RAT] >= 3 && p.s[S.RAT] <= 10)) note('rating out of range'); if (p.used && p.s[S.APP] !== 1) note('used without appearance'); }
       const gs = [0, 1].map((t) => ms.pl.filter((p) => p.t === t).reduce((x, p) => x + p.s[S.G], 0)); const og = ms.goals.filter((x) => x[4] === 2).length;
       if (gs[0] + gs[1] + og !== ms.score[0] + ms.score[1]) note('player goals != score');
-      if (me.used) { userGames++; if (me.ab.some((a) => a.id.includes('zero') || a.id.includes('genesis') || a.id.includes('trance'))) { ultMatches++; if (sawUlt) ultOffered++; } }
+      if (me.used) { userGames++; if (me.s[S.SEC] >= 30 * 60 && me.ab.some((a) => a.id.includes('zero') || a.id.includes('genesis') || a.id.includes('trance'))) { ultMatches++; if (sawUlt) ultOffered++; } }
       finishUserMatch(g, ms);
       if (g.live) note('live not cleared');
     }

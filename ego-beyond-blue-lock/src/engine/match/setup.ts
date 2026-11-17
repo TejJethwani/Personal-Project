@@ -110,7 +110,7 @@ function markedCreator(p: Player): number {
   let a = 0, ap = 0;
   for (const k in p.ss) { a += p.ss[k][S.A]; ap += p.ss[k][S.APP]; }
   if (ap < 4) return 0;
-  return clamp((a / ap - 0.3) * 3, 0, 1.6);
+  return clamp((a / ap - 0.2) * 3.6, 0, 2.2);
 }
 function mkPlayer(w: World, p: Player, t: 0 | 1, slot: { pos: Pos; x: number; y: number } | null, mult: number, scale: number): MPlayer {
   const cond = mult * (0.9 + 0.1 * (p.fit / 100)) * (1 + (p.form - 6.6) * 0.006 + (p.morale - 60) * 0.0004) * (0.97 + 0.03 * (p.sharp / 100));
@@ -186,7 +186,7 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
     const info = infos[t];
     const sheet = pickSheet(userTeam === t ? g : null, w, info, rotate, rules.kind === 'nel' ? 12 : 9);
     if (userTeam === t) sel = sheet.userScore;
-    const mult = t === 0 && !fx.neutral ? 1.015 : 1;
+    const mult = t === 0 && !fx.neutral ? 1.035 : 1;
     const on: number[] = [], bench: number[] = [];
     for (const s of sheet.xi) {
       const mp = mkPlayer(w, w.players[s.pid], t as 0 | 1, s, mult, scale);
@@ -250,6 +250,20 @@ export function createMatch(g: Game, fx: Fixture, mode: 'full' | 'key' | 'sim' =
   }
   for (const p of pl) if (p.t === 1) p.by = 100 - p.by; // mirror the away formation across the pitch
   const seed = mixSeed(w.seed, fx.id, attempt);
+  // match-day form: some days a side just clicks and some days it does not (roughly normal, sd ~3.5%, capped at ±8%).
+  // It keeps the better side favourite but lets draws and upsets happen as often as they do in real football.
+  for (let t = 0; t < 2; t++) {
+    let h = (mixSeed(seed, 'day', t) >>> 0) || 1, sum = 0;
+    for (let k = 0; k < 4; k++) { h = (Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0; sum += (h % 10000) / 10000; }
+    (teams[t] as MTeam).day = 1 + Math.max(-0.08, Math.min(0.08, (sum - 2) * 0.06));
+  }
+  // underdogs raise their game: the weaker starting XI gets a lift that grows with the gap (and tops out), so a
+  // title side drops points now and then instead of winning almost everything
+  {
+    const xiOvr = (t: number) => { const xs = pl.filter((q) => q.t === t && q.on && q.line > 0); return xs.length ? xs.reduce((x, q) => x + q.ovr, 0) / xs.length : 70; };
+    const o0 = xiOvr(0), o1 = xiOvr(1), gap = Math.abs(o0 - o1), weak = o0 < o1 ? 0 : 1;
+    if (gap > 1) (teams[weak] as MTeam).day = ((teams[weak] as MTeam).day ?? 1) + Math.min(0.09, (gap - 1) * 0.009);
+  }
   let agg: [number, number] | null = null;
   if (fx.leg === 2 && fx.tie) {
     const first = Object.values(w.fixtures).find((f) => f.tie === fx.tie && f.leg === 1 && f.played);

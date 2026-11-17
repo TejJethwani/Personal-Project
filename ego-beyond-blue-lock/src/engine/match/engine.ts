@@ -36,7 +36,7 @@ function fat(ms: MatchState, p: MPlayer): number {
 function at(ms: MatchState, p: MPlayer, i: number): number {
   let v = p.a[i];
   if (p.flEnd > ms.play && p.boost.indexOf(i) >= 0) v += FLOW.boost;
-  return v * fat(ms, p);
+  return v * fat(ms, p) * (ms.teams[p.t].day ?? 1);
 }
 const passSk = (ms: MatchState, p: MPlayer, long: boolean) => (long ? at(ms, p, A.LPA) * 0.6 + at(ms, p, A.VIS) * 0.25 + at(ms, p, A.SPA) * 0.15 : at(ms, p, A.SPA) * 0.6 + at(ms, p, A.VIS) * 0.2 + at(ms, p, A.BCO) * 0.1 + at(ms, p, A.DEC) * 0.1);
 const drbSk = (ms: MatchState, p: MPlayer) => at(ms, p, A.DRI) * 0.45 + at(ms, p, A.AGI) * 0.15 + at(ms, p, A.BCO) * 0.15 + at(ms, p, A.ACC) * 0.15 + at(ms, p, A.BAL) * 0.1;
@@ -702,6 +702,10 @@ function passCalc(ms: MatchState, c: MPlayer, mate: MPlayer, kind: string, tx: n
   if (tax < cax0 - 3) l += 0.6;
   else if (tax > cax0 + 8) l -= (tax - cax0 - 8) * 0.03; // the further forward, the harder the pass
   if (tax > 66 && !mate.open && kind !== 'cutback') l -= ((tax - 66) / 34) * 1.5; // congestion around the box
+  { // a deep, compact block crowds the box: balls into it are harder against a low line (and easier against a high one)
+    const DL = ms.teams[1 - c.t].tac.line;
+    if (tax > 70) l -= (0.5 - DL) * (kind === 'through' ? 0.5 : 1.1);
+  }
   const free = mate.open && lr.r < 0.35;
   if (tax > 74) l -= Math.min(2, mate.mk * 1.2 + mate.s[S.SH] * 0.12 + mate.s[S.G] * 0.7) * (free ? 0.45 : 1); // a man who keeps scoring is marked tighter
   if (free) l += kind === 'through' ? 0.35 : 0.7; // a free man with a clear lane is a simple ball
@@ -887,7 +891,7 @@ function buildOptions(ms: MatchState, c: MPlayer, full: boolean): Option[] {
     if (kind === 'pass') u += pc.p * widthPull(T.tac.width, cy, ty, tax);
     // a creator who has already carved the defence open gets watched: his next final ball into the box is closed down
     if (tax > 76) {
-      u -= (c.s[S.KP] * 0.022 + c.s[S.A] * 0.05 + c.mka * 0.03) * pc.p;
+      u -= (c.s[S.KP] * 0.022 + c.s[S.A] * 0.05 + c.mka * 0.055) * pc.p;
       // a deep midfielder threading a simple ball into the box is rarer than wide play and No. 10s
       if (kind === 'pass' && (c.pos === 'CM' || c.pos === 'DM' || c.line <= 1)) u -= 0.02 * pc.p;
     }
@@ -1238,7 +1242,8 @@ function resolveShot0(ms: MatchState, rng: Rng, c: MPlayer, v: string, act: { id
   }
   const header = v === 'header';
   const sk = shotSk(ms, c, v.startsWith('dag') ? 'volley' : v);
-  const pBlock = ult === 'zero' || v === 'fk' || ult === 'comet' ? 0.02 : header ? 0.04 : clamp(0.05 + ms.press * 0.3 + (s.d > 18 ? 0.08 : 0), 0, 0.5);
+  const compact = Math.max(0, 0.5 - ms.teams[1 - t].tac.line); // bodies behind the ball: a low block blocks more shots
+  const pBlock = ult === 'zero' || v === 'fk' || ult === 'comet' ? 0.02 : header ? 0.04 + compact * 0.1 : clamp(0.05 + ms.press * 0.3 + (s.d > 18 ? 0.08 : 0) + compact * (s.d > 18 ? 0.4 : 0.22), 0, 0.55);
   const pOff = clamp(0.44 - (sk - 65) / 110 + (s.d - 12) / 80 + ms.press * 0.1 + (v === 'power' ? 0.08 : 0), 0.12, 0.8);
   const r = rng.next();
   if (r < pBlock && nd) {

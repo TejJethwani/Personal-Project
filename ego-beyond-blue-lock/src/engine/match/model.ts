@@ -63,6 +63,8 @@ export interface MTeam {
   fam: number; // familiarity with the user's weapons 0..1
   nextSub: number;
   red: number;
+  /** how well the side is playing today: a small multiplier on every attribute (about 0.95–1.05) */
+  day?: number;
 }
 
 export interface MEvent {
