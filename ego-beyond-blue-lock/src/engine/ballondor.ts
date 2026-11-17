@@ -10,11 +10,12 @@
  * the share of top-level games, few poor ones, the average level, availability, and big knockout nights.
  */
 import { ordinal } from './util';
-import type { Award, AwardNom, Game, Player } from './types';
+import type { Award, AwardNom, Game, Player, World } from './types';
 import { S, newLine, addLine } from './match/model';
 import { POS_LINE } from './attributes';
 import { NATIONS, NAME_POOLS, nationName } from './data/nations';
 import { LEAGUES } from './data/clubs';
+import { leagueWeight } from './coefficients';
 import { dayOf, seasonLabel } from './competitions';
 import { teamName } from './match/setup';
 import { giveAward, bestXI, type Cand } from './awards';
@@ -38,14 +39,15 @@ export interface BdoVote { j: string; out: string; nat: string; picks: string[] 
 
 /** Where it was done: a goal in the Champions League or at a World Cup is worth far more than one in a domestic cup tie. */
 const COMP_W: Record<string, number> = { ucl: 1.5, uel: 1.05, wc: 1.6, euro: 1.4, copa: 1.35, afcon: 1.1, asian: 1.05, gold: 1.0 };
-const LEAGUE_W: Record<string, number> = { eng1: 1, esp1: 1, ger1: 0.96, ita1: 0.96, fra1: 0.9, ned1: 0.72, por1: 0.74, eng2: 0.5, eng3: 0.35 };
-const TOP5 = ['eng1', 'esp1', 'ger1', 'ita1', 'fra1'];
+/** League weights come from the coefficient ranking (src/engine/coefficients.ts): the better a league does in Europe, the more its football counts. */
+const LEAGUE_IDS = new Set(LEAGUES.map((l) => l.id));
 const CUPS = new Set(LEAGUES.map((l) => l.cup));
 /** What winning each competition adds to a Ballon d'Or case. */
-function trophyPts(cid: string): number {
+function trophyPts(w: World, cid: string): number {
   // the big ones decide Ballon d'Ors: a World Cup or a Champions League is worth a whole season of goals
   if (cid === 'wc') return 95; if (cid === 'ucl') return 85; if (cid === 'euro' || cid === 'copa') return 60;
-  if (TOP5.includes(cid)) return 34; if (LEAGUE_W[cid]) return 14; if (cid === 'uel') return 26;
+  // a league title is worth 34 in the strongest league and less the further down the coefficient ranking it is
+  if (LEAGUE_IDS.has(cid)) return Math.round(14 + 20 * Math.min(1, Math.max(0, (leagueWeight(w, cid) - 0.7) / 0.28))); if (cid === 'uel') return 26;
   if (cid === 'afcon' || cid === 'asian' || cid === 'gold') return 26; if (CUPS.has(cid)) return 10; return 0;
 }
 /** Diminishing returns: past an elite level, more of the same impresses voters less and less. */
@@ -63,7 +65,7 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     for (const cid in p.ss) {
       const comp = w.comps[cid], l = p.ss[cid];
       if (!l[S.APP] || cid === 'nel' || comp?.u20 || comp?.kind === 'friendly' || cid === 'intlf') continue;
-      const wt = COMP_W[cid] ?? LEAGUE_W[cid] ?? (CUPS.has(cid) ? 0.6 : comp?.kind === 'intl' ? 1.1 : 0.5);
+      const wt = COMP_W[cid] ?? (LEAGUE_IDS.has(cid) ? leagueWeight(w, cid) : undefined) ?? (CUPS.has(cid) ? 0.6 : comp?.kind === 'intl' ? 1.1 : 0.5);
       gW += l[S.G] * wt; aW += l[S.A] * wt; addLine(line, l); any = true; wApps += l[S.APP] * Math.min(1.2, wt); nApps += l[S.APP];
       if (comp?.kind === 'intl' && l[S.APP]) intl = comp.name;
     }
@@ -72,8 +74,8 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     // trophies: the club he finished the season with, and his country in a summer tournament
     const trophies: string[] = []; let tPts = 0;
     const cl = w.clubs[club];
-    if (cl) for (const t of cl.trophies) if (t.s === s && (p.ss[t.comp]?.[S.APP] ?? 0) > 0) { const v = trophyPts(t.comp); if (v) { trophies.push(w.comps[t.comp]?.name ?? t.name); tPts += v; } }
-    for (const cid in p.ss) { const comp = w.comps[cid]; if (comp?.kind === 'intl' && !comp.u20 && (p.ss[cid][S.APP] ?? 0) > 0 && comp.hist.some((h) => h.s === s && h.champion === p.nat)) { trophies.push(comp.name); tPts += trophyPts(cid) || 14; } }
+    if (cl) for (const t of cl.trophies) if (t.s === s && (p.ss[t.comp]?.[S.APP] ?? 0) > 0) { const v = trophyPts(w, t.comp); if (v) { trophies.push(w.comps[t.comp]?.name ?? t.name); tPts += v; } }
+    for (const cid in p.ss) { const comp = w.comps[cid]; if (comp?.kind === 'intl' && !comp.u20 && (p.ss[cid][S.APP] ?? 0) > 0 && comp.hist.some((h) => h.s === s && h.champion === p.nat)) { trophies.push(comp.name); tPts += trophyPts(w, cid) || 14; } }
     const rat = line[S.RAT] / line[S.RATN], ln = POS_LINE[p.pos], n = line[S.RATN];
     // output, weighted by where it came: goals and assists both count, a defender's goal and a keeper's clean sheet more
     const sGoals = gW * (ln === 3 ? 3.2 : ln === 2 ? 3.6 : 4.6) + aW * (ln === 3 ? 2.6 : 3.0) + (ln <= 1 ? line[S.CS] * (ln === 0 ? 2.6 : 1.4) : 0) + (ln === 0 ? line[S.SV] * 0.12 : 0);
@@ -164,7 +166,7 @@ export function ballonDorGala(g: Game): string[] {
   const scorers = [...rows].sort((a, b) => b.g - a.g || b.a - a.a);
   if (scorers.length) give({ id: `muller:bdo:${s}`, type: 'muller', title: 'Gerd Müller Trophy', winner: nomOf(scorers[0], `${scorers[0].g} goals for club and country`, scorers[0].g), noms: scorers.slice(0, 8).map((r) => nomOf(r, `${r.g} goals for club and country`, r.g)), why: 'Most goals for club and country over the whole season, summer tournament included.', mode: 'rank' });
   { // club and coach of the year: what the season's trophies were worth
-    const cl = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant).map((c) => ({ c, t: c.trophies.filter((t) => t.s === s), sc: c.trophies.filter((t) => t.s === s).reduce((x, t) => x + trophyPts(t.comp), 0) + c.rep * 0.05 })).filter((x) => x.t.length).sort((a, b) => b.sc - a.sc);
+    const cl = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant).map((c) => ({ c, t: c.trophies.filter((t) => t.s === s), sc: c.trophies.filter((t) => t.s === s).reduce((x, t) => x + trophyPts(w, t.comp), 0) + c.rep * 0.05 })).filter((x) => x.t.length).sort((a, b) => b.sc - a.sc);
     if (cl.length) {
       const ln = (x: (typeof cl)[number]) => x.t.map((t) => w.comps[t.comp]?.name ?? t.name).join(', ');
       give({ id: `bdo_club:bdo:${s}`, type: 'bdo_club', title: 'Club of the Year', winner: { pid: '', name: cl[0].c.name, club: cl[0].c.id, clubName: cl[0].c.name, line: ln(cl[0]), score: Math.round(cl[0].sc) }, noms: cl.slice(0, 5).map((x) => ({ pid: '', name: x.c.name, club: x.c.id, clubName: x.c.name, line: ln(x), score: Math.round(x.sc) })), why: 'The club whose season was worth the most silverware.', mode: 'vote' });

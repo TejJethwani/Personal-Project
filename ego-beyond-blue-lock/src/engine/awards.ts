@@ -3,6 +3,7 @@
  * is position-aware, stores nominees with the statistics behind the decision, and affects
  * reputation only — never attributes.
  */
+import { leagueWeight, topFive } from './coefficients';
 import { ordinal } from './util';
 import type { Award, AwardNom, AwardType, AwardXI, Competition, Game, Player, Pos } from './types';
 import { POS_LINE, ovr } from './attributes';
@@ -256,7 +257,7 @@ export function nelFinalAwards(g: Game): string[] {
   return ids;
 }
 
-const LEAGUE_WEIGHT: Record<string, number> = { eng1: 1, esp1: 0.98, ger1: 0.94, ita1: 0.95, fra1: 0.9, ned1: 0.78, por1: 0.8, eng2: 0.6, eng3: 0.45, ucl: 1.25, uel: 0.85 };
+const CONT_WEIGHT: Record<string, number> = { ucl: 1.25, uel: 0.85 };
 /** Every player's all-competition form this season, weighted by competition strength (the Ballon d'Or ranking). */
 export function worldCands(g: Game, minRated = 15): Cand[] {
   const w = g.world;
@@ -268,7 +269,7 @@ export function worldCands(g: Game, minRated = 15): Cand[] {
       const comp = w.comps[cid];
       const l = p.ss[cid];
       if (!l[S.RATN] || cid === 'nel' || comp?.u20 || comp?.kind === 'friendly') continue;
-      const wt = LEAGUE_WEIGHT[cid] ?? (comp?.kind === 'intl' ? 1.3 : comp?.kind === 'cup' ? 0.7 : 0.6);
+      const wt = CONT_WEIGHT[cid] ?? (comp?.kind === 'league' ? leagueWeight(w, cid) : undefined) ?? (comp?.kind === 'intl' ? 1.3 : comp?.kind === 'cup' ? 0.7 : 0.6);
       score += perfScore(l, p.pos) * wt;
       line ??= newLine();
       addLine(line, l);
@@ -328,7 +329,7 @@ export function worldAwards(g: Game): string[] {
     const shoe: (Cand & { pts: number; g: number; lg: string })[] = [];
     for (const id in w.players) {
       const p = w.players[id];
-      for (const cid in p.ss) { const comp = w.comps[cid]; if (comp?.kind !== 'league' || !p.ss[cid][S.G]) continue; const k = (LEAGUE_WEIGHT[cid] ?? 0.5) >= 0.9 ? 2 : (LEAGUE_WEIGHT[cid] ?? 0.5) >= 0.75 ? 1.5 : 1; shoe.push({ p, club: p.club ?? '', score: p.ss[cid][S.G] * k, rat: 0, line: p.ss[cid], pts: p.ss[cid][S.G] * k, g: p.ss[cid][S.G], lg: comp.sn }); }
+      for (const cid in p.ss) { const comp = w.comps[cid]; if (comp?.kind !== 'league' || !p.ss[cid][S.G]) continue; const k = topFive(w).includes(cid) ? 2 : comp.tier === 1 ? 1.5 : 1; shoe.push({ p, club: p.club ?? '', score: p.ss[cid][S.G] * k, rat: 0, line: p.ss[cid], pts: p.ss[cid][S.G] * k, g: p.ss[cid][S.G], lg: comp.sn }); }
     }
     shoe.sort((a, b) => b.pts - a.pts || a.line[S.SEC] - b.line[S.SEC]);
     withLine('European Golden Shoe', 'golden_shoe', shoe, (c) => { const x = c as (typeof shoe)[number]; return `${x.g} league goals (${x.lg}) = ${x.pts} points`; }, 'League goals multiplied by the league coefficient (×2 top five leagues, ×1.5 next tier, ×1 others).');

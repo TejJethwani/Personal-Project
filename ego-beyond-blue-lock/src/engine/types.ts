@@ -579,6 +579,8 @@ export interface World {
   /** the Team of the Season Cup, one per season */
   totsCup?: import('./teamsheets').TotsCup[];
   totsLive?: import('./teamsheets').TotsLive;
+  /** league coefficients: points per European season */
+  coef?: import('./coefficients').CoefState;
 }
 
 export interface Game {

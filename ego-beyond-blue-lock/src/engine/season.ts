@@ -13,6 +13,7 @@ import { winnerId } from './match/setup';
 import { addNews, milestone, ordinal, log } from './util';
 import { compSeasonAwards, worldAwards, tournamentAwards, pruneAwards, seasonLines } from './awards';
 import { rememberSeasonClubs, bdoSnapshot } from './ballondor';
+import { uclSlots, uelSlots, updateCoefficients, coefRanking } from './coefficients';
 import { archiveSheets, setupTotsCup, totsCupFinish } from './teamsheets';
 import { archiveStats, contractYearEnd, managerChanges, ensureSquads, aiLoans, buildOffer, levelOf } from './transfers';
 import { yearlyDevelopment, pruneRetired } from './development';
@@ -20,8 +21,6 @@ import { scheduleBreakFriendlies, finishTournament } from './international';
 import { relOf } from './relationships';
 
 /** 36-club Champions League and 24-club Europa League, both with a single-table league phase. */
-const UCL_SLOTS: Record<string, number> = { eng1: 6, esp1: 6, ger1: 5, ita1: 5, fra1: 5, ned1: 4, por1: 5 };
-const UEL_SLOTS: Record<string, number> = { eng1: 4, esp1: 4, ger1: 4, ita1: 4, fra1: 3, ned1: 3, por1: 2 };
 const CONT_SIZE: Record<string, number> = { ucl: 36, uel: 24 };
 export const SUPPORTED = 'England (Premier League, Championship, League One — connected by promotion and relegation), Spain (La Liga), Germany (Bundesliga), Italy (Serie A), France (Ligue 1), the Netherlands (Eredivisie) and Portugal (Primeira Liga), each with a domestic cup; the Champions League (36 clubs) and Europa League (24 clubs) with a league phase, knockout play-off and two-legged knockouts; World Cups, continental championships and U-20 tournaments.';
 
@@ -49,10 +48,11 @@ export function setupSeason(g: Game): void {
     const ranked = [...clubs].sort((a, b) => clubStrength(w, b) + b.rep * 0.15 - (clubStrength(w, a) + a.rep * 0.15));
     ranked.forEach((cl, i) => { cl.expect = i + 1; cl.tier = L.tier; });
     (cupTeams[L.cup] ??= []).push(...clubs.map((x) => x.id));
-    if (firstQual && UCL_SLOTS[L.id]) {
+    if (firstQual && uclSlots(w, L.id)) {
       const byRep = [...clubs].sort((a, b) => b.rep - a.rep);
-      qual.ucl.push(...byRep.slice(0, UCL_SLOTS[L.id]).map((x) => x.id));
-      qual.uel.push(...byRep.slice(UCL_SLOTS[L.id], UCL_SLOTS[L.id] + UEL_SLOTS[L.id]).map((x) => x.id));
+      const u1 = uclSlots(w, L.id), u2 = uelSlots(w, L.id);
+      qual.ucl.push(...byRep.slice(0, u1).map((x) => x.id));
+      qual.uel.push(...byRep.slice(u1, u1 + u2).map((x) => x.id));
     }
   }
   for (const L of LEAGUES) {
@@ -137,6 +137,9 @@ export function endSeason(g: Game): void {
   const awardIds: string[] = [];
   const moves: string[] = [];
   const qual: Record<string, string[]> = { ucl: [], uel: [] };
+  // this season's European results go into the coefficients, and the new ranking decides next season's places
+  updateCoefficients(w);
+  const slotsNext = { ucl: Object.fromEntries(coefRanking(w).map((x) => [x.lg, x.ucl])), uel: Object.fromEntries(coefRanking(w).map((x) => [x.lg, x.uel])) } as Record<'ucl' | 'uel', Record<string, number>>;
   for (const L of LEAGUES) {
     const c = w.comps[L.id];
     if (!c) continue;
@@ -158,7 +161,8 @@ export function endSeason(g: Game): void {
       cl.rep = clamp(cl.rep + (cl.expect - (i + 1)) * 0.12 + (i === 0 ? 0.8 : 0) - (down.includes(r.id) ? 1.2 : 0) + (up.includes(r.id) ? 1.5 : 0), 40, 96);
     });
     if (tab[0]) champs.push({ comp: L.id, compName: L.name, club: tab[0].id, clubName: tab[0].name });
-    if (UCL_SLOTS[L.id]) { qual.ucl.push(...tab.slice(0, UCL_SLOTS[L.id]).map((r) => r.id)); qual.uel.push(...tab.slice(UCL_SLOTS[L.id], UCL_SLOTS[L.id] + UEL_SLOTS[L.id]).map((r) => r.id)); }
+    const u1 = slotsNext.ucl[L.id] ?? 0, u2 = slotsNext.uel[L.id] ?? 0;
+    if (u1) { qual.ucl.push(...tab.slice(0, u1).map((r) => r.id)); qual.uel.push(...tab.slice(u1, u1 + u2).map((r) => r.id)); }
     awardIds.push(...compSeasonAwards(g, c));
     // records from the season's stat lines
     for (const cd of seasonLines(g, L.id)) {
