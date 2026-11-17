@@ -10,7 +10,7 @@ import { ovr, POS_LINE } from './attributes';
 import { clamp, hashStr } from './rng';
 import { rngOf, genPlayer } from './worldgen';
 import { NATIONS } from './data/nations';
-import { mkComp, scheduleGroups, addFixture, dayOf, END, BREAK_WEEKS, seasonLabel, tableOf, compFixtures } from './competitions';
+import { mkComp, scheduleGroups, addFixture, dayOf, END, BREAK_WEEKS, seasonLabel, tableOf, compFixtures, SUMMER_TOURNAMENT_DAY } from './competitions';
 import { addNews, milestone } from './util';
 import { relOf } from './relationships';
 import { winnerId } from './match/setup';
@@ -235,7 +235,7 @@ export function setupSummerTournament(g: Game): boolean {
   const w = g.world;
   const year = w.season + 1;
   const me = w.players[g.career.pid];
-  const d0 = dayOf(46, 1);
+  const d0 = SUMMER_TOURNAMENT_DAY;
   const defs = tournamentsFor(year);
   const senior = byNation(g, 99), young = byNation(g, 21);
   const busy = new Set<string>();

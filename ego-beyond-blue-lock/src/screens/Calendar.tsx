@@ -1,7 +1,8 @@
 /** The season calendar: a month grid of your fixtures and results, key dates, and the transfer window. */
 import { useMemo, useState } from 'react';
 import type { Fixture, Game } from '../engine/types';
-import { dateOf, seasonLabel, WINDOWS, SEASON_END_DAY, SEASON_DAYS } from '../engine/competitions';
+import { dateOf, seasonLabel, WINDOWS, SEASON_END_DAY, SEASON_DAYS, SUMMER_TOURNAMENT_DAY } from '../engine/competitions';
+import { simToDay } from '../ui/flow';
 import { userSide } from '../engine/sim';
 import { teamName } from '../engine/match/setup';
 import { BDO_DAY } from '../engine/ballondor';
@@ -23,7 +24,21 @@ export function Calendar({ g }: { g: Game }) {
   const [sel, setSel] = useState(w.day);
   const fx = useMemo(() => { const m: Record<number, Fixture> = {}; for (const id in w.fixtures) { const f = w.fixtures[id]; if (f.s === w.season && userSide(g, f)) m[f.day] = f; } return m; }, [w.day, w.season]);
   const windowAt = (d: number) => (pro ? d < WINDOWS.summerEnd || (d >= WINDOWS.winterStart && d < WINDOWS.winterEnd) || d >= WINDOWS.summerStart : d >= 35);
-  const events: Record<number, string> = pro ? { [SEASON_END_DAY]: 'Season awards', [BDO_DAY]: "Ballon d'Or gala", [WINDOWS.summerEnd]: 'Window closes', [WINDOWS.winterStart]: 'Window opens', [WINDOWS.winterEnd]: 'Window closes', [WINDOWS.summerStart]: 'Window opens', [TOTS_RR_DAYS[0]]: 'TOTS Cup starts', [TOTS_FINAL_DAY]: 'TOTS Cup final' } : {};
+  // the big dates of the season: ceremonies, windows, finals, breaks and tournaments
+  const events = useMemo(() => {
+    const ev: Record<number, string[]> = {};
+    const add = (d: number, t: string) => { if (d >= 0 && d <= last) (ev[d] ??= []).push(t); };
+    if (pro) {
+      add(SEASON_END_DAY, '🏆 End-of-season awards'); add(BDO_DAY, "🌟 Ballon d'Or gala");
+      add(WINDOWS.summerEnd, 'Transfer window closes'); add(WINDOWS.winterStart, 'January window opens'); add(WINDOWS.winterEnd, 'Deadline day'); add(WINDOWS.summerStart, 'Summer window opens');
+      add(TOTS_RR_DAYS[0], 'TOTS Cup begins'); add(TOTS_FINAL_DAY, 'TOTS Cup final'); add(SUMMER_TOURNAMENT_DAY, '🌍 Summer tournament begins'); add(last, 'New season');
+      for (const e of w.events) add(e.day, e.key === 'intlbreak' ? 'International break' : e.key === 'midseason' ? 'Mid-season review' : e.key === 'market' ? 'Transfer market busy' : e.key);
+    } else add(35, 'NEL bids & window');
+    const seenFinal = new Set<string>();
+    for (const id in w.fixtures) { const f = w.fixtures[id]; if (f.s !== w.season || f.stg !== 'Final' || seenFinal.has(f.comp)) continue; seenFinal.add(f.comp); add(f.day, `${w.comps[f.comp]?.name ?? 'Cup'} final`); }
+    for (const id in w.comps) { const c = w.comps[id]; if (c.kind !== 'league' || c.tier !== 1) continue; const fs = Object.values(w.fixtures).filter((f) => f.comp === id && f.s === w.season); if (fs.length) add(Math.max(...fs.map((f) => f.day)), `${c.sn} final day`); }
+    return ev;
+  }, [w.season, w.phase, Object.keys(w.fixtures).length]);
   // the month grid, Monday first
   const first = new Date(Date.UTC(ym[0], ym[1], 1));
   const offset = (first.getUTCDay() + 6) % 7;
@@ -50,7 +65,13 @@ export function Calendar({ g }: { g: Game }) {
             <div className="small muted">{w.comps[sf.comp]?.name}{sf.stg && sf.stg !== 'Group' ? ` · ${sf.stg}` : ''}</div>
             <div className="cal-vs"><ClubBadge g={g} id={userSide(g, sf)!} lg /><span>{res(sf)?.s ?? 'v'}</span><ClubBadge g={g} id={opp(sf)} lg /></div>
             <b>{teamName(w, opp(sf))}</b><span className="small muted">{sf.neutral ? 'Neutral venue' : sf.h === userSide(g, sf) ? 'Home' : 'Away'}</span>
-          </> : events[sel] ? <b className="gold">{events[sel]}</b> : <span className="small muted">No match.</span>}
+          </> : <span className="small muted">No match for you.</span>}
+          {(events[sel] ?? []).map((t) => <b key={t} className="gold small">{t}</b>)}
+          {sel > w.day && !g.live && <div className="col gap4" style={{ width: '100%', marginTop: 6 }}>
+            <button className="btn pri" onClick={() => simToDay(sel)}>⏩ Sim to {selDate.getUTCDate()} {MONTHS[selDate.getUTCMonth()].slice(0, 3)}</button>
+            <span className="tiny muted">Your matches on the way are simulated; it stops early for anything that needs you (a ceremony, a contract, choosing a club).</span>
+          </div>}
+          {next && next.day > w.day && <button className="btn sm" onClick={() => simToDay(next.day - 1)}>Advance to the eve of my next match</button>}
           <hr />
           {me.club && <div className="row gap6"><ClubBadge g={g} id={me.club} lg /><b>{w.clubs[me.club]?.name}</b></div>}
           {next && <p className="small">Next: <b>{teamName(w, opp(next))}</b> ({w.comps[next.comp]?.name}) — {next.day === w.day ? 'today' : `in ${next.day - w.day} day${next.day - w.day > 1 ? 's' : ''}`}</p>}
@@ -68,7 +89,7 @@ export function Calendar({ g }: { g: Game }) {
                 <button key={d.toISOString()} className={cls} style={f ? { background: `linear-gradient(160deg, ${KIND_COL[kind] ?? '#475569'}cc, ${KIND_COL[kind] ?? '#475569'}55)` } : undefined} onClick={() => setSel(day)} disabled={day < 0 || day > last}>
                   <span className="n">{d.getUTCDate()}</span>
                   {f && <><span className="c"><ClubBadge g={g} id={opp(f)} /></span><span className="t">{f.neutral ? 'Neutral' : f.h === userSide(g, f) ? 'Home' : 'Away'}<br />{w.comps[f.comp]?.sn ?? ''}</span>{r && <span className={`r ${r.r}`}>{r.s}</span>}</>}
-                  {!f && events[day] && <span className="ev">{events[day]}</span>}
+                  {events[day] && <span className={`ev ${f ? 'on' : ''}`} title={events[day].join(' · ')}>{events[day][0]}{events[day].length > 1 ? ` +${events[day].length - 1}` : ''}</span>}
                 </button>
               );
             })}

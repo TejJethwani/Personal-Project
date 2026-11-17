@@ -37,14 +37,15 @@ export function archiveSheets(g: Game): void {
 const TOP = LEAGUES.filter((l) => l.tier === 1);
 const LG_COL: Record<string, [string, string]> = { eng1: ['#3d195b', '#00ff85'], esp1: ['#ee2523', '#ffffff'], ger1: ['#d20515', '#ffffff'], ita1: ['#008fd7', '#ffffff'], fra1: ['#091c3e', '#dae025'], ned1: ['#ff6200', '#ffffff'], por1: ['#00205b', '#ffffff'] };
 
-export const TOTS_RR_DAYS = [341, 342, 343, 344, 345, 346, 347];
-export const TOTS_FINAL_DAY = 349;
+/** Between the end of the club season (day 308) and the summer tournament (day 330): one round every three days, then the final. */
+export const TOTS_RR_DAYS = [309, 312, 315, 318, 321, 324, 327];
+export const TOTS_FINAL_DAY = 329;
 /** The live cup between the end of the club season and the final. */
 export interface TotsLive { s: number; teams: TotsTeam[]; made: string[]; final?: string; allStars?: TotsTeam }
 
 /**
- * The Team of the Season Cup, played as real fixtures after the summer tournament: each top league's Team of
- * the Season plays the others once (one round a day), the table-topper meets the All-Stars of every other league.
+ * The Team of the Season Cup, played as real fixtures between the end of the season and the summer tournament: each top league's Team of
+ * the Season plays the others once (one round every three days), the table-topper meets the All-Stars of every other league.
  * If the user is in one of the sides, his matches are played like any other fixture.
  */
 export function setupTotsCup(g: Game): void {
@@ -69,7 +70,7 @@ export function setupTotsCup(g: Game): void {
   rounds.forEach((r, k) => { for (const [h, a] of r) if (h && a) addFixture(w, { comp: 'totscup', rd: k + 1, day: TOTS_RR_DAYS[Math.min(k, TOTS_RR_DAYS.length - 1)], h, a, neutral: true, stg: 'Group' }); });
   w.totsLive = { s, teams, made };
   const me = g.career.pid, mine = teams.find((t) => w.clubs['tots_' + t.lg].squad.includes(me));
-  addNews(g, 'world', 'The Team of the Season Cup is coming', `${teams.length} Teams of the Season meet once each after the summer; the winners face the All-Stars of every other league.${mine ? ` You are in the ${mine.name} squad.` : ''}`, { imp: 2, me: !!mine });
+  addNews(g, 'world', 'The Team of the Season Cup is coming', `${teams.length} Teams of the Season meet once each before the summer tournament; the winners face the All-Stars of every other league.${mine ? ` You are in the ${mine.name} squad.` : ''}`, { imp: 2, me: !!mine });
 }
 
 /** Live standings of the round robin. */

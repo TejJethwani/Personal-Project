@@ -88,7 +88,7 @@ function LiveCup({ g }: { g: Game }) {
         </tbody></table>
         <div className="small">{fx.map((f) => <div key={f.id} className={`row between ${f.h === mine || f.a === mine ? 'blue' : ''}`} style={{ padding: '2px 0' }}><span className="muted" style={{ width: 70 }}>{f.stg === 'Final' ? 'FINAL' : `Round ${f.rd}`}</span><span>{nm(f.h)}</span><b className="num">{f.played && f.sc ? `${f.sc[0]}–${f.sc[1]}${f.pens ? ` (${f.pens[0]}–${f.pens[1]} p)` : ''}` : 'v'}</b><span>{nm(f.a)}</span></div>)}</div>
       </div>
-      <p className="tiny dim mt">One round a day after the summer tournament; the table-topper plays the All-Stars of every other league in the final.{mine ? ' Your matches are played like any other fixture.' : ''}</p>
+      <p className="tiny dim mt">One round every three days between the end of the season and the summer tournament; the table-topper plays the All-Stars of every other league in the final.{mine ? ' Your matches are played like any other fixture.' : ''}</p>
     </Card>
   );
 }

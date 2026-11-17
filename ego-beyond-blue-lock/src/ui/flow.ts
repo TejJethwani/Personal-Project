@@ -12,15 +12,23 @@ export function galaDue(g: { career: { flags: Record<string, number | string> } 
  * Simulate several weeks in one go. The user's matches are quick-simulated with the same engine.
  * Stops early for anything that needs a decision: choosing a club, the NEL summary, the awards ceremony, retirement.
  */
-export async function simWeeks(weeks: number): Promise<void> {
+/** Simulate up to (and including) a calendar day of the current season. Same stops as simWeeks. */
+export async function simToDay(day: number): Promise<void> {
+  const g = getGame();
+  if (!g) return;
+  const n = day - g.world.day;
+  if (n <= 0) return;
+  return simWeeks(n / 7, 'calendar');
+}
+export async function simWeeks(weeks: number, back = 'hub'): Promise<void> {
   const g = getGame();
   if (!g || running) return;
   if (g.live) { toast('Finish the match in progress first.', true); return nav('match'); }
   running = true;
-  const target = g.world.abs + weeks * 7;
+  const target = g.world.abs + Math.round(weeks * 7);
   let played = 0, wins = 0, goals = 0, why = '';
   try {
-    for (let guard = 0; guard < weeks * 30 + 20; guard++) {
+    for (let guard = 0; guard < Math.ceil(weeks) * 30 + 20; guard++) {
       const x = getGame()!;
       if (x.world.abs >= target) break;
       const st = nextStop(x);
@@ -28,7 +36,7 @@ export async function simWeeks(weeks: number): Promise<void> {
       if (st.kind === 'summary' || st.kind === 'retired' || st.kind === 'live') { why = st.label; break; }
       if (ceremonyDue(x)) { why = galaDue(x) ? "The Ballon d'Or gala is tonight." : 'The awards ceremony is waiting.'; break; }
       { const me2 = x.world.players[x.career.pid]; const ending = me2.con && me2.con.until === x.world.season && x.career.offers.some((o) => o.status === 'open' && o.club === me2.club); if (ending && !x.career.flags['renewSeen:' + x.world.season]) { act((y) => { y.career.flags['renewSeen:' + y.world.season] = 1; }, false); why = 'Your contract ends this season and your club has offered a new one — see Transfers.'; break; } }
-      setBusy(`Simulating — week ${Math.min(weeks, Math.floor((weeks * 7 - (target - x.world.abs)) / 7) + 1)} of ${weeks}`);
+      setBusy(`Simulating — ${target - x.world.abs} day${target - x.world.abs === 1 ? '' : 's'} to go`);
       await new Promise((r) => setTimeout(r, 8));
       if (st.kind === 'match') {
         const n0 = x.career.matches.length;
@@ -53,7 +61,7 @@ export async function simWeeks(weeks: number): Promise<void> {
   else if (st.kind === 'club') nav('transfers');
   else if (st.kind === 'summary') nav('nelsummary');
   else if (st.kind === 'retired') nav('hof');
-  else nav('hub');
+  else nav(back);
 }
 export async function continueGame(maxDays = 7): Promise<void> {
   const g = getGame();

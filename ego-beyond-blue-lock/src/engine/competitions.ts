@@ -15,7 +15,8 @@ export const dayOf = (week: number, dow: number) => (week - 1) * 7 + dow;
 export const weekOf = (day: number) => Math.floor(day / 7) + 1;
 export const SEASON_DAYS = 364;
 export const SEASON_END_DAY = dayOf(45, 0); // season awards / wrap-up
-export const SUMMER_TOURNAMENT_DAY = dayOf(46, 1);
+/** The summer tournament opens two weeks after the season ends, leaving room for the Team of the Season Cup. */
+export const SUMMER_TOURNAMENT_DAY = dayOf(48, 1);
 const END_WEEKS = Array.from({ length: 41 }, (_, i) => i + 2).filter((w) => !BREAK_WEEKS.includes(w)); // 37 weekends
 export const LEAGUE_SLOTS: Record<number, number[]> = {
   38: [...END_WEEKS.map((w) => dayOf(w, END)), dayOf(20, MID)].sort((a, b) => a - b),

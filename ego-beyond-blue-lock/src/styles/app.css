@@ -543,3 +543,5 @@ body.rm .cer-walk, body.rm .cer-handover, body.rm .confetti i { animation: none;
 .cal-cell .c { top: auto; bottom: 22px; right: 4px; transform: none; }
 .cal-cell .t { font-size: 9.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app.with-feed .cal-cell .t { display: none; }
+.cal-cell .ev { font-size: 9.5px; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.cal-cell .ev.on { position: absolute; left: 5px; top: 24px; right: 30px; color: #fff3c9; }
