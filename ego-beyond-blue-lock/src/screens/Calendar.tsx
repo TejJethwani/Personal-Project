@@ -8,7 +8,9 @@ import { teamName } from '../engine/match/setup';
 import { BDO_DAY } from '../engine/ballondor';
 import { TOTS_FINAL_DAY, TOTS_RR_DAYS } from '../engine/teamsheets';
 import { ClubBadge } from '../ui/kit';
-import { nav } from '../store/game';
+import { nav, act, getGame, toast } from '../store/game';
+import { simUserMatch } from '../engine/sim';
+import { S } from '../engine/match/model';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -67,6 +69,11 @@ export function Calendar({ g }: { g: Game }) {
             <b>{teamName(w, opp(sf))}</b><span className="small muted">{sf.neutral ? 'Neutral venue' : sf.h === userSide(g, sf) ? 'Home' : 'Away'}</span>
           </> : <span className="small muted">No match for you.</span>}
           {(events[sel] ?? []).map((t) => <b key={t} className="gold small">{t}</b>)}
+          {sf && !sf.played && sf.day === w.day && !g.live ? <div className="row gap6 wrap" style={{ marginTop: 6 }}>
+            <button className="btn pri" onClick={() => nav('match')}>▶ Play this match</button>
+            <button className="btn" onClick={() => { const n0 = g.career.matches.length; act((x) => simUserMatch(x)); const m = getGame()?.career.matches[n0]; if (m) toast(`${m.res === 'W' ? 'Won' : m.res === 'D' ? 'Drew' : 'Lost'} ${m.sc[0]}–${m.sc[1]} against ${m.oppName}${m.line && m.line[S.G] ? ` · you scored ${m.line[S.G]}` : ''}.`); }}>⏩ Quick sim this match</button>
+          </div> : null}
+          {!!g.live && <button className="btn pri" onClick={() => nav('match')}>Finish the match in progress</button>}
           {sel > w.day && !g.live && <div className="col gap4" style={{ width: '100%', marginTop: 6 }}>
             <button className="btn pri" onClick={() => simToDay(sel)}>⏩ Sim to {selDate.getUTCDate()} {MONTHS[selDate.getUTCMonth()].slice(0, 3)}</button>
             <span className="tiny muted">Your matches on the way are simulated; it stops early for anything that needs you (a ceremony, a contract, choosing a club).</span>

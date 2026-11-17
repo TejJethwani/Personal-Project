@@ -237,6 +237,9 @@ export function setupSummerTournament(g: Game): boolean {
   const me = w.players[g.career.pid];
   const d0 = SUMMER_TOURNAMENT_DAY;
   const defs = tournamentsFor(year);
+  // never set the summer up twice (older saves may already have it running on the previous calendar)
+  if (w.done['summer:' + w.season] || defs.some((d) => w.comps[d.id] && w.comps[d.id].season === w.season && !w.comps[d.id].done && Object.values(w.fixtures).some((f) => f.comp === d.id && f.s === w.season))) return false;
+  w.done['summer:' + w.season] = 1;
   const senior = byNation(g, 99), young = byNation(g, 21);
   const busy = new Set<string>();
   for (const def of defs.filter((d) => !d.u20).concat(defs.filter((d) => d.u20))) {
