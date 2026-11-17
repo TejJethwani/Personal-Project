@@ -16,15 +16,25 @@ export function Settings({ g }: { g: Game }) {
   const [edit, setEdit] = useState<number[] | null>(null);
   const [pot, setPot] = useState(me.pot);
   const set = (p: Partial<Game['settings']>) => act((x) => { Object.assign(x.settings, p); });
-  const doExport = () => {
+  const doExport = async () => {
     const text = exportSave(g);
+    const filename = `ego-${summarize(g).name.replace(/\W+/g, '-').toLowerCase()}-${g.world.season}.json`;
+    // inside the claude.ai viewer, files can only be offered through the downloads capability
+    type DL = { save: (r: { filename: string; data: string }) => Promise<unknown> };
+    const cl = (window as unknown as { claude?: { use?: (n: string) => Promise<DL | null> } }).claude;
+    if (cl?.use) {
+      const dl = await Promise.race([cl.use('downloads'), new Promise<null>((r) => setTimeout(() => r(null), 4000))]).catch(() => null);
+      if (dl) {
+        try { await dl.save({ filename, data: text }); toast('Save exported.'); return; }
+        catch (e) { const code = (e as { code?: string })?.code; if (code === 'declined') { toast('Export cancelled.'); return; } /* otherwise fall back below */ }
+      }
+    }
     try {
       const blob = new Blob([text], { type: 'application/json' });
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = `ego-${summarize(g).name.replace(/\W+/g, '-').toLowerCase()}-${g.world.season}.json`; a.click();
+      a.href = URL.createObjectURL(blob); a.download = filename; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     } catch { /* downloads can be blocked in embedded views */ }
-    // embedded viewers block downloads, so the save is also copied to the clipboard
     navigator.clipboard?.writeText(text).then(() => toast('Save exported (also copied to the clipboard — paste it into a .json file if no download started).'), () => toast('Save exported as a download. If nothing downloaded, this viewer blocks downloads: open the game in a normal browser tab to export.'));
   };
   return (
