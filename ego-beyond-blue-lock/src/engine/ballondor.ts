@@ -59,12 +59,12 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     const p = w.players[id];
     if (p.retired) continue;
     const line = newLine();
-    let gW = 0, aW = 0, any = false, intl = '';
+    let gW = 0, aW = 0, any = false, intl = '', wApps = 0, nApps = 0;
     for (const cid in p.ss) {
       const comp = w.comps[cid], l = p.ss[cid];
       if (!l[S.APP] || cid === 'nel' || comp?.u20 || comp?.kind === 'friendly' || cid === 'intlf') continue;
       const wt = COMP_W[cid] ?? LEAGUE_W[cid] ?? (CUPS.has(cid) ? 0.6 : comp?.kind === 'intl' ? 1.1 : 0.5);
-      gW += l[S.G] * wt; aW += l[S.A] * wt; addLine(line, l); any = true;
+      gW += l[S.G] * wt; aW += l[S.A] * wt; addLine(line, l); any = true; wApps += l[S.APP] * Math.min(1.2, wt); nApps += l[S.APP];
       if (comp?.kind === 'intl' && l[S.APP]) intl = comp.name;
     }
     if (!any || line[S.RATN] < minApps) continue;
@@ -87,12 +87,16 @@ export function bdoRows(g: Game, minApps = 15, clubAt?: Record<string, string>):
     // the big stage: a season without Champions League, Europa League or a major international tournament has
     // never been tested where voters look hardest, however many goals it produced
     const stage = ['ucl', 'uel', 'wc', 'euro', 'copa', 'afcon', 'asian', 'gold'].reduce((x, cid) => x + (p.ss[cid]?.[S.APP] ?? 0) * (cid === 'ucl' || cid === 'wc' ? 1.5 : 1), 0);
-    const stageMul = stage >= 8 ? 1 : stage >= 3 ? 0.9 : stage > 0 ? 0.82 : 0.7;
+    // a group-stage exit is not a big-stage season: only knockout football counts in full
+    const stageMul = (stage >= 3 && bigN >= 2 ? 1 : stage >= 8 ? 0.88 : stage >= 3 ? 0.84 : stage > 0 ? 0.78 : 0.7);
+    // ratings and consistency count for what they were earned against: an 8.5 in the Eredivisie is not an 8.5 in the Premier League
+    const strength = nApps ? wApps / nApps : 0.6;
+    const levelMul = Math.max(0.45, Math.min(1.1, Math.pow(strength, 1.7)));
     // team success: where his club finished in its league
     const lgId = cl?.league ?? '';
     const lpos = (w.comps[lgId]?.hist.find((h) => h.s === s)?.table ?? []).findIndex((r) => r.id === club) + 1;
     const lteam = !lpos ? 0 : lpos === 1 ? 6 : lpos === 2 ? 14 : lpos <= 4 ? 6 : lpos <= 8 ? -4 : -18;
-    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, good: Math.round(good * 100), bigGA, sGoals: soft(sGoals, 160) * stageMul, sTroph: tPts * 1.3 + lteam, sForm: soft(sForm, 150) * stageMul });
+    rows.push({ pid: id, name: p.name, nat: p.nat, pos: p.pos, club, clubName: club ? teamName(w, club) : '—', age: s - p.born, g: line[S.G], a: line[S.A], apps: line[S.APP], rat, cs: line[S.CS], sv: line[S.SV], gW, aW, trophies, tPts, intl, good: Math.round(good * 100), bigGA, sGoals: soft(sGoals, 160) * stageMul, sTroph: tPts * 1.3 + lteam, sForm: soft(sForm, 150) * stageMul * levelMul });
   }
   return rows.sort((a, b) => base(b) - base(a));
 }
