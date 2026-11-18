@@ -52,7 +52,7 @@ ful|Fulham|Fulham|FUL|78|#f5f5f5|#111111|balanced
 lee|Leeds United|Leeds|LEE|76|#f4f4f4|#1d428a|gegenpress
 liv|Liverpool|Liverpool|LIV|92|#c8102e|#00b2a9|gegenpress
 manshine|Manshine City|Manshine City|MSC|92|#6cabdd|#1c2c5b|athletic
-mun|Manchester United|Man United|MUN|86|#da291c|#111111|counter
+mun|Manchester United|Man United|MUN|89|#da291c|#111111|counter
 new|Newcastle United|Newcastle|NEW|85|#202020|#ffffff|gegenpress
 nfo|Nottingham Forest|Nott'm Forest|NFO|80|#dd0000|#ffffff|counter
 sun|Sunderland|Sunderland|SUN|75|#eb172b|#ffffff|balanced

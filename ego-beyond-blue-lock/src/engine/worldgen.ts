@@ -37,7 +37,8 @@ export function genName(rng: Rng, nat: string): string {
 export function marketValue(p: Player, season: number): number {
   const o = ovr(p);
   const ag = season - p.born;
-  let v = 1_000_000 * Math.pow(1.15, o - 60);
+  // exponential in ability, and steeper still among the elite: a 90 is worth far more than twice an 85
+  let v = 1_000_000 * Math.pow(1.15, o - 60) * (o > 80 ? Math.pow(1.06, o - 80) : 1);
   let m = 1;
   if (ag <= 21) m = 1.25 + Math.max(0, p.pot - o) * 0.045;
   else if (ag <= 25) m = 1.15 + Math.max(0, p.pot - o) * 0.02;
@@ -47,6 +48,7 @@ export function marketValue(p: Player, season: number): number {
   if (p.pos === 'GK') v *= 0.7;
   if (p.con && p.con.until <= season) v *= 0.6;
   v *= 0.85 + p.rep / 400;
+  if (v > 160e6) v = 160e6 + (v - 160e6) * 0.5; // even the market has a ceiling
   return Math.max(25_000, Math.round(v / 10_000) * 10_000);
 }
 /** Weekly wage in EUR for a given ability at a club of a given reputation. */

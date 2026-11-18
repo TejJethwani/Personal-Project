@@ -329,13 +329,29 @@ export function generateUserOffers(g: Game): void {
   let chance = 0.1 + perf * 0.012 + (p.rep - 40) * 0.002 + (expiring ? 0.25 : 0) + (wantOut ? 0.3 : 0) + (free ? 0.6 : 0);
   if (p.con && (p.con.role === 'development' || p.con.role === 'prospect')) chance += 0.12;
   if (rng.next() > chance) return;
-  const cands = Object.values(w.clubs).filter((c) => !c.nel && !c.dormant && c.id !== cur?.id && c.league && my >= levelOf(c) - 9 && my <= levelOf(c) + 14);
+  // who comes calling: clubs that would genuinely improve with you, can afford you, and that you would consider.
+  // The best players attract the biggest clubs; a club far below your level (and below your current club) only
+  // calls when you are free, out of contract or have asked to leave.
+  const curRep = cur?.rep ?? 0;
+  const value0 = marketValue(p, w.season);
+  const cands = Object.values(w.clubs).filter((c) => {
+    if (c.nel || c.dormant || c.id === cur?.id || !c.league) return false;
+    const lvl = levelOf(c);
+    if (my < lvl - 9 && !(w.season - p.born <= 21 && p.pot >= lvl)) return false; // not good enough for them (yet)
+    if (!free && !expiring && c.budget * 1.5 + (c.rep >= 88 ? 70e6 : c.rep >= 84 ? 30e6 : 0) < value0 * 0.8) return false; // cannot afford you
+    const stepDown = curRep - c.rep;
+    if (stepDown > 4 && !free && !expiring && !wantOut) return false;              // you would not go
+    if (my - lvl > 14 && !free) return false;                                     // a small club would not even try
+    return true;
+  });
   if (!cands.length) return;
   const scored = cands.map((c) => {
     const lvl = levelOf(c);
     const need = rivalsAt(w, c, p.pos).filter((q) => ovr(q) >= my).length;
-    let s = 50 + perf * 1.5 + (my - lvl) * 3 + (p.pot - my) * (w.season - p.born <= 23 ? 1.2 : 0) - need * 8 + tacticalFit(p, c.style) * 3 + (p.rep - 50) * 0.2 + rng.normal() * 9;
-    if (cur && c.rep < cur.rep - 12 && !wantOut && !expiring) s -= 25;
+    const ucl = (inContinental(w, c.id) || '').includes('Champions') ? 8 : 0;
+    let s = 50 + perf * 1.5 + (c.rep - Math.max(curRep, 60)) * 1.6 + ucl - Math.max(0, my - lvl - 8) * 3 + Math.min(0, my - lvl + 3) * 4
+      + (p.pot - my) * (w.season - p.born <= 23 ? 1.2 : 0) - need * 8 + tacticalFit(p, c.style) * 3 + (p.rep - 50) * 0.2 + rng.normal() * 7;
+    if (free || expiring) s += (c.rep - 70) * 0.3;
     return { c, s };
   }).sort((a, b) => b.s - a.s);
   const pickN = rng.chance(0.3) ? 2 : 1;
@@ -355,11 +371,15 @@ export function generateUserOffers(g: Game): void {
     }
     // under contract: the clubs must agree a fee first
     const value = marketValue(p, w.season);
-    const bid = Math.round((value * (0.85 + rng.next() * 0.5 + s / 400)) / 1e5) * 1e5;
-    const keep = p.con!.role === 'star' ? 1.5 : p.con!.role === 'key' ? 1.25 : p.con!.role === 'rotation' ? 1.0 : 0.85;
+    // a bigger club bids harder for a player it really wants
+    // elite clubs stretch for a marquee signing (selling to fund it); everyone else bids what they can afford
+    const maxPay = c.budget * 1.5 + (c.rep >= 88 ? 70e6 : c.rep >= 84 ? 30e6 : 0);
+    const bid = Math.round(Math.min(maxPay, value * (0.95 + rng.next() * 0.35 + Math.max(0, c.rep - curRep) * 0.012 + s / 500)) / 1e5) * 1e5;
+    if (bid < value * 0.8) continue; // could never get close
+    const keep = p.con!.role === 'star' ? 1.3 : p.con!.role === 'key' ? 1.15 : p.con!.role === 'rotation' ? 1.0 : 0.85;
     const clause = p.con!.clause && bid >= p.con!.clause;
-    const accept = clause || wantOut ? bid >= value * 0.8 : bid >= value * keep;
-    if (c.budget < bid) continue;
+    const accept = clause || wantOut ? bid >= value * 0.85 : bid >= value * keep;
+
     if (accept) {
       g.career.offers.push(buildOffer(g, c, 'transfer', s, { role, fee: clause ? p.con!.clause! : bid, deadline: w.abs + 12, note: clause ? 'Your release clause has been met.' : `${cur!.name} have accepted a bid of ${fmtEur(bid)}.` }));
       addNews(g, 'career', `${cur!.name} accept ${fmtEur(bid)} bid from ${c.name}`, `It is now your decision. Role on offer: ${ROLE_NAME[role]}.`, { imp: 3, me: true, clubs: [c.id] });
