@@ -11,9 +11,12 @@ import { S } from '../engine/match/model';
 import { nav } from '../store/game';
 import { TotwPitch, latestTotw, Paper } from '../ui/Totw';
 import { continueGame } from '../ui/flow';
+import { LongSimModal } from '../ui/LongSim';
+import { useState as useStateLS } from 'react';
 import { Bar, Card, Chip, ClubBadge, ClubLink, Kpi, Ovr, PlayerAvatar, Rating } from '../ui/kit';
 
 export function Hub({ g }: { g: Game }) {
+  const [long, setLong] = useStateLS(false);
   const w = g.world, c = g.career;
   const me = w.players[c.pid];
   const stop = nextStop(g);
@@ -43,6 +46,8 @@ export function Hub({ g }: { g: Game }) {
             <div className="num" style={{ fontSize: 26 }}>{stop.kind === 'none' ? (() => { const nf = nextUserFixture(g); if (!nf) return 'Free week'; const us = userSide(g, nf); const dd = nf.day - w.day; return `${nf.h === us ? 'v' : '@'} ${teamName(w, nf.h === us ? nf.a : nf.h)} · ${dd <= 0 ? 'today' : dd === 1 ? 'tomorrow' : `in ${dd} days`}`; })() : stop.label}</div>
             <div className="small muted mb">{stop.detail}</div>
             <button className="btn pri big pulse" onClick={() => continueGame()} disabled={stop.kind === 'retired'}>{stop.kind === 'match' ? 'Go to match' : stop.kind === 'none' ? 'Continue' : stop.label}</button>
+            {stop.kind !== 'retired' && <div style={{ marginTop: 6 }}><button className="btn sm ghost" onClick={() => setLong(true)}>⏩ Sim several years…</button></div>}
+            {long && <LongSimModal g={g} onClose={() => setLong(false)} />}
           </div>
         </div>
       </div>

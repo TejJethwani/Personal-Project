@@ -100,3 +100,54 @@ export async function continueGame(maxDays = 7): Promise<void> {
   else if (stop === 'club') { toast(g2.mgr ? 'You need a new job to continue.' : 'You must choose a club to continue.'); nav(g2.mgr ? 'mboard' : 'transfers'); }
   else if (getGame()) nav(g2.mgr ? 'mhub' : 'hub');
 }
+
+// ───────────────────────────── several years at once ─────────────────────────────
+import { longSimStart, longSimChunk, longSimReport, type LongSimOpts, type LongSimReport } from '../engine/longsim';
+let cancelReq = false;
+export let longReport: LongSimReport | null = null;
+export const longSimRunning = () => running && longActive;
+let longActive = false;
+export function cancelLongSim(): void { cancelReq = true; }
+export function clearLongReport(): void { longReport = null; refreshUi(); }
+let refreshUi: () => void = () => {};
+export function setLongSimRefresh(f: () => void): void { refreshUi = f; }
+export async function simYears(opts: LongSimOpts): Promise<void> {
+  const g = getGame();
+  if (!g || running) return;
+  if (g.live) { toast('Finish the match in progress first.', true); return nav(g.mgr ? 'mmatch' : 'match'); }
+  running = true; longActive = true; cancelReq = false;
+  const st = longSimStart(g, opts);
+  const t0 = Date.now();
+  let season = g.world.season;
+  try {
+    for (let guard = 0; guard < 400000; guard++) {
+      if (cancelReq) { st.stopped = 'You stopped the simulation.'; break; }
+      const more = act((x) => longSimChunk(x, st), false);
+      if (!more) break;
+      const x = getGame()!;
+      if (x.world.season !== season) { season = x.world.season; autosave(true); }
+      if (guard % 3 === 0) {
+        const done = Math.min(1, (x.world.abs - st.startAbs) / Math.max(1, st.target - 200 - st.startAbs));
+        const el = (Date.now() - t0) / 1000, left = done > 0.02 ? Math.round((el / done) * (1 - done)) : 0;
+        setBusy(`Simulating ${st.opts.years} year${st.opts.years === 1 ? '' : 's'} — ${Math.round(done * 100)}% · now ${fmtLong(x)}${left ? ` · about ${left >= 90 ? Math.round(left / 60) + ' min' : left + ' s'} left` : ''}`);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+  } catch (e) {
+    console.error(e);
+    st.stopped = 'Something went wrong: ' + (e as Error).message;
+  }
+  running = false; longActive = false;
+  setBusy('');
+  autosave(true);
+  const g2 = getGame()!;
+  longReport = longSimReport(g2, st);
+  const ns = nextStop(g2);
+  if (ceremonyDue(g2)) nav('ceremony');
+  else if (ns.kind === 'club') nav(g2.mgr ? 'mboard' : 'transfers');
+  else if (ns.kind === 'retired') nav('hof');
+  else nav(g2.mgr ? 'mhub' : 'hub');
+  refreshUi();
+}
+function fmtLong(g: { world: { phase: 'nel' | 'pro'; season: number; day: number } }): string { return g.world.phase === 'nel' ? 'Neo Egoist League' : `${seasonLabelLong(g.world.season)}`; }
+import { seasonLabel as seasonLabelLong } from '../engine/competitions';

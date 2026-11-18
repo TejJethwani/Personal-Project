@@ -1,4 +1,5 @@
 /** Shared UI primitives: icons, avatar, badges, tables, tabs, modal. All artwork is original SVG/CSS. */
+import { createPortal } from 'react-dom';
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import type { Appearance, Game, Player } from '../engine/types';
 import { ovr } from '../engine/attributes';
@@ -41,8 +42,10 @@ export function Kpi({ label, value, sub, cls = '' }: { label: string; value: Rea
 export function Tabs({ tabs, value, onChange }: { tabs: [string, string][]; value: string; onChange: (v: string) => void }) {
   return <div className="tabs" role="tablist">{tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={value === id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{label}</button>)}</div>;
 }
+/** Pop-ups render at the top of the document, so no styled ancestor (transforms, clip-paths, filters) can trap or clip them. */
 export function Modal({ children, onClose, wide }: { children: ReactNode; onClose?: () => void; wide?: boolean }) {
-  return <div className="modalbg" onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }} role="dialog" aria-modal="true"><div className="modal" style={wide ? { maxWidth: 1000 } : undefined}>{children}</div></div>;
+  const el = <div className="modalbg" onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }} role="dialog" aria-modal="true"><div className="modal" style={wide ? { maxWidth: 1000 } : undefined}>{children}</div></div>;
+  return typeof document !== 'undefined' && document.body ? createPortal(el, document.body) : el;
 }
 export function Empty({ children }: { children: ReactNode }) { return <p className="muted" style={{ padding: '18px 0' }}>{children}</p>; }
 

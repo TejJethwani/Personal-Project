@@ -18,6 +18,7 @@ import { newManagerGame } from '../engine/managerStart';
 import { saveGame } from '../storage/idb';
 import { act, autosave, nav, refresh, setGame, toast, setBusy } from '../store/game';
 import { continueGame } from '../ui/flow';
+import { LongSimModal } from '../ui/LongSim';
 import { LivePitch } from '../ui/LivePitch';
 import { Bar, Card, Chip, ClubBadge, ConfirmButton, Empty, Kpi, Modal, PlayerAvatar, PlayerLink, Rating, Tabs, Ovr } from '../ui/kit';
 import { Scoreboard, StatTable, Ratings } from './Match';
@@ -70,6 +71,7 @@ export function MgrCreate() {
 function ConfBar({ v }: { v: number }) { return <div className="row gap6"><div className="grow"><Bar v={v} kind={v >= 60 ? 'g' : v >= 35 ? 'w' : 'r'} tall /></div><b className="num" style={{ width: 44, textAlign: 'right' }}>{Math.round(v)}%</b></div>; }
 export function MgrHub({ g }: { g: Game }) {
   const m = g.mgr!, w = g.world, c = mgrClub(g);
+  const [long, setLong] = useState(false);
   useEffect(() => { if (m.unread) act((x) => { x.mgr!.unread = 0; }, false); }, []);
   if (!c) return <MgrBoard g={g} />;
   const nf = nextUserFixture(g);
@@ -89,6 +91,8 @@ export function MgrHub({ g }: { g: Game }) {
             <div className="num" style={{ fontSize: 24 }}>{nf ? `${nf.h === c.id ? 'v' : '@'} ${teamName(w, nf.h === c.id ? nf.a : nf.h)} · ${nf.day - w.day <= 0 ? 'today' : nf.day - w.day === 1 ? 'tomorrow' : `in ${nf.day - w.day} days`}` : 'No fixture'}</div>
             <div className="small muted mb">{nf ? w.comps[nf.comp]?.name : ''}</div>
             <button className="btn pri big pulse" onClick={() => continueGame()}>Continue</button>
+            <div style={{ marginTop: 6 }}><button className="btn sm ghost" onClick={() => setLong(true)}>⏩ Sim several years…</button></div>
+            {long && <LongSimModal g={g} onClose={() => setLong(false)} />}
           </div>
         </div>
       </div>
